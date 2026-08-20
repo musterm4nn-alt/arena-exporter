@@ -505,6 +505,12 @@ AE.dom = {};
     return AE.isPlaceholderModel ? AE.isPlaceholderModel(name) : /^(?:response|model)\s*[ab]$/i.test(String(name || "").trim());
   };
 
+  /* A ballot control says "A is better" or "Both are good". Anything longer is
+   * page prose, and normalizeVoteChoice is loose enough to find "both ... good"
+   * or "neither" inside an expanded thinking panel — which is exactly how real
+   * exports ended up with fabricated outcomes. Match short labels only. */
+  var VOTE_LABEL_MAX = 80;
+
   /* Shared by the content-script click handler and Node click tests. */
   AE.dom.voteFromPath = function (path) {
     if (!path || !path.length) return null;
@@ -524,13 +530,17 @@ AE.dom = {};
         });
       }
       labelParts.push(node.value || "");
-      labelParts.push(node.textContent || "");
-      var label = labelParts.join(" ").replace(/\s+/g, " ").trim();
-      var choice = normalizeVoteChoice(label);
-      if (!choice) {
-        var shortText = String(node.textContent || "").replace(/\s+/g, " ").trim();
-        if (shortText.length <= 80) choice = normalizeVoteChoice(shortText);
-        if (choice) label = shortText;
+      var attrLabel = labelParts.join(" ").replace(/\s+/g, " ").trim();
+      var nodeText = String(node.textContent || "").replace(/\s+/g, " ").trim();
+      var label = (attrLabel + " " + nodeText).replace(/\s+/g, " ").trim();
+      var choice = label.length <= VOTE_LABEL_MAX ? normalizeVoteChoice(label) : null;
+      if (!choice && attrLabel && attrLabel.length <= VOTE_LABEL_MAX) {
+        choice = normalizeVoteChoice(attrLabel);
+        if (choice) label = attrLabel;
+      }
+      if (!choice && nodeText && nodeText.length <= VOTE_LABEL_MAX) {
+        choice = normalizeVoteChoice(nodeText);
+        if (choice) label = nodeText;
       }
       if (!choice) continue;
       var shortAB = /^(?:model\s*)?[ab]$/i.test(String(label || "").replace(/\s+/g, " ").trim());

@@ -5,7 +5,13 @@
  * models, vote, and response text, so the wrong tab silently writes wrong data. */
 
 var TURN_SYNC_MS = 750;
+/* Arena reveals model names after the vote, sometimes a beat after the click
+ * lands. One snapshot ~1s later can miss the reveal and archive the battle
+ * anonymous forever, since nothing else triggers a resync. Labels are the
+ * scarcest thing in this dataset, so retry on a backoff until they resolve. */
+var MODELS_PENDING_RETRY_MS = [3000, 8000, 20000];
 var turnSyncTimers = {};
+var pendingRetries = {};
 var autoArchiveEnabled = true;
 
 function scheduleTurnSync(reason, key, tabId) {
@@ -56,6 +62,26 @@ function fetchArenaSnapshot(key, tabId) {
   });
 }
 
+/* True when a battle has been voted on but its models are still unnamed --
+ * i.e. the reveal has not been scraped yet and the sample is unlabeled. */
+function battleLabelsPending(payload) {
+  var battles = (payload && payload.battles) || [];
+  if (!battles.length) return false;
+  var latest = battles[battles.length - 1];
+  var voted = !!(latest.vote_choice || (latest.outcome && latest.outcome !== "pending"));
+  if (!voted) return false;
+  return (latest.contestants || []).some(function (c) { return !c || !c.model; });
+}
+
+function scheduleLabelRetry(key, tabId, reason) {
+  var attempt = pendingRetries[key] || 0;
+  if (attempt >= MODELS_PENDING_RETRY_MS.length) return;
+  pendingRetries[key] = attempt + 1;
+  setTimeout(function () {
+    runTurnSync(reason + "_label_retry", key, tabId);
+  }, MODELS_PENDING_RETRY_MS[attempt]);
+}
+
 function runTurnSync(reason, key, tabId) {
   var syncKey = key || store.activeKey || "default";
   var s = store.sessions[syncKey];
@@ -82,15 +108,19 @@ function runTurnSync(reason, key, tabId) {
         s.lastSync = { at: new Date().toISOString(), ok: false, error: "native client missing", reason: reason };
         return s.lastSync;
       }
+      var labelsPending = battleLabelsPending(out.payload);
       return syncArchive(out.payload, files).then(function (res) {
         s.lastSync = {
           at: new Date().toISOString(),
           ok: !!(res && res.ok),
           error: (res && (res.error || res.message)) || null,
           rel: (res && res.rel) || null,
-          reason: reason
+          reason: reason,
+          labels_pending: labelsPending
         };
         if (res && res.rel) s.archiveRel = res.rel;
+        if (labelsPending) scheduleLabelRetry(syncKey, tabId, reason);
+        else delete pendingRetries[syncKey];
         scheduleSave();
         return s.lastSync;
       });

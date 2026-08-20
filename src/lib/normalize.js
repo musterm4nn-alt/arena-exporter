@@ -548,25 +548,33 @@ var AE = AE || {};
     return /^(?:response|model|assistant|lane|player|option)\s*[ab]$/i.test(t);
   };
 
+  /* Evaluation request bodies are the only place the prior-turn context is
+   * visible, and a whitelist of six scalars threw all of it away. Keep the
+   * whole body minus secrets, with the known-huge fields summarised so a
+   * multi-turn body still fits the per-request cap. */
+  var EVAL_BODY_CAP = 24000;
+  var EVAL_BULK_FIELD_RE = /^(recaptcha|captcha|attachments?|files?|images?|workspace)/i;
+
   AE.summarizeEvalRequest = function (body) {
     var raw = typeof body === "string" ? body : "";
     try {
       var o = typeof body === "string" ? JSON.parse(body) : body;
-      if (!o || typeof o !== "object") return raw.slice(0, 500);
-      var out = {
-        id: o.id || null,
-        mode: o.mode || null,
-        modality: o.modality || null,
-        userMessageId: o.userMessageId || null,
-        modelAMessageId: o.modelAMessageId || null,
-        modelBMessageId: o.modelBMessageId || null
-      };
-      if (o.userMessage && typeof o.userMessage === "object") {
-        out.userMessage = { content: typeof o.userMessage.content === "string" ? o.userMessage.content : null };
+      if (!o || typeof o !== "object") return raw.slice(0, EVAL_BODY_CAP);
+      var scrubbed = AE.scrubSecrets ? AE.scrubSecrets(o) : o;
+      if (scrubbed && typeof scrubbed === "object" && !Array.isArray(scrubbed)) {
+        Object.keys(scrubbed).forEach(function (k) {
+          var v = scrubbed[k];
+          if (!EVAL_BULK_FIELD_RE.test(k)) return;
+          /* Keep evidence the field existed without carrying its payload. */
+          if (Array.isArray(v)) scrubbed[k] = "[" + v.length + " items omitted]";
+          else if (v && typeof v === "object") scrubbed[k] = "[object omitted]";
+          else if (typeof v === "string" && v.length > 200) scrubbed[k] = "[" + v.length + " chars omitted]";
+        });
       }
-      return JSON.stringify(out);
+      var text = JSON.stringify(scrubbed);
+      return text.length > EVAL_BODY_CAP ? text.slice(0, EVAL_BODY_CAP) : text;
     } catch (e) {
-      return raw.slice(0, 500);
+      return raw.slice(0, EVAL_BODY_CAP);
     }
   };
 

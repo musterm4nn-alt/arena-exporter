@@ -78,21 +78,21 @@
     }, function () { void chrome.runtime.lastError; });
   }
 
-  document.addEventListener("click", function (ev) {
+  /* Only real user input counts. AE.dom.expandCollapsed() fires synthetic
+   * .click() on every disclosure control before each DOM snapshot, and those
+   * bubble through this same listener — that is how a single export once
+   * fabricated 17 "votes" in half a second. */
+  function onVoteGesture(ev) {
     try {
+      if (!ev.isTrusted) return;
       var found = voteControlFromEvent(ev);
       if (!found) return;
       emitVote(found);
     } catch (e) { /* never interfere with the host page */ }
-  }, true);
+  }
 
-  document.addEventListener("pointerup", function (ev) {
-    try {
-      var found = voteControlFromEvent(ev);
-      if (!found) return;
-      emitVote(found);
-    } catch (e) { /* never interfere */ }
-  }, true);
+  document.addEventListener("click", onVoteGesture, true);
+  document.addEventListener("pointerup", onVoteGesture, true);
 
   /* RPC from popup/background. */
   chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {

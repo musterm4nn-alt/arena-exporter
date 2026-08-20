@@ -40,9 +40,10 @@ function installInterceptor(events) {
     TextDecoder,
     TextEncoder,
     Uint8Array,
+    URL, // the interceptor resolves capture URLs against the page origin
     setTimeout, clearTimeout,
     location: { href: "https://arena.ai/c/test" },
-    navigator: {},
+    navigator: { sendBeacon: function () { return true; } }, // hooked by the interceptor
     XMLHttpRequest: mockXHR(),
     WebSocket: function () {},
     document: {},
@@ -111,6 +112,27 @@ function responseFor(url, body, contentType) {
   await s2.window.fetch("https://arena.ai/cdn/flags.json");
   await new Promise((r) => setTimeout(r, 20));
   check("noise URL produced no capture events", events2.filter((e) => e && e.evt && e.evt.kind !== "interceptor_ready").length === 0);
+
+  console.log("Third-party telemetry is never captured:");
+  const events3 = [];
+  const s3 = installInterceptor(events3);
+  // A real Datadog RUM beacon reached an archive because only the path was
+  // checked. Its query string can contain capture keywords; the origin cannot.
+  const ddUrl = "https://browser-intake-us3-datadoghq.com/api/v2/rum?ddsource=browser&view=workspace&x=/api/chat/1";
+  s3.__setFetchResult(responseFor(ddUrl, "{\"ok\":true}", "application/json"));
+  await s3.window.fetch(ddUrl, { method: "POST", body: "{\"telemetry\":1}" });
+  s3.window.navigator.sendBeacon(ddUrl, "{\"telemetry\":1}");
+  await new Promise((r) => setTimeout(r, 20));
+  const captured3 = events3.filter((e) => e && e.evt && e.evt.kind !== "interceptor_ready");
+  check("third-party origin produced no capture events", captured3.length === 0);
+  const events4 = [];
+  const s4 = installInterceptor(events4);
+  s4.__setFetchResult(responseFor("https://arena.ai/api/chat/abc", "{\"ok\":true}", "application/json"));
+  await s4.window.fetch("https://arena.ai/api/chat/abc");
+  await new Promise((r) => setTimeout(r, 20));
+  // `endpoint` is emitted immediately after the isCaptureUrl gate, so its
+  // presence is exactly the signal that the origin check let the URL through.
+  check("arena origin still captured", events4.some((e) => e && e.evt && e.evt.kind === "endpoint"));
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

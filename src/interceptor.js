@@ -26,8 +26,19 @@
   var CAPTURE_URL_RE = /(\/realtime\/v[0-9]+\/sessions\/|\/in\/append|\/api\/chat\/|create-chat|create-evaluation|post-to-evaluation|workspace|\/api\/history)/i;
   var EVAL_EMIT_CHUNK = 8192;
 
+  /* Third-party telemetry (Datadog RUM beacons and friends) was reaching the
+   * archive. Nothing outside arena.ai is ever interesting here. */
+  function isArenaUrl(url) {
+    try {
+      return /^([a-z0-9-]+\.)*arena\.ai$/i.test(new URL(String(url), location.href).hostname);
+    } catch (e) {
+      return false;
+    }
+  }
+
   function isCaptureUrl(url) {
     url = String(url || "");
+    if (!isArenaUrl(url)) return false;
     return REALTIME_OUT_RE.test(url) || EVALUATION_STREAM_RE.test(url) || CAPTURE_URL_RE.test(url);
   }
 
@@ -218,7 +229,7 @@
       method = (init && init.method) || (typeof input === "object" && input && input.method) || "GET";
     } catch (e) {}
     try {
-      if (RELEVANT_REQ_RE.test(url)) {
+      if (RELEVANT_REQ_RE.test(url) && isArenaUrl(url)) {
         var hasInitBody = !!(init && init.body != null);
         if (hasInitBody) {
           emitRequestCapture(url, method, bodyText(init.body));
@@ -260,7 +271,7 @@
   XP.send = function (payload) {
     var xhr = this;
     try {
-      if (RELEVANT_REQ_RE.test(xhr.__aeUrl || "")) {
+      if (RELEVANT_REQ_RE.test(xhr.__aeUrl || "") && isArenaUrl(xhr.__aeUrl || "")) {
         var xhrBody = null;
         if (typeof payload === "string") xhrBody = payload;
         else if (payload && typeof payload === "object") { try { xhrBody = JSON.stringify(payload); } catch (e) {} }

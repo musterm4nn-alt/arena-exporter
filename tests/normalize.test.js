@@ -245,6 +245,42 @@ console.log("Ballot click path:");
   check("bare A button without ballot subtree does not count", AE.dom.voteFromPath([shortBtn]) == null);
   const both = el("button", {}, "Both are good");
   check("both are good button counts", AE.dom.voteFromPath([both]).choice === "both_good");
+
+  /* Real strings from an export that recorded 17 fabricated votes in 0.56s:
+   * expandCollapsed() clicked thinking panels, and the loose vote regex found
+   * "both ... good" / "neither" inside the reasoning prose. */
+  const thinkingPanel = el("button", { "aria-label": "Expand" },
+    "Thought for 1 minute and 4 secondsLet me build this. A single self-contained HTML file with a top-down GTA-like game. This is a big task; I need to write carefully and make both good and fast");
+  check("expanded thinking panel is not a vote", AE.dom.voteFromPath([thinkingPanel]) == null);
+  const neitherProse = el("button", { "aria-label": "Expand" },
+    "qwen3.8-27bThought for 9 secondsThe user is saying the camera is moving all over the place and neither approach works");
+  check("prose containing 'neither' is not a vote", AE.dom.voteFromPath([neitherProse]) == null);
+  const longBallotish = el("button", {}, "Both are good " + "x".repeat(200));
+  check("padded ballot text is not a vote", AE.dom.voteFromPath([longBallotish]) == null);
+  const ariaBallot = el("button", { "aria-label": "Both are good" }, "");
+  check("aria-labelled ballot still counts", AE.dom.voteFromPath([ariaBallot]).choice === "both_good");
+}
+
+console.log("Evaluation request bodies keep their history:\n");
+{
+  const body = JSON.stringify({
+    id: "eval-1", mode: "battle", modality: "text",
+    modelAMessageId: "a1", modelBMessageId: "b1",
+    userMessage: { content: "turn two prompt" },
+    messages: [
+      { role: "user", content: "turn one prompt" },
+      { role: "assistant", content: "the winning response from turn one" }
+    ],
+    recaptchaV3Token: "SECRET-TOKEN",
+    attachments: [1, 2, 3]
+  });
+  const out = JSON.parse(AE.summarizeEvalRequest(body));
+  check("prior turns preserved", Array.isArray(out.messages) && out.messages.length === 2);
+  check("prior assistant text preserved", out.messages[1].content.indexOf("winning response") !== -1);
+  check("scalars still preserved", out.id === "eval-1" && out.modelAMessageId === "a1");
+  check("current prompt preserved", out.userMessage.content === "turn two prompt");
+  check("recaptcha token stripped", JSON.stringify(out).indexOf("SECRET-TOKEN") === -1);
+  check("bulk field summarised not dropped", typeof out.attachments === "string" && /3 items/.test(out.attachments));
 }
 
 console.log("Attachment plumbing (ported):\n");

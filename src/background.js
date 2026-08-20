@@ -155,7 +155,8 @@ function recordRequest(s, evt) {
   if (typeof body !== "string") {
     try { body = JSON.stringify(body); } catch (e) { body = String(evt.body || ""); }
   }
-  var entry = { method: evt.method || "?", url: url.slice(0, 250), body: body.slice(0, 8000) };
+  var bodyCap = EVAL_URL_RE.test(url) ? 24000 : 8000;
+  var entry = { method: evt.method || "?", url: url.slice(0, 250), body: body.slice(0, bodyCap) };
   for (var i = 0; i < s.capturedRequests.length; i++) {
     if (s.capturedRequests[i].method === entry.method && s.capturedRequests[i].url === entry.url) {
       s.capturedRequests[i] = entry;
