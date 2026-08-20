@@ -6,7 +6,7 @@
 </head>
 <body>
   <header>
-    <h1>Arena Agent Exporter <span id="version-badge" class="version-badge">v?</span></h1>
+    <h1>ARENA EXPORTER <span id="version-badge" class="version-badge">v?</span></h1>
     <span id="status-dot" class="dot idle" title="Capture status"></span>
   </header>
 
@@ -32,21 +32,21 @@
 
   <section id="actions" class="card hidden">
     <div class="btn-col">
-      <button id="btn-sync" class="primary">Sync now (Archive app)</button>
+      <button id="btn-sync" class="primary">Write to archive now</button>
       <button id="btn-full" class="primary secondary">Export full history (JSON)</button>
       <button id="btn-last" class="primary secondary">Export last message (JSON)</button>
       <div class="row">
         <button id="btn-copy">Copy JSON</button>
         <button id="btn-clear" class="danger">Reset capture</button>
       </div>
-      <button id="btn-domdebug">Save DOM debug dump (diagnostics)</button>
-      <div class="row vote-row">
-        <span class="muted small vote-label">Vote override:</span>
+      <button id="btn-domdebug">Save DOM debug dump</button>
+      <div class="vote-label muted">Vote override</div>
+      <div class="vote-grid">
         <button id="vote-a" class="vote-btn">A</button>
         <button id="vote-b" class="vote-btn">B</button>
-        <button id="vote-tie" class="vote-btn">Tie</button>
-        <button id="vote-bad" class="vote-btn">Both bad</button>
-        <button id="vote-clear" class="vote-btn danger">Clear</button>
+        <button id="vote-tie" class="vote-btn">TIE</button>
+        <button id="vote-bad" class="vote-btn">BAD</button>
+        <button id="vote-clear" class="vote-btn danger">CLR</button>
       </div>
     </div>
     <div class="muted small note">“Last message” includes the triggering user prompt for context.</div>
@@ -57,7 +57,7 @@
   </section>
 
   <details id="endpoints" class="card hidden">
-    <summary>Endpoint catalog <span class="muted small">(capture diagnostics)</span></summary>
+    <summary>Endpoints</summary>
     <ol id="endpoint-list"></ol>
   </details>
 
