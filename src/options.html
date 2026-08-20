@@ -33,6 +33,20 @@
   </section>
 
   <section class="card">
+    <h2 style="font-size:13px;margin:0 0 6px">Downloads sink probe</h2>
+    <p class="muted small">
+      Writes to <code>arena-archive/_probe/</code> under the Downloads root. If
+      <code>~/Downloads/arena-archive</code> is a symlink to Documents, this
+      shows whether Chrome follows it or rejects the resolved path. Also checks
+      whether the write can be made silent.
+    </p>
+    <div class="row">
+      <button id="btn-dl-probe" class="primary">Run downloads probe</button>
+    </div>
+    <p class="muted small" id="dl-result" style="margin-top:8px"></p>
+  </section>
+
+  <section class="card">
     <h2 style="font-size:13px;margin:0 0 6px">Native host <span class="muted small">(legacy)</span></h2>
     <p id="host-status" class="muted small">Checking host…</p>
     <button id="btn-ping">Test host</button>

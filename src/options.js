@@ -70,6 +70,64 @@ $("btn-forget").addEventListener("click", async () => {
   $("fs-result").textContent = "folder forgotten";
 });
 
+/* Does chrome.downloads follow a symlinked subdirectory, and can the write be
+ * made silent? chrome.downloads.search reports the path Chrome actually used,
+ * which is the only reliable way to find out. */
+function downloadAndResolve(relPath, text) {
+  const url = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
+  return new Promise((resolve) => {
+    chrome.downloads.download({ url, filename: relPath, conflictAction: "overwrite", saveAs: false }, (id) => {
+      const err = chrome.runtime.lastError;
+      if (err || id == null) { resolve({ ok: false, error: (err && err.message) || "no download id" }); return; }
+      let tries = 0;
+      const poll = () => {
+        chrome.downloads.search({ id }, (items) => {
+          const it = items && items[0];
+          if (!it) { resolve({ ok: false, error: "download vanished", id }); return; }
+          if (it.state === "in_progress" && tries++ < 40) { setTimeout(poll, 100); return; }
+          resolve({ ok: it.state === "complete", id, state: it.state, resolved: it.filename, error: it.error || null });
+        });
+      };
+      poll();
+    });
+  });
+}
+
+$("btn-dl-probe").addEventListener("click", async () => {
+  const el = $("dl-result");
+  el.textContent = "running…";
+  const bits = [];
+
+  // 1. can the download UI be suppressed?
+  let silent = "unavailable";
+  try {
+    if (chrome.downloads.setUiOptions) {
+      await new Promise((r) => chrome.downloads.setUiOptions({ enabled: false }, () => { void chrome.runtime.lastError; r(); }));
+      silent = chrome.runtime.lastError ? ("error: " + chrome.runtime.lastError.message) : "suppressed";
+    }
+  } catch (e) { silent = "error: " + ((e && e.message) || e); }
+  bits.push("download UI: " + silent);
+
+  // 2. write through the symlinked subdirectory
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const res = await downloadAndResolve("arena-archive/_probe/chrome-probe-" + stamp + ".txt",
+    "written by chrome.downloads at " + new Date().toISOString() + "\n");
+  bits.push("state: " + (res.state || "n/a"));
+  if (res.resolved) bits.push("resolved path: " + res.resolved);
+  if (res.error) bits.push("error: " + res.error);
+
+  // 3. can the history entry be erased?
+  if (res.id != null) {
+    const erased = await new Promise((r) => chrome.downloads.erase({ id: res.id }, (ids) => { void chrome.runtime.lastError; r(ids || []); }));
+    bits.push("history erased: " + (erased.length ? "yes" : "no"));
+  }
+
+  // restore the UI so normal downloads are unaffected
+  try { if (chrome.downloads.setUiOptions) chrome.downloads.setUiOptions({ enabled: true }, () => { void chrome.runtime.lastError; }); } catch (e) {}
+
+  el.textContent = (res.ok ? "PASS — " : "FAIL — ") + bits.join(" | ");
+});
+
 $("btn-ping").addEventListener("click", pingHost);
 
 function pingHost() {
