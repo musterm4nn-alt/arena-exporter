@@ -1,0 +1,4 @@
+macos/ArenaArchive/.build/
+macos/ArenaArchive/.swiftpm/
+.DS_Store
+*.pem

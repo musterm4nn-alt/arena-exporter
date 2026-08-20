@@ -1,0 +1,11 @@
+{
+  "id": "01a01b66-19b7-73eb-9e12-d9627e3eee14",
+  "mode": "battle",
+  "modality": "webdev",
+  "userMessageId": "01a01b67-647b-7dac-8b36-4f28d7369b3c",
+  "modelAMessageId": "01a01b67-647b-783c-84d7-9bece5defe91",
+  "modelBMessageId": "01a01b67-647b-74cc-ae74-970c91838746",
+  "userMessage": {
+    "content": "create a modern dashboard using liquid glass style, for an archive that contains llm responses from different models to different prompts"
+  }
+}

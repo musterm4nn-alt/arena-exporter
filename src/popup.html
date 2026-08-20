@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>Arena Agent Exporter <span id="version-badge" class="version-badge">v?</span></h1>
+    <span id="status-dot" class="dot idle" title="Capture status"></span>
+  </header>
+
+  <section id="context" class="card">
+    <div id="context-msg" class="muted">Checking page context…</div>
+  </section>
+
+  <section id="stats" class="card hidden">
+    <div class="stat-row"><span>Messages</span><b id="stat-messages">0</b></div>
+    <div class="stat-row"><span>Thinking blocks</span><b id="stat-thinking">0</b></div>
+    <div class="stat-row"><span>Tool calls</span><b id="stat-tools">0</b></div>
+    <div class="stat-row"><span>Commands</span><b id="stat-commands">0</b></div>
+    <div class="stat-row"><span>Actions</span><b id="stat-actions">0</b></div>
+    <div class="stat-row"><span>Artifacts</span><b id="stat-artifacts">0</b></div>
+    <div class="stat-row"><span>Endpoints seen</span><b id="stat-endpoints">0</b></div>
+    <div class="stat-row"><span>Last battle vote</span><b id="stat-vote">—</b></div>
+    <div class="stat-row hidden" id="row-streamchunks"><span>Raw stream chunks</span><b id="stat-streamchunks">0</b></div>
+  </section>
+
+  <section id="warnings" class="card warn hidden">
+    <ul id="warning-list"></ul>
+  </section>
+
+  <section id="actions" class="card hidden">
+    <div class="btn-col">
+      <button id="btn-sync" class="primary">Sync now (Archive app)</button>
+      <button id="btn-full" class="primary secondary">Export full history (JSON)</button>
+      <button id="btn-last" class="primary secondary">Export last message (JSON)</button>
+      <div class="row">
+        <button id="btn-copy">Copy JSON</button>
+        <button id="btn-clear" class="danger">Reset capture</button>
+      </div>
+      <button id="btn-domdebug">Save DOM debug dump (diagnostics)</button>
+      <div class="row vote-row">
+        <span class="muted small vote-label">Vote override:</span>
+        <button id="vote-a" class="vote-btn">A</button>
+        <button id="vote-b" class="vote-btn">B</button>
+        <button id="vote-tie" class="vote-btn">Tie</button>
+        <button id="vote-bad" class="vote-btn">Both bad</button>
+        <button id="vote-clear" class="vote-btn danger">Clear</button>
+      </div>
+    </div>
+    <div class="muted small note">“Last message” includes the triggering user prompt for context.</div>
+  </section>
+
+  <section id="progress" class="card hidden">
+    <div id="progress-msg" class="muted small"></div>
+  </section>
+
+  <details id="endpoints" class="card hidden">
+    <summary>Endpoint catalog <span class="muted small">(capture diagnostics)</span></summary>
+    <ol id="endpoint-list"></ol>
+  </details>
+
+  <script src="lib/schema.js"></script>
+  <script src="lib/normalize.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
+
