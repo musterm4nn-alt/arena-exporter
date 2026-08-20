@@ -70,22 +70,34 @@ $("btn-forget").addEventListener("click", async () => {
   $("fs-result").textContent = "folder forgotten";
 });
 
-/* Does chrome.downloads follow a symlinked subdirectory, and can the write be
- * made silent? chrome.downloads.search reports the path Chrome actually used,
- * which is the only reliable way to find out. */
-function downloadAndResolve(relPath, text) {
+/* Confirms the production write path is silent and lands where requested.
+ *
+ * Established by earlier runs of this probe:
+ *  - nested real directories under the Downloads root work, silently
+ *  - a directory symlinked OUT of Downloads is refused: Chrome pops a Save As
+ *    dialog, then reports state "complete" while having silently dropped the
+ *    directory and written to the Downloads root. It creates the directory
+ *    during path reservation first, so a created folder proves nothing.
+ *  - erasing an in_progress record can strand the write; only erase terminal
+ *    items. */
+function downloadProbe(relPath, text) {
   const url = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
   return new Promise((resolve) => {
     chrome.downloads.download({ url, filename: relPath, conflictAction: "overwrite", saveAs: false }, (id) => {
       const err = chrome.runtime.lastError;
-      if (err || id == null) { resolve({ ok: false, error: (err && err.message) || "no download id" }); return; }
+      if (err || id == null) { resolve({ requested: relPath, ok: false, error: (err && err.message) || "no id" }); return; }
       let tries = 0;
       const poll = () => {
         chrome.downloads.search({ id }, (items) => {
           const it = items && items[0];
-          if (!it) { resolve({ ok: false, error: "download vanished", id }); return; }
-          if (it.state === "in_progress" && tries++ < 40) { setTimeout(poll, 100); return; }
-          resolve({ ok: it.state === "complete", id, state: it.state, resolved: it.filename, error: it.error || null });
+          if (!it) { resolve({ requested: relPath, ok: false, id, error: "record vanished" }); return; }
+          const terminal = it.state === "complete" || it.state === "interrupted";
+          if (!terminal && tries++ < 150) { setTimeout(poll, 100); return; } // up to 15s
+          resolve({
+            requested: relPath, id, ok: it.state === "complete", state: it.state,
+            danger: it.danger, paused: it.paused, error: it.error || null,
+            bytes: it.bytesReceived, resolved: it.filename || null
+          });
         });
       };
       poll();
@@ -93,39 +105,46 @@ function downloadAndResolve(relPath, text) {
   });
 }
 
+function fmt(label, r) {
+  const parts = [label + ":", r.state || (r.error ? "no-start" : "?")];
+  if (r.danger && r.danger !== "safe") parts.push("danger=" + r.danger);
+  if (r.paused) parts.push("PAUSED");
+  if (r.error) parts.push("err=" + r.error);
+  if (r.bytes != null) parts.push(r.bytes + "B");
+  if (r.resolved) parts.push("-> " + r.resolved);
+  return parts.join(" ");
+}
+
 $("btn-dl-probe").addEventListener("click", async () => {
   const el = $("dl-result");
-  el.textContent = "running…";
-  const bits = [];
+  el.textContent = "running (up to 30s)…";
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const lines = [];
 
-  // 1. can the download UI be suppressed?
   let silent = "unavailable";
   try {
     if (chrome.downloads.setUiOptions) {
       await new Promise((r) => chrome.downloads.setUiOptions({ enabled: false }, () => { void chrome.runtime.lastError; r(); }));
-      silent = chrome.runtime.lastError ? ("error: " + chrome.runtime.lastError.message) : "suppressed";
+      silent = chrome.runtime.lastError ? "error: " + chrome.runtime.lastError.message : "suppressed";
     }
   } catch (e) { silent = "error: " + ((e && e.message) || e); }
-  bits.push("download UI: " + silent);
+  lines.push("download UI: " + silent);
 
-  // 2. write through the symlinked subdirectory
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const res = await downloadAndResolve("arena-archive/_probe/chrome-probe-" + stamp + ".txt",
-    "written by chrome.downloads at " + new Date().toISOString() + "\n");
-  bits.push("state: " + (res.state || "n/a"));
-  if (res.resolved) bits.push("resolved path: " + res.resolved);
-  if (res.error) bits.push("error: " + res.error);
+  const control = await downloadProbe("arena-probe-control/probe-" + stamp + ".txt", "control write " + stamp + "\n");
+  lines.push(fmt("CONTROL (Downloads root)", control));
 
-  // 3. can the history entry be erased?
-  if (res.id != null) {
-    const erased = await new Promise((r) => chrome.downloads.erase({ id: res.id }, (ids) => { void chrome.runtime.lastError; r(ids || []); }));
-    bits.push("history erased: " + (erased.length ? "yes" : "no"));
+  const linked = await downloadProbe("arena-archive/_probe/probe-" + stamp + ".txt", "symlink write " + stamp + "\n");
+  lines.push(fmt("ARCHIVE PATH", linked));
+
+  // only now, and only terminal items
+  for (const r of [control, linked]) {
+    if (r.id != null && r.state && r.state !== "in_progress") {
+      await new Promise((res) => chrome.downloads.erase({ id: r.id }, () => { void chrome.runtime.lastError; res(); }));
+    }
   }
-
-  // restore the UI so normal downloads are unaffected
   try { if (chrome.downloads.setUiOptions) chrome.downloads.setUiOptions({ enabled: true }, () => { void chrome.runtime.lastError; }); } catch (e) {}
 
-  el.textContent = (res.ok ? "PASS — " : "FAIL — ") + bits.join(" | ");
+  el.textContent = lines.join("  ||  ");
 });
 
 $("btn-ping").addEventListener("click", pingHost);
