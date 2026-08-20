@@ -1,6 +1,6 @@
 /* Service worker: routes capture events into per-conversation sessions,
  * assembles messages, and builds export JSON (network-as-truth, DOM fallback). */
-importScripts("lib/schema.js", "lib/normalize.js", "session-store.js", "battles.js", "attribution.js", "archive-layout.js", "markdown.js", "native-client.js", "turn-sync.js");
+importScripts("lib/schema.js", "lib/normalize.js", "session-store.js", "battles.js", "attribution.js", "archive-layout.js", "markdown.js", "native-client.js", "fs-handle.js", "turn-sync.js");
 
 var STREAMING_WINDOW_MS = 2500;
 var AGENT_URL_RE = /(ai-proxy|\/api\/chat\/|stream\/create-chat|stream\/create-evaluation|stream\/post-to-evaluation|\/nextjs-api\/|\/api\/history|workspace)/i;
@@ -849,6 +849,54 @@ function getStateSummary() {
   };
 }
 
+function recordSpikeResult(result) {
+  return new Promise(function (resolve) {
+    chrome.storage.local.get(["ae_fsa_spike_log"], function (r) {
+      var log = (r && r.ae_fsa_spike_log) || [];
+      log.push({ at: new Date().toISOString(), ok: !!result.ok, stage: result.stage || null, permission: result.permission || null });
+      if (log.length > 30) log = log.slice(-30);
+      chrome.storage.local.set({ ae_fsa_spike_log: log }, function () {
+        void chrome.runtime.lastError;
+        result.log = log;
+        resolve(result);
+      });
+    });
+  });
+}
+
+function runFsaSpike() {
+  var out = { ok: false, stage: "start", permission: null, worker: true };
+  return AE.fsLoadRoot()
+    .then(function (root) {
+      if (!root) { out.stage = "no_handle"; return out; }
+      out.rootName = root.name || null;
+      return AE.fsPermission(root).then(function (perm) {
+        out.permission = perm;
+        if (perm !== "granted") {
+          /* The worker has no user activation, so it cannot escalate here.
+           * A real sync would queue the payload and let the popup re-prompt. */
+          out.stage = "permission_lapsed";
+          return out;
+        }
+        var stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        return AE.fsWrite(root, "_spike/worker-write-" + stamp + ".txt",
+          "written by the service worker at " + new Date().toISOString() + "\nno user gesture involved\n")
+          .then(function (res) {
+            out.ok = true;
+            out.stage = "wrote";
+            out.path = res.path;
+            return out;
+          });
+      });
+    })
+    .catch(function (e) {
+      out.stage = "error";
+      out.error = String((e && e.message) || e);
+      return out;
+    })
+    .then(recordSpikeResult);
+}
+
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (!msg || typeof msg.type !== "string" || msg.type.indexOf("AE_") !== 0) return;
 
@@ -906,6 +954,12 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         sendResponse(res || { ok: false });
       });
     });
+    return true;
+  }
+  /* SPIKE: exercise the worker-side write path with no user gesture at all --
+   * this is the case a real turn-sync has to work in. */
+  if (msg.type === "AE_FSA_TEST") {
+    runFsaSpike().then(sendResponse);
     return true;
   }
   if (msg.type === "AE_CLEAR") {

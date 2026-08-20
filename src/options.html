@@ -5,12 +5,41 @@
   <title>Arena Exporter</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
-<body style="width: 360px; padding: 16px;">
+<body style="width: 520px; padding: 16px;">
   <h1>Arena Archive</h1>
-  <p class="muted small">The Mac app owns the folder tree. This page only pings the native host.</p>
-  <p id="host-status" class="muted">Checking host…</p>
-  <button id="btn-ping" class="primary">Test host</button>
-  <p class="muted small">Install: <code>ARENA_EXTENSION_ID=&lt;id&gt; bash tools/install-host.sh</code></p>
+
+  <section class="card">
+    <h2 style="font-size:13px;margin:0 0 6px">Archive folder <span class="muted small">(spike)</span></h2>
+    <p class="muted small" id="fs-support">Checking File System Access support…</p>
+    <p class="muted small">Root: <b id="fs-root">none chosen</b></p>
+    <p class="muted small">Permission right now: <b id="fs-perm">—</b></p>
+    <div class="row">
+      <button id="btn-pick" class="primary">Choose archive folder…</button>
+      <button id="btn-test">Test worker write</button>
+      <button id="btn-forget" class="danger">Forget folder</button>
+    </div>
+    <p class="muted small" id="fs-result" style="margin-top:8px"></p>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:13px;margin:0 0 6px">Restart log</h2>
+    <p class="muted small">
+      Auto-tested on every load of this page, with no click involved — the same
+      conditions a background sync runs under. Quit Chrome completely, reopen,
+      and load this page again: if the newest row still says <code>wrote</code>,
+      the grant survived the restart.
+    </p>
+    <ol id="fs-log" class="muted small"></ol>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:13px;margin:0 0 6px">Native host <span class="muted small">(legacy)</span></h2>
+    <p id="host-status" class="muted small">Checking host…</p>
+    <button id="btn-ping">Test host</button>
+  </section>
+
+  <script src="lib/schema.js"></script>
+  <script src="fs-handle.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
