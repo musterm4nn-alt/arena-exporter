@@ -5,55 +5,41 @@
   <title>Arena Exporter</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
-<body style="width: 520px; padding: 16px;">
+<body style="width: 560px; padding: 16px;">
   <h1>Arena Archive</h1>
 
   <section class="card">
-    <h2 style="font-size:13px;margin:0 0 6px">Archive folder <span class="muted small">(spike)</span></h2>
-    <p class="muted small" id="fs-support">Checking File System Access support…</p>
-    <p class="muted small">Root: <b id="fs-root">none chosen</b></p>
-    <p class="muted small">Permission right now: <b id="fs-perm">—</b></p>
-    <div class="row">
-      <button id="btn-pick" class="primary">Choose archive folder…</button>
-      <button id="btn-test">Test worker write</button>
-      <button id="btn-forget" class="danger">Forget folder</button>
-    </div>
-    <p class="muted small" id="fs-result" style="margin-top:8px"></p>
-  </section>
-
-  <section class="card">
-    <h2 style="font-size:13px;margin:0 0 6px">Restart log</h2>
+    <h2 style="font-size:13px;margin:0 0 6px">Archive location</h2>
     <p class="muted small">
-      Auto-tested on every load of this page, with no click involved — the same
-      conditions a background sync runs under. Quit Chrome completely, reopen,
-      and load this page again: if the newest row still says <code>wrote</code>,
-      the grant survived the restart.
+      Conversations are written to <code id="archive-path">Downloads/arena-archive/</code>.
+      Chrome can only write beneath its own download directory, so to see the
+      archive elsewhere, link it:
     </p>
-    <ol id="fs-log" class="muted small"></ol>
-  </section>
-
-  <section class="card">
-    <h2 style="font-size:13px;margin:0 0 6px">Downloads sink probe</h2>
-    <p class="muted small">
-      Writes to <code>arena-archive/_probe/</code> under the Downloads root. If
-      <code>~/Downloads/arena-archive</code> is a symlink to Documents, this
-      shows whether Chrome follows it or rejects the resolved path. Also checks
-      whether the write can be made silent.
-    </p>
+    <pre class="muted small" style="white-space:pre-wrap"><code>ln -s ~/Downloads/arena-archive ~/Documents/arena-archive</code></pre>
     <div class="row">
-      <button id="btn-dl-probe" class="primary">Run downloads probe</button>
+      <button id="btn-selftest" class="primary">Test archive write</button>
     </div>
-    <p class="muted small" id="dl-result" style="margin-top:8px"></p>
+    <p class="muted small" id="selftest-result" style="margin-top:8px"></p>
   </section>
 
   <section class="card">
-    <h2 style="font-size:13px;margin:0 0 6px">Native host <span class="muted small">(legacy)</span></h2>
-    <p id="host-status" class="muted small">Checking host…</p>
-    <button id="btn-ping">Test host</button>
+    <h2 style="font-size:13px;margin:0 0 6px">Silent writes</h2>
+    <p class="muted small">
+      Suppresses the download bubble so archiving does not interrupt you. History
+      entries are erased after each write either way. This setting affects the
+      browser's download UI globally while the extension is enabled.
+    </p>
+    <label class="muted small"><input type="checkbox" id="chk-silent" checked /> Suppress the download bubble</label>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:13px;margin:0 0 6px">Archived conversations</h2>
+    <p class="muted small" id="index-summary">Loading…</p>
+    <ol id="index-list" class="muted small"></ol>
   </section>
 
   <script src="lib/schema.js"></script>
-  <script src="fs-handle.js"></script>
+  <script src="archive-layout.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

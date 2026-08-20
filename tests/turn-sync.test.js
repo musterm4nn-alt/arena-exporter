@@ -6,6 +6,8 @@
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
+const { fakeStorageArea, fakeDownloads } = require("./fake-chrome");
+const archiveWrites = [];
 
 const ROOT = path.join(__dirname, "..", "src");
 
@@ -28,7 +30,8 @@ const ctx = vm.createContext({
     for (const f of files) vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), ctx);
   },
   chrome: {
-    storage: { session: { get: async () => ({}), set: async () => {} } },
+    storage: { session: { get: async () => ({}), set: async () => {} }, local: fakeStorageArea() },
+    downloads: fakeDownloads(archiveWrites),
     runtime: {
       onMessage: { addListener: (fn) => { messageListener = fn; } },
       lastError: null

@@ -99,22 +99,28 @@ function runTurnSync(reason, key, tabId) {
       store.activeKey = syncKey;
       try {
         out = buildExport("full_history", snapshot);
+        /* s.archiveRel is only a session-lifetime cache; AE.writeArchive
+         * re-resolves against the persistent index, which is what pins the
+         * folder across browser restarts. */
         if (AE.decorateArchivePaths) AE.decorateArchivePaths(out.payload, s.archiveRel);
       } finally {
         store.activeKey = prevActive;
       }
       var files = AE.filesToWrite ? AE.filesToWrite(out.payload) : [];
-      if (typeof syncArchive !== "function") {
-        s.lastSync = { at: new Date().toISOString(), ok: false, error: "native client missing", reason: reason };
+      if (typeof AE.writeArchive !== "function") {
+        s.lastSync = { at: new Date().toISOString(), ok: false, error: "archive sink missing", reason: reason };
         return s.lastSync;
       }
       var labelsPending = battleLabelsPending(out.payload);
-      return syncArchive(out.payload, files).then(function (res) {
+      return AE.writeArchive(out.payload, files).then(function (res) {
+        var firstFailure = res && res.failed && res.failed.length ? res.failed[0].error : null;
         s.lastSync = {
           at: new Date().toISOString(),
           ok: !!(res && res.ok),
-          error: (res && (res.error || res.message)) || null,
+          error: (res && res.error) || firstFailure || null,
           rel: (res && res.rel) || null,
+          written: (res && res.written) || [],
+          skipped: (res && res.skipped) || 0,
           reason: reason,
           labels_pending: labelsPending
         };
