@@ -469,10 +469,12 @@ function tryRealtimeRecords(data, url) {
 }
 
 function handleEvent(evt, sender) {
+  if (!evt || typeof evt !== "object") return;
   var s = resolveSessionForEvent(evt, sender);
+  var syncKey = s.session.conversation_key;
+  var syncTabId = sender && sender.tab && sender.tab.id != null ? sender.tab.id : null;
   s.stats.events++;
   s.stats.lastEventAt = Date.now();
-  if (!evt || typeof evt !== "object") return;
 
   if (evt.kind === "interceptor_ready") {
     if (!s.session.url) s.session.url = evt.url || "";
@@ -497,13 +499,13 @@ function handleEvent(evt, sender) {
   if (evt.kind === "battle_vote") {
     if (!recordBattleVote(s, evt)) s.stats.unknown++;
     scheduleSave();
-    scheduleTurnSync("vote");
+    scheduleTurnSync("vote", syncKey, syncTabId);
     return;
   }
   if (evt.kind === "stream_end" || evt.kind === "stream_done") {
     if (EVAL_URL_RE.test(evt.url || "")) finishEvaluationCapture(s, evt.url);
     scheduleSave();
-    scheduleTurnSync("stream_end");
+    scheduleTurnSync("stream_end", syncKey, syncTabId);
     return;
   }
   if (evt.kind === "ws") {

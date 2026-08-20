@@ -1,12 +1,27 @@
 import Foundation
 import ArchiveKit
 
+/* `read(upToCount:)` is only contracted to return *up to* `count` bytes. Today
+ * Darwin's Foundation happens to loop internally, so a 600 KB message dripped
+ * in 8 KB slices still arrives whole — but nothing guarantees that, and a short
+ * read here would silently drop the message and kill the host loop. Loop
+ * explicitly; nil means the peer closed the pipe (or errored) early. */
 func readExact(_ handle: FileHandle, count: Int) -> Data? {
     if count <= 0 { return Data() }
-    if #available(macOS 10.15.4, *) {
-        return try? handle.read(upToCount: count)
+    var buf = Data()
+    buf.reserveCapacity(count)
+    while buf.count < count {
+        let remaining = count - buf.count
+        let chunk: Data?
+        if #available(macOS 10.15.4, *) {
+            chunk = try? handle.read(upToCount: remaining)
+        } else {
+            chunk = handle.readData(ofLength: remaining)
+        }
+        guard let chunk, !chunk.isEmpty else { return nil }
+        buf.append(chunk)
     }
-    return handle.readData(ofLength: count)
+    return buf
 }
 
 let store = ArchiveStore()

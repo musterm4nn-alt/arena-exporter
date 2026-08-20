@@ -66,7 +66,7 @@ public final class ArchiveStore {
         let dir = ArchiveStore.configURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let data = try JSONSerialization.data(withJSONObject: ["root": url.path], options: [.prettyPrinted])
-        try data.write(to: ArchiveStore.configURL)
+        try data.write(to: ArchiveStore.configURL, options: .atomic)
     }
 
     public func ensureRoot() throws {
@@ -88,7 +88,9 @@ public final class ArchiveStore {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try enc.encode(index)
-        try data.write(to: indexURL())
+        /* _index.json is the only key→folder map: a torn write re-slugs every
+         * known chat into a fresh folder and breaks write_chunk. */
+        try data.write(to: indexURL(), options: .atomic)
     }
 
     public func resolve(_ key: String) -> ChatIndexEntry? {
@@ -110,7 +112,7 @@ public final class ArchiveStore {
     public func writeUTF8(rel: String, content: String) throws {
         let url = try safeRelpath(rel)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(content.utf8).write(to: url)
+        try Data(content.utf8).write(to: url, options: .atomic)
     }
 
     public func sync(chat: [String: Any], files: [[String: Any]]) throws -> (rel: String, written: [String]) {
