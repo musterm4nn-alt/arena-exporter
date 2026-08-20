@@ -366,6 +366,51 @@ function check(name, cond) {
   check("export records the extension version",
     typeof mt.export.extension_version === "string" && mt.export.extension_version.length > 0);
 
+  console.log("Context provenance: decisive vote cross-contaminates the losing lane:");
+  await send({ type: "AE_CLEAR" });
+  const CV = "conv-ctx-1";
+  const cCreate = "https://arena.ai/nextjs-api/stream/create-evaluation";
+  const cPost = "https://arena.ai/nextjs-api/stream/post-to-evaluation/" + CV;
+  const pageUrl = "https://arena.ai/c/" + CV;
+  // Replays the random-number experiment: A says 427583, B says 483291,
+  // user votes A, then both lanes report 427583 on the next turn.
+  const ctxTurns = [
+    { url: cCreate, umid: "cu-1", prompt: "random number 1-999999", a: "**427,583**", b: "**483,291**" },
+    { url: cPost, umid: "cu-2", prompt: "what was the number you said?", a: "**427,583**", b: "The number I said was 427,583." },
+    { url: cPost, umid: "cu-3", prompt: "and again?", a: "still 427,583", b: "still 427,583" }
+  ];
+  const ctxVotes = ["A is better", "Both are good"]; // after turn 1, after turn 2
+  for (let i = 0; i < ctxTurns.length; i++) {
+    const t = ctxTurns[i];
+    await send({ type: "AE_EVENT", evt: { kind: "request", url: t.url, method: "POST", body: JSON.stringify({
+      id: CV, mode: t.url === cCreate ? "battle" : null, userMessageId: t.umid,
+      modelAMessageId: t.umid + "-a", modelBMessageId: t.umid + "-b",
+      userMessage: { content: t.prompt } }) } });
+    await send({ type: "AE_EVENT", evt: { kind: "stream_chunk", url: t.url, text:
+      'a0:' + JSON.stringify(t.a) + 'b0:' + JSON.stringify(t.b) + 'ad:{"finishReason":"stop"}bd:{"finishReason":"stop"}' } });
+    await send({ type: "AE_EVENT", evt: { kind: "stream_end", url: t.url } });
+    if (i < ctxVotes.length) {
+      await send({ type: "AE_EVENT", evt: { kind: "battle_vote", choice: ctxVotes[i], label: ctxVotes[i], source: "dom_click", url: pageUrl, capturedAt: new Date(Date.now() + i * 1000).toISOString() } });
+    }
+  }
+  // A third vote so votes zip 1:1 onto the three rounds.
+  await send({ type: "AE_EVENT", evt: { kind: "battle_vote", choice: "B is better", label: "B is better", source: "dom_click", url: pageUrl, capturedAt: new Date(Date.now() + 9000).toISOString() } });
+  const ctx = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: { source: "dom", url: pageUrl, messages: [], battle: { models: ["claude-haiku-4-5", "kimi-k3"], anonymous: false, ballotVisible: false } } })).json);
+
+  const at = (r, l) => ctx.battles[r].contestants.find(c => c.lane === l);
+  check("three rounds exported", ctx.battles.length === 3);
+  check("first turn marked first_turn",
+    at(0, "A").context_source === "first_turn" && at(0, "B").context_source === "first_turn");
+  check("after an A win, A continues itself", at(1, "A").context_source === "self");
+  check("after an A win, B is cross-contaminated", at(1, "B").context_source === "cross_lane");
+  check("after both_good, each lane stays on its own thread",
+    at(2, "A").context_source === "self" && at(2, "B").context_source === "self");
+  check("votes zipped onto their own rounds",
+    ctx.battles[0].outcome === "a_wins" && ctx.battles[1].outcome === "both_good" && ctx.battles[2].outcome === "b_wins");
+  check("samples carry context provenance",
+    ctx.attribution_samples.filter(x => x.context_source === "cross_lane").length === 1 &&
+    ctx.attribution_samples.filter(x => x.context_source === "first_turn").length === 2);
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -56,6 +56,34 @@ function latestBattleVote(s, domSnapshot) {
   return votes.length ? votes[votes.length - 1] : null;
 }
 
+/* Every vote cast on this conversation, oldest first. One per round. */
+function votesForConversation(s, domSnapshot) {
+  var votes = Array.isArray(s.battleVotes) ? s.battleVotes : [];
+  var pageUrl = domSnapshot && domSnapshot.url ? String(domSnapshot.url) : "";
+  if (!pageUrl) return votes.slice();
+  var pageKey = pageUrl.split("#")[0].split("?")[0];
+  return votes.filter(function (v) {
+    var u = String(v.url || "");
+    return u && u.split("#")[0].split("?")[0] === pageKey;
+  });
+}
+
+/* Confirmed experimentally: ask both lanes for a random number, vote A, then
+ * ask what number was said -- lane B reports lane A's number. A decisive vote
+ * makes the winner's reply the context BOTH lanes continue from next turn, so
+ * the losing lane's next response is that model continuing another model's
+ * text. A both_good / neither_good vote leaves each lane on its own thread.
+ *
+ * This matters for attribution: a "cross_lane" sample is not a clean example of
+ * how its model writes unprompted. */
+function laneContextSource(prevVote, lane) {
+  if (!prevVote || !prevVote.choice) return "unknown";
+  var c = prevVote.choice;
+  if (c === "A" || c === "B") return c === lane ? "self" : "cross_lane";
+  if (c === "both_good" || c === "neither_good") return "self";
+  return "unknown";
+}
+
 function modelForLane(lane, domModels) {
   if (lane === "A" && domModels[0]) return domModels[0];
   if (lane === "B" && domModels[1]) return domModels[1];
@@ -239,9 +267,16 @@ function buildBattles(s, domSnapshot) {
     latestEvalId = (latestParsedInit && latestParsedInit.id) || null;
   }
 
+  /* Votes are cast one per round, in order, so they zip onto rounds the same
+   * way inits do -- and only when the counts agree. */
+  var conversationVotes = votesForConversation(s, domSnapshot);
+  var votesAlign = conversationVotes.length > 0 && conversationVotes.length === urls.length;
+
   urls.forEach(function (url, roundIndex) {
     var isLatest = url === latestUrl;
-    var voteForThisBattle = isLatest ? (capturedVote || domVote) : null;
+    var voteForThisBattle = votesAlign ? conversationVotes[roundIndex]
+      : (isLatest ? (capturedVote || domVote) : null);
+    var prevVote = (votesAlign && roundIndex > 0) ? conversationVotes[roundIndex - 1] : null;
     var winnerModelForBattle = isLatest ? winnerModel : null;
     var greenLanesForBattle = isLatest ? greenLanes : [];
     var negativeLanesForBattle = isLatest ? negativeLanes : [];
@@ -269,6 +304,7 @@ function buildBattles(s, domSnapshot) {
         lane: lane.toUpperCase(),
         model: !anonymous && model ? model : null,
         model_source: !anonymous && model ? modelSource : "unknown",
+        context_source: roundIndex === 0 ? "first_turn" : laneContextSource(prevVote, lane.toUpperCase()),
         message_id: lane === "a" ? (init.modelAMessageId || null) : (init.modelBMessageId || null),
         response: L.text,
         finished: !!L.finished,

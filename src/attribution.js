@@ -81,6 +81,7 @@ function buildAttributionSamples(s, payload) {
         model: model,
         model_labeled: !!model,
         model_source: model ? (c.model_source || "arena_reveal") : "unknown",
+        context_source: c.context_source || "unknown",
         blocks: laneSampleBlocks(c),
         files: files
       });
