@@ -198,14 +198,25 @@ function buildBattles(s, domSnapshot) {
   var negativeLanes = battleDom && Array.isArray(battleDom.negativeLanes) ? battleDom.negativeLanes : [];
   var winnerModel = battleDom && battleDom.winnerModel ? battleDom.winnerModel : null;
   if (winnerModel && AE.isPlaceholderModel && AE.isPlaceholderModel(winnerModel)) winnerModel = null;
+  /* Parse each stream once. These bodies run to megabytes and buildBattles is
+   * called on every turn sync, so the old parse-in-both-loops cost real time. */
+  var parsedByUrl = {};
+  urls.forEach(function (url) { parsedByUrl[url] = AE.parseBattleStream(streams[url]); });
+
   var latestUrl = null;
   for (var ui = urls.length - 1; ui >= 0; ui--) {
-    var latestParsed = AE.parseBattleStream(streams[urls[ui]]);
+    var latestParsed = parsedByUrl[urls[ui]];
     if (latestParsed.init || Object.keys(latestParsed.lanes).length) {
       latestUrl = urls[ui];
       break;
     }
   }
+
+  /* recordRequest keeps only the newest body per URL, so a request-derived init
+   * describes the newest round and nothing else. Applying it to every stream
+   * made earlier rounds inherit this round's evaluation_id and message ids;
+   * rounds that never carried their own init record must stay null instead. */
+  var reqInit = evalInitFromRequests(s);
 
   urls.forEach(function (url) {
     var isLatest = url === latestUrl;
@@ -215,9 +226,8 @@ function buildBattles(s, domSnapshot) {
     var winnerModelForBattle = isLatest ? winnerModel : null;
     var greenLanesForBattle = isLatest ? greenLanes : [];
     var negativeLanesForBattle = isLatest ? negativeLanes : [];
-    var parsed = AE.parseBattleStream(streams[url]);
-    var reqInit = evalInitFromRequests(s);
-    if (reqInit && AE.applyBattleInit) AE.applyBattleInit(parsed, reqInit);
+    var parsed = parsedByUrl[url];
+    if (isLatest && reqInit && AE.applyBattleInit) AE.applyBattleInit(parsed, reqInit);
     if (!parsed.init && !Object.keys(parsed.lanes).length) return;
     var init = parsed.init || {};
     var lanes = ["a", "b"];

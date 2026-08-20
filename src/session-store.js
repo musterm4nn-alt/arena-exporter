@@ -5,6 +5,9 @@
 var STATE_KEY = "ae_store_v2";
 var LEGACY_STATE_KEY = "ae_state_v1";
 var DEDUPE_CAP = 20000;
+var MAX_SESSIONS = 12;
+var EVAL_TOTAL_CAP = 4 * 1024 * 1024; // raw battle stream bytes retained per session
+var MAX_WARNINGS = 50;
 
 var store = {
   sessions: {},
@@ -52,6 +55,7 @@ function freshState(key) {
     stats: { events: 0, unknown: 0, streamChunks: 0, lastEventAt: 0 },
     streamBuilders: {},
     currentStreamKey: null,
+    streamDirty: false,
     truncatedEval: false,
     storageError: false
   };
@@ -81,6 +85,7 @@ function hydrateSession(raw, key) {
   s.stats = Object.assign({ events: 0, unknown: 0, streamChunks: 0, lastEventAt: 0 }, raw.stats || {});
   s.streamBuilders = raw.streamBuilders && typeof raw.streamBuilders === "object" ? raw.streamBuilders : {};
   s.currentStreamKey = raw.currentStreamKey || null;
+  s.streamDirty = false;
   s.truncatedEval = !!raw.truncatedEval;
   s.storageError = !!raw.storageError;
   (s.messages || []).forEach(function (m, index) {
@@ -227,11 +232,69 @@ function resolveSessionForEvent(evt, sender) {
   return s;
 }
 
+/* Warnings are persisted and copied into every export, and some sources (a
+ * flapping stream, repeated save failures) can fire indefinitely. Dedupe and
+ * cap so they stay a signal rather than a leak. */
+function addWarning(s, text) {
+  if (!s || !text) return;
+  if (!Array.isArray(s.warnings)) s.warnings = [];
+  if (s.warnings.indexOf(text) !== -1) return;
+  s.warnings.push(text);
+  if (s.warnings.length > MAX_WARNINGS) s.warnings.shift();
+}
+
+function lastActivity(s) {
+  return (s && s.stats && s.stats.lastEventAt) || 0;
+}
+
+/* A single battle round can hold megabytes of raw stream. Keep the newest
+ * rounds within a byte budget; never drop the round still being captured. */
+function pruneEvaluationStreams(s) {
+  if (!s || !s.evaluationStreams) return;
+  var keys = Object.keys(s.evaluationStreams); // insertion order == round order
+  var total = 0;
+  for (var i = 0; i < keys.length; i++) total += (s.evaluationStreams[keys[i]] || "").length;
+  var dropped = 0;
+  while (total > EVAL_TOTAL_CAP && keys.length > 1) {
+    var oldest = keys.shift();
+    total -= (s.evaluationStreams[oldest] || "").length;
+    delete s.evaluationStreams[oldest];
+    dropped++;
+  }
+  if (dropped) {
+    s.truncatedEval = true;
+    addWarning(s, "Dropped " + dropped + " older battle round(s) from the capture buffer to stay within extension storage limits.");
+  }
+}
+
+/* chrome.storage.session is a ~10MB budget for the whole extension, and
+ * sessions accumulate for the life of the browser session. Unpruned, one busy
+ * afternoon fills the quota and then *every* conversation silently stops
+ * persisting. Evict least-recently-active first, never the active one. */
+function pruneStore() {
+  var keys = Object.keys(store.sessions);
+  keys.forEach(function (k) { pruneEvaluationStreams(store.sessions[k]); });
+  if (keys.length <= MAX_SESSIONS) return;
+  var removable = keys.filter(function (k) { return k !== store.activeKey; })
+    .sort(function (a, b) { return lastActivity(store.sessions[a]) - lastActivity(store.sessions[b]); });
+  removable.slice(0, keys.length - MAX_SESSIONS).forEach(function (k) {
+    delete store.sessions[k];
+    delete seenByKey[k];
+    Object.keys(store.tabKeys).forEach(function (tid) {
+      if (store.tabKeys[tid] === k) delete store.tabKeys[tid];
+    });
+  });
+}
+
 function scheduleSave() {
   if (saveTimer) return;
   saveTimer = setTimeout(function () {
     saveTimer = null;
     try {
+      /* Deltas only mark their message stale; make it whole before persisting
+       * so an evicted service worker resumes with the text it had. */
+      if (typeof flushAllStreamMessages === "function") flushAllStreamMessages();
+      pruneStore();
       var payload = {
         sessions: store.sessions,
         tabKeys: store.tabKeys,
@@ -242,7 +305,7 @@ function scheduleSave() {
         saveResult.catch(function () {
           var s = ensureState();
           s.storageError = true;
-          s.warnings.push("Session persistence failed (storage full or unavailable). Capture continues in memory only.");
+          addWarning(s, "Session persistence failed (storage full or unavailable). Capture continues in memory only.");
         });
       }
     } catch (e) {

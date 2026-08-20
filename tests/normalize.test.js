@@ -262,6 +262,38 @@ console.log("Attachment plumbing (ported):\n");
   check("slug uniqueness", AE.attachmentSlug("a", {}) === "a" && (function(){ const u={}; const x=AE.attachmentSlug("a",u); const y=AE.attachmentSlug("a",u); return x!==y; })());
 }
 
+console.log("Debug-dump redaction keeps structure, drops content:");
+{
+  const secret = "The full text of my private conversation about salary negotiation";
+  const extraction = {
+    source: "dom",
+    strategy: "arena",
+    url: "https://arena.ai/c/abc",
+    messages: [{
+      id: "dom_msg_0",
+      turn_index: 0,
+      role: "user",
+      content: [
+        { type: "text", text: secret, format: "markdown", source: "dom" },
+        { type: "tool_call", tool_name: "write_file", status: "success", summary: secret },
+        { type: "artifact", artifact_type: "html", title: secret, content_or_url: secret }
+      ]
+    }]
+  };
+  const red = AE.dom.redact(extraction);
+  const dumped = JSON.stringify(red);
+  check("message prose removed", dumped.indexOf(secret) === -1);
+  check("not even a prefix of the prose survives", dumped.indexOf(secret.slice(0, 12)) === -1);
+  check("no long string survives", !Object.values(red.messages[0].content).some(b => Object.values(b).some(v => typeof v === "string" && v.length > 60)));
+  check("block type preserved", red.messages[0].content[0].type === "text");
+  check("role preserved", red.messages[0].role === "user");
+  check("tool name preserved", red.messages[0].content[1].tool_name === "write_file");
+  check("artifact type preserved", red.messages[0].content[2].artifact_type === "html");
+  check("strategy preserved", red.strategy === "arena");
+  check("length hint retained", /^\[text \d+ chars\]$/.test(red.messages[0].content[0].text));
+  check("short structural strings untouched", red.messages[0].content[1].status === "success");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
 

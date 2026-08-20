@@ -356,12 +356,91 @@ AE.dom = {};
     "[id*='chat' i]", "[class*='chat' i]", "[class*='conversation' i]", "[class*='thread' i]"
   ];
 
+  /* The dump exists to tune selectors, and the popup invites the user to share
+   * it — so it must carry structure, not content. Text nodes and content-ish
+   * attributes are clipped to a recognisable stub; class/data/role attributes
+   * (the things selectors actually match on) keep a generous budget. */
+  var DEBUG_TEXT_KEEP = 24;
+  var DEBUG_ATTR_KEEP = 40;
+  var DEBUG_STRUCTURAL_ATTR_KEEP = 300;
+  var DEBUG_HTML_CAP = 40000;
+  var STRUCTURAL_ATTR_RE = /^(class|id|role|type|name|data-[\w-]+|aria-(?:expanded|hidden|roledescription|selected|checked|pressed|disabled|level))$/i;
+  var DROP_ATTR_RE = /^(srcdoc|src|href|content|value|alt|placeholder)$/i;
+
+  function stub(len) { return "…[+" + len + " chars]"; }
+
+  function redactAttributes(el) {
+    var attrs = el.attributes;
+    if (!attrs) return;
+    for (var i = attrs.length - 1; i >= 0; i--) {
+      var name = attrs[i].name;
+      var value = attrs[i].value || "";
+      if (!value) continue;
+      if (DROP_ATTR_RE.test(name) || value.indexOf("data:") === 0) {
+        /* srcdoc holds whole generated files; data: URLs hold whole images. */
+        try { el.setAttribute(name, "[redacted " + value.length + " chars]"); } catch (e) {}
+        continue;
+      }
+      var structural = STRUCTURAL_ATTR_RE.test(name);
+      var cap = structural ? DEBUG_STRUCTURAL_ATTR_KEEP : DEBUG_ATTR_KEEP;
+      if (value.length > cap) {
+        /* Structural values (class lists) are truncated because their prefix is
+         * still useful for selectors; content values are replaced outright. */
+        var replacement = structural ? value.slice(0, cap) + stub(value.length - cap)
+                                     : "[redacted " + value.length + " chars]";
+        try { el.setAttribute(name, replacement); } catch (e) {}
+      }
+    }
+  }
+
+  function sanitizedOuterHTML(el) {
+    var clone;
+    try { clone = el.cloneNode(true); } catch (e) { return ""; }
+    try {
+      var walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT, null);
+      var texts = [];
+      while (walker.nextNode()) texts.push(walker.currentNode);
+      texts.forEach(function (n) {
+        var t = n.nodeValue || "";
+        /* Anything longer than a UI label is prose. Replace it whole — keeping
+         * even a short prefix would still leak the opening of every message. */
+        if (t.trim().length > DEBUG_TEXT_KEEP) n.nodeValue = "[text " + t.length + " chars]";
+      });
+      redactAttributes(clone);
+      var all = clone.querySelectorAll("*");
+      for (var i = 0; i < all.length; i++) redactAttributes(all[i]);
+    } catch (e) { /* best effort — fall through to whatever the clone holds */ }
+    return clone.outerHTML || "";
+  }
+
+  /* Same idea for the extractor's own output: keep the shape, drop the prose. */
+  var DEBUG_KEEP_KEYS = {
+    type: 1, role: 1, format: 1, source: 1, strategy: 1, id: 1, turn_index: 1,
+    tool_name: 1, artifact_type: 1, status: 1, language: 1, lane: 1, call_id: 1,
+    truncated: 1, timestamp: 1, extracted_at: 1, url: 1
+  };
+
+  AE.dom.redact = function (value, key) {
+    if (Array.isArray(value)) return value.map(function (v) { return AE.dom.redact(v); });
+    if (value && typeof value === "object") {
+      var out = {};
+      Object.keys(value).forEach(function (k) { out[k] = AE.dom.redact(value[k], k); });
+      return out;
+    }
+    if (typeof value === "string" && !DEBUG_KEEP_KEYS[key] && value.length > DEBUG_TEXT_KEEP) {
+      return "[text " + value.length + " chars]";
+    }
+    return value;
+  };
+
   AE.dom.debugInfo = function () {
     var info = {
       url: location.href,
       title: document.title,
       body_class: String(document.body.className || "").slice(0, 300),
       next_data: !!window.document.getElementById("__NEXT_DATA__"),
+      redacted: true,
+      redaction_note: "Text longer than " + DEBUG_TEXT_KEEP + " chars removed entirely; srcdoc/src/href/value/alt and data: URLs removed; class/data/role/aria attributes preserved for selector tuning.",
       selector_hits: {},
       containers: []
     };
@@ -372,7 +451,7 @@ AE.dom = {};
     });
 
     // Sample the outer HTML of likely chat roots so real selectors can be
-    // derived offline. Bounded hard to keep the dump small.
+    // derived offline. Bounded hard, and redacted so the dump is shareable.
     var seenRoots = new Set();
     DEBUG_ROOT_SELECTORS.forEach(function (sel) {
       var els;
@@ -380,14 +459,15 @@ AE.dom = {};
       Array.prototype.forEach.call(els, function (el) {
         if (seenRoots.has(el) || info.containers.length >= 6) return;
         seenRoots.add(el);
-        var html = el.outerHTML || "";
+        var html = sanitizedOuterHTML(el);
         info.containers.push({
           selector: sel,
           tag: el.tagName,
           id: el.id || null,
           className: String(el.className || "").slice(0, 300),
-          html_chars: html.length,
-          html: html.slice(0, 200000)
+          html_chars: (el.outerHTML || "").length,
+          html_redacted_chars: html.length,
+          html: html.slice(0, DEBUG_HTML_CAP)
         });
       });
     });

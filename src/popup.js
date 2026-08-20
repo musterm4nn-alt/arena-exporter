@@ -305,7 +305,7 @@ $("btn-domdebug").addEventListener("click", async () => {
   const payload = Object.assign({ exported_at: new Date().toISOString(), url: tab.url }, res);
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   await downloadJson(JSON.stringify(payload, null, 2), "arena_dom_debug_" + stamp + ".json");
-  showProgress("Saved DOM debug dump — share this file for selector tuning.");
+  showProgress("Saved DOM debug dump (redacted: structure kept, message text removed) — safe to share for selector tuning.");
 });
 
 init();

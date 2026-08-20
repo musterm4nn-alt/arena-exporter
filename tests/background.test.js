@@ -283,6 +283,45 @@ function check(name, cond) {
   check("sample ids stable", livePre.attribution_samples[0].sample_id === livePost.attribution_samples[0].sample_id);
   check("raw eval stream omitted from export", Object.keys(livePre.meta.evaluation_streams || {}).length === 0);
 
+  console.log("Battle rounds do not inherit each other's evaluation id:");
+  await send({ type: "AE_CLEAR" });
+  const roundUrl = "https://arena.ai/nextjs-api/stream/post-to-evaluation";
+  // Round 1 arrives with no init record of its own.
+  await send({ type: "AE_EVENT", evt: { kind: "stream_chunk", url: roundUrl, text: 'a0:"one"b0:"uno"ad:{"finishReason":"stop"}bd:{"finishReason":"stop"}' } });
+  await send({ type: "AE_EVENT", evt: { kind: "stream_end", url: roundUrl } });
+  // Round 2 carries its own init, and is the round the request log describes.
+  await send({ type: "AE_EVENT", evt: { kind: "request", url: roundUrl, method: "POST", body: JSON.stringify({ id: "round-2", mode: "battle", modelAMessageId: "m-a2", userMessage: { content: "second" } }) } });
+  await send({ type: "AE_EVENT", evt: { kind: "stream_chunk", url: roundUrl, text: '{"id":"round-2","mode":"battle","modelAMessageId":"m-a2","userMessage":{"content":"second"}}a0:"two"b0:"dos"ad:{"finishReason":"stop"}bd:{"finishReason":"stop"}' } });
+  await send({ type: "AE_EVENT", evt: { kind: "stream_end", url: roundUrl } });
+  const rounds = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: null })).json);
+  check("both rounds exported", rounds.battles.length === 2);
+  check("rounds kept their own lane text",
+    rounds.battles[0].contestants[0].response === "one" && rounds.battles[1].contestants[0].response === "two");
+  check("older round did not inherit newer evaluation_id", rounds.battles[0].evaluation_id === null);
+  check("older round did not inherit newer message_id", rounds.battles[0].contestants[0].message_id == null);
+  check("newest round still resolves its id from the request log", rounds.battles[1].evaluation_id === "round-2");
+
+  console.log("Warnings are deduped and bounded:");
+  await send({ type: "AE_CLEAR" });
+  for (let i = 0; i < 5; i++) {
+    await send({ type: "AE_EVENT", evt: { kind: "sse", url: "https://arena.ai/out", data: { records: [{ body: JSON.stringify({ type: "abort" }) }] } } });
+  }
+  const warned = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: null })).json);
+  check("repeated abort recorded once", warned.meta.warnings.filter(w => /stream aborted/.test(w)).length === 1);
+
+  console.log("Idle sessions are evicted before storage fills:");
+  await send({ type: "AE_CLEAR" });
+  for (let i = 0; i < 16; i++) {
+    const sender = { tab: { id: 100 + i, url: "https://arena.ai/c/conv" + i } };
+    await send({ type: "AE_EVENT", evt: { kind: "page_context", url: "https://arena.ai/c/conv" + i, conversationKey: "c:conv" + i } }, sender);
+    await send({ type: "AE_EVENT", evt: { kind: "json", url: "https://arena.ai/api/z", data: { role: "user", content: "prompt " + i } } }, sender);
+  }
+  await new Promise((r) => setTimeout(r, 700)); // eviction runs on the save tick
+  const after = await send({ type: "AE_GET_STATE" });
+  check("session count capped", after.sessions.length <= 12);
+  check("most recent conversation survived", after.sessions.some(x => x.key === "c:conv15"));
+  check("oldest conversation evicted", !after.sessions.some(x => x.key === "c:conv0"));
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

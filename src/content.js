@@ -138,7 +138,9 @@
       AE.dom.expandCollapsed().then(function () {
         var out;
         try {
-          out = { extraction: AE.dom.extract(), debug: AE.dom.debugInfo() };
+          /* Redacted: this dump is meant to be shared for selector tuning, so
+           * it carries DOM shape rather than the conversation itself. */
+          out = { extraction: AE.dom.redact(AE.dom.extract()), debug: AE.dom.debugInfo() };
         } catch (e) {
           out = { error: String(e) };
         }

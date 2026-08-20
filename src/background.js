@@ -135,7 +135,7 @@ function sampleStream(s, url, text, opts) {
       if (next.length > EVAL_STREAM_CAP) {
         s.evaluationStreams[key] = next.slice(0, EVAL_STREAM_CAP);
         s.truncatedEval = true;
-        s.warnings.push("Evaluation stream truncated at " + EVAL_STREAM_CAP + " bytes.");
+        addWarning(s, "Evaluation stream truncated at " + EVAL_STREAM_CAP + " bytes.");
       } else {
         s.evaluationStreams[key] = next;
       }
@@ -256,8 +256,9 @@ function builderBlocks(b) {
   return out;
 }
 
-function rebuildStreamMessage() {
-  var s = ensureState();
+function rebuildStreamMessage(s) {
+  s = s || ensureState();
+  s.streamDirty = false;
   if (!s.currentStreamKey) return;
   var b = s.streamBuilders[s.currentStreamKey];
   if (!b) return;
@@ -268,6 +269,29 @@ function rebuildStreamMessage() {
     idx = s.messages.length - 1;
   }
   s.messages[idx].content = builderBlocks(b);
+}
+
+/* builderBlocks rebuilds every block in the message from scratch, so doing it
+ * per token made a long response quadratic. Text and reasoning deltas only mark
+ * the message stale; the rebuild is deferred to the next read (export, state
+ * summary, stream finish) or to the 500ms save tick, whichever comes first. */
+function markStreamDirty(s) {
+  s.streamDirty = true;
+}
+
+function flushStreamMessage(s) {
+  if (s && s.streamDirty) rebuildStreamMessage(s);
+}
+
+function flushAllStreamMessages() {
+  Object.keys(store.sessions).forEach(function (k) {
+    var sess = store.sessions[k];
+    if (sess && sess.streamDirty) {
+      var prev = store.activeKey;
+      store.activeKey = k;
+      try { rebuildStreamMessage(sess); } finally { store.activeKey = prev; }
+    }
+  });
 }
 
 function slotFor(b, id, kind) {
@@ -332,7 +356,7 @@ function handleStreamChunk(c) {
   var b = s.streamBuilders[s.currentStreamKey];
 
   if (t === "start-step" || t === "finish-step" || t === "reasoning-end" || t === "text-end" || t === "finish") {
-    if (t === "finish") rebuildStreamMessage();
+    if (t === "finish") rebuildStreamMessage(s);
     return true;
   }
   if (t === "reasoning-start") {
@@ -349,7 +373,7 @@ function handleStreamChunk(c) {
       return sl;
     })();
     rd.text += c.delta || "";
-    rebuildStreamMessage();
+    markStreamDirty(s);
     return true;
   }
   if (t === "text-start") {
@@ -366,13 +390,13 @@ function handleStreamChunk(c) {
       return sl;
     })();
     td.text += c.delta || "";
-    rebuildStreamMessage();
+    markStreamDirty(s);
     return true;
   }
   if (t === "tool-input-start") {
     var tis = toolSlot(b, c.toolCallId);
     if (c.toolName) tis.name = c.toolName;
-    rebuildStreamMessage();
+    rebuildStreamMessage(s);
     return true;
   }
   if (t === "tool-input-delta") {
@@ -384,21 +408,21 @@ function handleStreamChunk(c) {
     var tia = toolSlot(b, c.toolCallId);
     if (c.toolName) tia.name = c.toolName;
     if (c.input !== undefined) tia.input = c.input;
-    rebuildStreamMessage();
+    rebuildStreamMessage(s);
     return true;
   }
   if (t === "tool-output-available") {
     var toa = toolSlot(b, c.toolCallId);
     toa.output = c.output;
     toa.status = "success";
-    rebuildStreamMessage();
+    rebuildStreamMessage(s);
     return true;
   }
   if (t === "tool-output-error") {
     var toe = toolSlot(b, c.toolCallId);
     toe.errorText = outText(c.errorText || c.error || "error");
     toe.status = "error";
-    rebuildStreamMessage();
+    rebuildStreamMessage(s);
     return true;
   }
   if (t === "source-url" || t === "source-document") {
@@ -412,7 +436,7 @@ function handleStreamChunk(c) {
         source: "network"
       }
     });
-    rebuildStreamMessage();
+    rebuildStreamMessage(s);
     return true;
   }
   if (t === "file") {
@@ -426,7 +450,7 @@ function handleStreamChunk(c) {
         source: "network"
       }
     });
-    rebuildStreamMessage();
+    rebuildStreamMessage(s);
     return true;
   }
   if (t === "message") {
@@ -435,11 +459,11 @@ function handleStreamChunk(c) {
     return true;
   }
   if (t === "abort") {
-    s.warnings.push("Agent stream aborted.");
+    addWarning(s, "Agent stream aborted.");
     return true;
   }
   if (t === "error") {
-    s.warnings.push("Agent stream error: " + outText(c.errorText || c.message || c.error || "unknown").slice(0, 200));
+    addWarning(s, "Agent stream error: " + outText(c.errorText || c.message || c.error || "unknown").slice(0, 200));
     return true;
   }
   return false;
@@ -692,6 +716,7 @@ function deriveCompleteness(s, warnings) {
 
 function buildExport(mode, domSnapshot) {
   var s = ensureState();
+  flushStreamMessage(s);
   var warnings = s.warnings.slice();
   var captureSources = ["network"];
   var messages = s.messages.map(function (m) { return JSON.parse(JSON.stringify(m)); });
@@ -779,6 +804,7 @@ function buildExport(mode, domSnapshot) {
 
 function getStateSummary() {
   var s = ensureState();
+  flushStreamMessage(s);
   var counts = {};
   s.messages.forEach(function (m) {
     if (!m) return;
