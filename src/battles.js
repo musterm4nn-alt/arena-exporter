@@ -159,17 +159,20 @@ function battleSubtype(parsed, contestants) {
   return "text";
 }
 
-function evalInitFromRequests(s) {
+/* Every captured evaluation request, oldest first -- one per turn of the
+ * conversation now that they are no longer deduped down to the last. */
+function evalInitsFromRequests(s) {
   var reqs = s && Array.isArray(s.capturedRequests) ? s.capturedRequests : [];
-  for (var i = reqs.length - 1; i >= 0; i--) {
+  var out = [];
+  for (var i = 0; i < reqs.length; i++) {
     var url = String(reqs[i].url || "");
     if (!/(create-evaluation|post-to-evaluation)/i.test(url)) continue;
     try {
       var body = typeof reqs[i].body === "string" ? JSON.parse(reqs[i].body) : reqs[i].body;
-      if (body && typeof body === "object" && (body.mode === "battle" || body.userMessage || body.id)) return body;
+      if (body && typeof body === "object" && (body.mode === "battle" || body.userMessage || body.id)) out.push(body);
     } catch (e) { /* ignore */ }
   }
-  return null;
+  return out;
 }
 
 function namedModels(list) {
@@ -212,24 +215,51 @@ function buildBattles(s, domSnapshot) {
     }
   }
 
-  /* recordRequest keeps only the newest body per URL, so a request-derived init
-   * describes the newest round and nothing else. Applying it to every stream
-   * made earlier rounds inherit this round's evaluation_id and message ids;
-   * rounds that never carried their own init record must stay null instead. */
-  var reqInit = evalInitFromRequests(s);
+  /* Requests and streams are both in turn order, so when we have one request per
+   * round they can be zipped. If the counts disagree we cannot know which round
+   * a body belongs to, and only the newest round -- which the newest request
+   * definitely describes -- gets one. Never guess: a wrong evaluation_id is
+   * worse than a null one. */
+  var reqInits = evalInitsFromRequests(s);
+  var initsAlign = reqInits.length > 0 && reqInits.length === urls.length;
 
-  urls.forEach(function (url) {
+  function initForRound(url, roundIndex) {
     var isLatest = url === latestUrl;
-    var modelsForBattle = isLatest ? namedModels(domModels) : [];
-    var anonymous = modelsForBattle.length < 2;
+    return initsAlign ? reqInits[roundIndex]
+      : (isLatest && reqInits.length ? reqInits[reqInits.length - 1] : null);
+  }
+
+  /* The evaluation id identifies the *conversation*, not the turn: every
+   * post-to-evaluation in a multi-turn battle reuses it. Two streams carrying
+   * different ids are different battles that merely shared a URL. */
+  var latestEvalId = null;
+  if (latestUrl) {
+    var latestIdx = urls.indexOf(latestUrl);
+    var latestParsedInit = (parsedByUrl[latestUrl] && parsedByUrl[latestUrl].init) || initForRound(latestUrl, latestIdx);
+    latestEvalId = (latestParsedInit && latestParsedInit.id) || null;
+  }
+
+  urls.forEach(function (url, roundIndex) {
+    var isLatest = url === latestUrl;
     var voteForThisBattle = isLatest ? (capturedVote || domVote) : null;
     var winnerModelForBattle = isLatest ? winnerModel : null;
     var greenLanesForBattle = isLatest ? greenLanes : [];
     var negativeLanesForBattle = isLatest ? negativeLanes : [];
     var parsed = parsedByUrl[url];
-    if (isLatest && reqInit && AE.applyBattleInit) AE.applyBattleInit(parsed, reqInit);
+    var roundInit = initForRound(url, roundIndex);
+    if (roundInit && AE.applyBattleInit) AE.applyBattleInit(parsed, roundInit);
     if (!parsed.init && !Object.keys(parsed.lanes).length) return;
     var init = parsed.init || {};
+
+    /* Arena keeps one model pair for a whole conversation and only names them
+     * after a vote, so the reveal labels every earlier turn too -- otherwise a
+     * four-turn battle yields two labeled samples instead of eight. Only
+     * propagate within the same evaluation id; provenance is recorded so
+     * propagated labels stay auditable and filterable. */
+    var sameConversation = isLatest || !!(latestEvalId && init.id && init.id === latestEvalId);
+    var modelsForBattle = sameConversation ? namedModels(domModels) : [];
+    var modelSource = isLatest ? "arena_reveal" : "arena_reveal_propagated";
+    var anonymous = modelsForBattle.length < 2;
     var lanes = ["a", "b"];
     var contestants = lanes.map(function (lane, i) {
       var L = parsed.lanes[lane] || { text: "", finished: false, finishReason: null, citations: [], files: [] };
@@ -238,6 +268,7 @@ function buildBattles(s, domSnapshot) {
       return {
         lane: lane.toUpperCase(),
         model: !anonymous && model ? model : null,
+        model_source: !anonymous && model ? modelSource : "unknown",
         message_id: lane === "a" ? (init.modelAMessageId || null) : (init.modelBMessageId || null),
         response: L.text,
         finished: !!L.finished,

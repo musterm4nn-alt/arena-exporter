@@ -322,6 +322,50 @@ function check(name, cond) {
   check("most recent conversation survived", after.sessions.some(x => x.key === "c:conv15"));
   check("oldest conversation evicted", !after.sessions.some(x => x.key === "c:conv0"));
 
+  console.log("Multi-turn battle: reveal labels every turn, each turn keeps its prompt:");
+  await send({ type: "AE_CLEAR" });
+  const EV = "01a01ea6-134c-7d68-b1b4-fc5e8f62f970"; // one id for the whole conversation
+  const createUrl = "https://arena.ai/nextjs-api/stream/create-evaluation";
+  const postUrl = "https://arena.ai/nextjs-api/stream/post-to-evaluation/" + EV;
+  const turns = [
+    { url: createUrl, umid: "um-1", prompt: "mirror, mirror on the wall", a: "You are.", b: "technically a screen" },
+    { url: postUrl, umid: "um-2", prompt: "what about snow-white?", a: "honesty clause", b: "storybook kind" },
+    { url: postUrl, umid: "um-3", prompt: "apples?", a: "WAIT. WAIT.", b: "nuclear winter" },
+    { url: postUrl, umid: "um-4", prompt: "fiiiiine", a: "Deal's a deal", b: "Discretion" }
+  ];
+  for (const t of turns) {
+    await send({ type: "AE_EVENT", evt: { kind: "request", url: t.url, method: "POST", body: JSON.stringify({
+      id: EV, mode: t.url === createUrl ? "battle" : null, modality: "chat",
+      userMessageId: t.umid, modelAMessageId: t.umid + "-a", modelBMessageId: t.umid + "-b",
+      userMessage: { content: t.prompt }
+    }) } });
+    await send({ type: "AE_EVENT", evt: { kind: "stream_chunk", url: t.url, text:
+      'a2:[{"type":"heartbeat"}]a0:' + JSON.stringify(t.a) + 'b0:' + JSON.stringify(t.b) +
+      'ad:{"finishReason":"stop"}bd:{"finishReason":"stop"}' } });
+    await send({ type: "AE_EVENT", evt: { kind: "stream_end", url: t.url } });
+  }
+  const revealSnapshot = { source: "dom", url: "https://arena.ai/c/" + EV, messages: [],
+    battle: { models: ["grok-4.5", "gemini-3.5-flash-lite"], anonymous: false, ballotVisible: false } };
+  await send({ type: "AE_EVENT", evt: { kind: "battle_vote", choice: "A is better", label: "A is better", source: "dom_click", url: revealSnapshot.url, capturedAt: new Date().toISOString() } });
+  const mt = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: revealSnapshot })).json);
+
+  check("all four turns exported", mt.battles.length === 4);
+  check("every turn kept its own prompt",
+    mt.battles.map(b => b.prompt).join("|") === "mirror, mirror on the wall|what about snow-white?|apples?|fiiiiine");
+  check("every turn labeled from the single reveal",
+    mt.attribution_samples.length === 8 && mt.attribution_samples.every(x => x.model_labeled));
+  check("lane A is grok across all turns",
+    mt.attribution_samples.filter(x => x.lane === "A").every(x => x.model === "grok-4.5"));
+  check("lane B is gemini across all turns",
+    mt.attribution_samples.filter(x => x.lane === "B").every(x => x.model === "gemini-3.5-flash-lite"));
+  check("propagated labels are marked as such",
+    mt.attribution_samples.filter(x => x.model_source === "arena_reveal_propagated").length === 6 &&
+    mt.attribution_samples.filter(x => x.model_source === "arena_reveal").length === 2);
+  check("only the voted turn carries the outcome",
+    mt.battles[3].outcome === "a_wins" && mt.battles.slice(0, 3).every(b => b.outcome === "pending"));
+  check("export records the extension version",
+    typeof mt.export.extension_version === "string" && mt.export.extension_version.length > 0);
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -23,6 +23,8 @@ AE.renderMarkdown = function (payload) {
   if (source.url) lines.push("- URL: " + source.url);
   if (session.conversation_key) lines.push("- Key: " + session.conversation_key);
   if (payload.archive && payload.archive.rel) lines.push("- Archive: " + payload.archive.rel);
+  if (exp.extension_version) lines.push("- Captured by: arena-agent-exporter v" + exp.extension_version);
+  if (exp.exported_at) lines.push("- Exported: " + exp.exported_at);
   var latest = battles.length ? battles[battles.length - 1] : null;
   if (latest) {
     var models = (latest.contestants || []).map(function (c) { return c.model || c.lane; }).join(" vs ");

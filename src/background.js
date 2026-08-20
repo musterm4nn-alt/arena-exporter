@@ -156,12 +156,23 @@ function recordRequest(s, evt) {
     try { body = JSON.stringify(body); } catch (e) { body = String(evt.body || ""); }
   }
   var bodyCap = EVAL_URL_RE.test(url) ? 24000 : 8000;
+  /* Every turn of a multi-turn battle POSTs to the same post-to-evaluation URL,
+   * so deduping on method+url alone kept only the final turn and threw away the
+   * prompts for every earlier round. Evaluation requests are keyed by the turn's
+   * userMessageId so each round survives. */
+  var turnId = null;
+  if (EVAL_URL_RE.test(url)) {
+    var tm = /"userMessageId"\s*:\s*"([^"]+)"/.exec(body);
+    turnId = tm ? tm[1] : null;
+  }
   var entry = { method: evt.method || "?", url: url.slice(0, 250), body: body.slice(0, bodyCap) };
+  if (turnId) entry.turn_id = turnId;
   for (var i = 0; i < s.capturedRequests.length; i++) {
-    if (s.capturedRequests[i].method === entry.method && s.capturedRequests[i].url === entry.url) {
-      s.capturedRequests[i] = entry;
-      return;
-    }
+    var prevReq = s.capturedRequests[i];
+    if (prevReq.method !== entry.method || prevReq.url !== entry.url) continue;
+    if ((prevReq.turn_id || null) !== (entry.turn_id || null)) continue;
+    s.capturedRequests[i] = entry;
+    return;
   }
   s.capturedRequests.push(entry);
   if (s.capturedRequests.length > CAPTURED_REQ_CAP) s.capturedRequests.shift();
@@ -760,6 +771,8 @@ function buildExport(mode, domSnapshot) {
     export: {
       mode: mode,
       exported_at: new Date().toISOString(),
+      extension_version: extensionVersion(),
+      schema_version: AE.SCHEMA_VERSION,
       source: { site: "arena.ai", mode: battles.length ? "battle" : "agent", url: s.session.url || null }
     },
     session: {
