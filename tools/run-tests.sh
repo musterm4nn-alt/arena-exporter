@@ -9,6 +9,7 @@ node tests/interceptor.test.js
 node tests/archive.test.js
 node tests/archive-sink.test.js
 if command -v swift >/dev/null; then
+  (cd macos/ArenaArchive && swift test)
   (cd macos/ArenaArchive && swift run ArchiveKitProbe)
 fi
 echo "ALL SUITES OK"

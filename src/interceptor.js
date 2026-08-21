@@ -44,7 +44,9 @@
 
   function emit(evt) {
     try {
-      window.postMessage({ type: NS, evt: evt }, "*");
+      var target = "*";
+      try { if (location.origin) target = location.origin; } catch (e) { /* ignore */ }
+      window.postMessage({ type: NS, evt: evt }, target);
     } catch (e) { /* never break the host page */ }
   }
 

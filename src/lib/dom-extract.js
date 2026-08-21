@@ -851,9 +851,30 @@ AE.dom = {};
 
   /* ---------- attachment fetching (ported from v1.4.0 fork) ----------
    * Fetch artifact bytes same-origin (credentials included so preview-token
-   * URLs work while logged in) and return them as data URLs. Bounded. */
+   * URLs work while logged in) and return them as data URLs. Bounded.
+   * Only arena.ai (and blob:) URLs are fetched — a redirected content_or_url
+   * must not become a credentialed request to a third party. */
   var ATTACHMENT_MAX_BYTES = 15 * 1024 * 1024;
+
+  AE.dom.isAllowedAttachmentUrl = function (url) {
+    try {
+      var base = "https://arena.ai/";
+      try {
+        if (typeof location !== "undefined" && location.href) base = location.href;
+      } catch (e) { /* tests */ }
+      var u = new URL(String(url), base);
+      if (u.protocol === "blob:") return true;
+      if (u.protocol !== "https:") return false;
+      return /^([a-z0-9-]+\.)*arena\.ai$/i.test(u.hostname);
+    } catch (e) {
+      return false;
+    }
+  };
+
   AE.dom.fetchAttachment = function (url) {
+    if (!AE.dom.isAllowedAttachmentUrl(url)) {
+      return Promise.resolve({ url: url, ok: false, error: "blocked origin" });
+    }
     return fetch(url, { credentials: "include", cache: "no-store" })
       .then(function (resp) {
         if (!resp.ok) return { url: url, ok: false, error: "HTTP " + resp.status };

@@ -16,6 +16,8 @@ const ctx = vm.createContext({
   console,
   setTimeout, clearTimeout,
   JSON, Math, Date, Object, Array, String, Number, Set, Promise,
+  crypto: globalThis.crypto,
+  TextEncoder, TextDecoder,
   importScripts: (...files) => {
     for (const f of files) vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), ctx);
   },
@@ -31,8 +33,9 @@ const ctx = vm.createContext({
 vm.runInContext(fs.readFileSync(path.join(ROOT, "background.js"), "utf8"), ctx);
 
 function send(msg, sender) {
+  const from = sender || { tab: { id: 1, url: "https://arena.ai/" } };
   return new Promise((resolve) => {
-    const ret = messageListener(msg, sender || {}, resolve);
+    const ret = messageListener(msg, from, resolve);
     if (ret === undefined) resolve(null); // sync sendResponse already called
   });
 }
@@ -413,6 +416,19 @@ function check(name, cond) {
   check("samples carry context provenance",
     ctx.attribution_samples.filter(x => x.context_source === "cross_lane").length === 1 &&
     ctx.attribution_samples.filter(x => x.context_source === "first_turn").length === 2);
+
+  console.log("Capture events from non-arena tabs are ignored:");
+  {
+    const before = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history" })).json);
+    const n = before.messages.length;
+    await send(
+      { type: "AE_EVENT", evt: { kind: "json", url: "https://arena.ai/api/agent/chat", data: { role: "user", content: "injected from evil.com" } } },
+      { tab: { id: 99, url: "https://evil.example/page" } }
+    );
+    const after = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history" })).json);
+    check("non-arena sender dropped", after.messages.length === n &&
+      !JSON.stringify(after.messages).includes("injected from evil.com"));
+  }
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

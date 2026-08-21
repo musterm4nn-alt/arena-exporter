@@ -44,7 +44,8 @@ function fakeDownloads(writes, opts) {
     },
     search: (q, cb) => cb(items[q.id] ? [items[q.id]] : []),
     erase: (q, cb) => { delete items[q.id]; cb([q.id]); },
-    setUiOptions: (o, cb) => { if (cb) cb(); }
+    setUiOptions: (o, cb) => { if (cb) cb(); },
+    onChanged: { addListener: () => {} }
   };
 }
 

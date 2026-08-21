@@ -50,5 +50,9 @@ check("markdown has prompt", md.indexOf("create a dashboard") !== -1);
 check("markdown has lanes", md.indexOf("### A") !== -1 && md.indexOf("### B") !== -1);
 check("markdown links file", md.indexOf("battle-01/A/src/App.tsx") !== -1);
 
+check("safeArchivePath rejects dot-dot", AE.safeArchivePath("../etc/passwd") === null);
+check("safeArchivePath rejects nested traversal", AE.safeArchivePath("battle-01/A/../../evil") === null);
+check("safeArchivePath keeps lane file", AE.safeArchivePath("battle-01/A/src/App.tsx") === "battle-01/A/src/App.tsx");
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

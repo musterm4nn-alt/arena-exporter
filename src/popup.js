@@ -183,6 +183,7 @@ function collectArtifactUrls(payload) {
     if (b.type !== "artifact" || typeof b.content_or_url !== "string") return;
     const u = b.content_or_url;
     if (!/^(https?:|blob:)/i.test(u) || seen.has(u)) return;
+    if (/^https?:/i.test(u) && !/^https:\/\/([^/]+\.)?arena\.ai\//i.test(u)) return;
     seen.add(u);
     if (out.length < 30) out.push(u);
   }));
@@ -246,11 +247,21 @@ async function init() {
   if (res && res.ok) renderState(res.state);
 }
 
+function conversationKeyFromHref(href) {
+  const m = /\/c\/([A-Za-z0-9_-]+)/.exec(String(href || ""));
+  return m ? "c:" + m[1] : null;
+}
+
 if ($("btn-sync")) $("btn-sync").addEventListener("click", async () => {
-  showProgress("Syncing to Arena Archive…");
-  const res = await sendBg({ type: "AE_SYNC" });
-  if (res && res.ok && res.sync && res.sync.rel) showProgress("Synced → " + res.sync.rel);
-  else showProgress((res && res.sync && res.sync.error) || "Archive app not installed — JSON export still works.");
+  showProgress("Writing to archive…");
+  const tab = await activeTab();
+  const res = await sendBg({
+    type: "AE_SYNC",
+    tabId: tab && tab.id,
+    sessionKey: tab && conversationKeyFromHref(tab.url)
+  });
+  if (res && res.ok && res.sync && res.sync.rel) showProgress("Wrote → " + res.sync.rel);
+  else showProgress((res && res.sync && res.sync.error) || "Archive write failed — JSON export still works.");
   if (res && res.state) renderState(res.state);
 });
 if ($("btn-full")) $("btn-full").addEventListener("click", () => doExport("full_history"));

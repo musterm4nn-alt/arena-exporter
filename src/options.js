@@ -59,7 +59,7 @@ async function loadIndex() {
 (async () => {
   chrome.storage.local.get(["ae_silent_writes"], (r) => {
     void chrome.runtime.lastError;
-    $("chk-silent").checked = !r || r.ae_silent_writes !== false;
+    $("chk-silent").checked = !!(r && r.ae_silent_writes);
   });
   await loadIndex();
 })();

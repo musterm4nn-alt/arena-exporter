@@ -26,22 +26,10 @@ public struct ArchiveIndex: Codable {
     }
 }
 
-public struct HostResponse: Codable {
-    public var ok: Bool
-    public var id: Int?
-    public var version: String?
-    public var root: String?
-    public var app: String?
-    public var rel: String?
-    public var exists: Bool?
-    public var error: String?
-    public var written: [String]?
-}
-
 public final class ArchiveStore {
     public private(set) var root: URL
     public static let defaultRoot = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Documents/arena-archive", isDirectory: true)
+        .appendingPathComponent("Downloads/arena-archive", isDirectory: true)
 
     public init(root: URL? = nil) {
         self.root = root ?? ArchiveStore.loadSavedRoot() ?? ArchiveStore.defaultRoot
@@ -102,8 +90,11 @@ public final class ArchiveStore {
             throw NSError(domain: "ArchiveKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "illegal path"])
         }
         let url = root.appendingPathComponent(rel).standardizedFileURL
-        let rootStd = root.standardizedFileURL.path
-        if !url.path.hasPrefix(rootStd) {
+        let rootPath = root.standardizedFileURL.path
+        let destPath = url.path
+        if destPath == rootPath { return url }
+        let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        if !destPath.hasPrefix(prefix) {
             throw NSError(domain: "ArchiveKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "path escapes archive root"])
         }
         return url
@@ -182,47 +173,3 @@ public final class ArchiveStore {
     }
 }
 
-public enum NativeProtocol {
-    public static func handle(message: [String: Any], store: ArchiveStore) -> [String: Any] {
-        let type = message["type"] as? String ?? ""
-        let id = message["id"] as? Int
-        func wrap(_ dict: [String: Any]) -> [String: Any] {
-            var d = dict
-            if let id { d["id"] = id }
-            return d
-        }
-        do {
-            switch type {
-            case "ping":
-                return wrap(["ok": true, "version": "1.0", "root": store.root.path, "app": "Arena Archive"])
-            case "set_root":
-                guard let path = message["path"] as? String else {
-                    return wrap(["ok": false, "error": "missing path"])
-                }
-                try store.setRoot(path)
-                return wrap(["ok": true, "root": store.root.path])
-            case "resolve":
-                let key = message["key"] as? String ?? ""
-                if let e = store.resolve(key) {
-                    return wrap(["ok": true, "exists": true, "rel": e.rel, "subtype": e.subtype as Any])
-                }
-                return wrap(["ok": true, "exists": false])
-            case "sync_meta":
-                let chat = message["chat"] as? [String: Any] ?? [:]
-                let files = message["files"] as? [[String: Any]] ?? []
-                let result = try store.sync(chat: chat, files: files)
-                return wrap(["ok": true, "rel": result.rel, "written": result.written])
-            case "write_chunk":
-                let key = message["key"] as? String ?? ""
-                let path = message["path"] as? String ?? ""
-                let content = (message["data_utf8"] as? String) ?? (message["content"] as? String) ?? ""
-                try store.writeChunk(key: key, path: path, content: content)
-                return wrap(["ok": true, "path": path])
-            default:
-                return wrap(["ok": false, "error": "unknown type \(type)"])
-            }
-        } catch {
-            return wrap(["ok": false, "error": error.localizedDescription])
-        }
-    }
-}

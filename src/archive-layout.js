@@ -4,6 +4,19 @@ var AE = AE || {};
 
 AE.ARCHIVE_INDEX = "_index.json";
 
+AE.safeArchivePath = function (rel) {
+  var p = String(rel || "").replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!p || p.indexOf("\0") !== -1) return null;
+  var parts = p.split("/");
+  var out = [];
+  for (var i = 0; i < parts.length; i++) {
+    if (!parts[i] || parts[i] === ".") continue;
+    if (parts[i] === "..") return null;
+    out.push(parts[i]);
+  }
+  return out.length ? out.join("/") : null;
+};
+
 AE.slugify = function (title, shortId) {
   var base = String(title || "")
     .toLowerCase()
@@ -26,7 +39,10 @@ AE.firstBattleSubtype = function (payload) {
 };
 
 AE.archiveRelFor = function (payload, existingRel) {
-  if (existingRel) return existingRel;
+  if (existingRel) {
+    var locked = AE.safeArchivePath(existingRel);
+    if (locked) return locked;
+  }
   var battles = (payload && payload.battles) || [];
   var session = (payload && payload.session) || {};
   var key = session.conversation_key || session.session_id || "unknown";
@@ -61,7 +77,8 @@ AE.decorateArchivePaths = function (payload, existingRel) {
       c.response_file = c.dir + "/response.md";
       (c.files || []).forEach(function (f) {
         if (!f || typeof f !== "object") return;
-        var name = String(f.path || "file").replace(/^\/+/, "");
+        var name = AE.safeArchivePath(String(f.path || "file"));
+        if (!name) return;
         f.archive_path = c.dir + "/" + name;
       });
     });

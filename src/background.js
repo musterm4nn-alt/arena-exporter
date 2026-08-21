@@ -1,6 +1,6 @@
 /* Service worker: routes capture events into per-conversation sessions,
  * assembles messages, and builds export JSON (network-as-truth, DOM fallback). */
-importScripts("lib/schema.js", "lib/normalize.js", "session-store.js", "battles.js", "attribution.js", "archive-layout.js", "markdown.js", "native-client.js", "downloads-sink.js", "turn-sync.js");
+importScripts("lib/schema.js", "lib/normalize.js", "session-store.js", "battles.js", "attribution.js", "archive-layout.js", "markdown.js", "downloads-sink.js", "turn-sync.js");
 
 var STREAMING_WINDOW_MS = 2500;
 var AGENT_URL_RE = /(ai-proxy|\/api\/chat\/|stream\/create-chat|stream\/create-evaluation|stream\/post-to-evaluation|\/nextjs-api\/|\/api\/history|workspace)/i;
@@ -849,10 +849,19 @@ function getStateSummary() {
   };
 }
 
+function isArenaSender(sender) {
+  var url = (sender && sender.tab && sender.tab.url) || "";
+  return /^https:\/\/([^/]+\.)?arena\.ai\//i.test(url);
+}
+
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (!msg || typeof msg.type !== "string" || msg.type.indexOf("AE_") !== 0) return;
 
   if (msg.type === "AE_EVENT") {
+    if (!isArenaSender(sender)) {
+      sendResponse({ ok: false, error: "ignored" });
+      return;
+    }
     if (stateReady) handleEvent(msg.evt, sender);
     else pendingEvents.push({ evt: msg.evt, sender: sender });
     sendResponse({ ok: true, queued: !stateReady });
@@ -894,16 +903,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
   if (msg.type === "AE_SYNC") {
     stateReadyPromise.then(function () {
-      runTurnSync("manual").then(function (result) {
+      var tabId = msg.tabId != null ? msg.tabId : null;
+      var key = msg.sessionKey || null;
+      if (!key && tabId != null) {
+        key = store.tabKeys[tabId] || store.tabKeys[String(tabId)] || null;
+      }
+      runTurnSync("manual", key, tabId).then(function (result) {
         sendResponse({ ok: !!(result && result.ok), sync: result, state: getStateSummary() });
-      });
-    });
-    return true;
-  }
-  if (msg.type === "AE_PING_HOST") {
-    stateReadyPromise.then(function () {
-      pingNative().then(function (res) {
-        sendResponse(res || { ok: false });
       });
     });
     return true;
@@ -940,11 +946,12 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
 });
 
-/* Download-bubble suppression does not persist across worker restarts. */
+/* Download-bubble suppression does not persist across worker restarts and is
+ * opt-in: it hides the shelf for the whole browser, not just this extension. */
 try {
   chrome.storage.local.get(["ae_silent_writes"], function (r) {
     void chrome.runtime.lastError;
-    if (!r || r.ae_silent_writes !== false) AE.setSilentWrites(true);
+    if (r && r.ae_silent_writes === true) AE.setSilentWrites(true);
   });
 } catch (e) { /* downloads.ui unavailable */ }
 

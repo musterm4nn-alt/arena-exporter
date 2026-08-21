@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const ctx = {};
+const ctx = { URL };
 vm.createContext(ctx);
 for (const f of ["../src/lib/schema.js", "../src/lib/normalize.js", "../src/lib/dom-extract.js"]) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, f), "utf8"), ctx);
@@ -328,6 +328,14 @@ console.log("Debug-dump redaction keeps structure, drops content:");
   check("strategy preserved", red.strategy === "arena");
   check("length hint retained", /^\[text \d+ chars\]$/.test(red.messages[0].content[0].text));
   check("short structural strings untouched", red.messages[0].content[1].status === "success");
+}
+
+console.log("Attachment fetches are origin-locked:");
+{
+  check("arena https allowed", AE.dom.isAllowedAttachmentUrl("https://arena.ai/workspace/file.html") === true);
+  check("subdomain allowed", AE.dom.isAllowedAttachmentUrl("https://cdn.arena.ai/x") === true);
+  check("third party blocked", AE.dom.isAllowedAttachmentUrl("https://evil.example/steal") === false);
+  check("http blocked", AE.dom.isAllowedAttachmentUrl("http://arena.ai/x") === false);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -6,9 +6,31 @@
   if (window.__arenaExporterContentInstalled) return;
   window.__arenaExporterContentInstalled = true;
 
-  /* Forward captured network events from the MAIN world to the service worker. */
+  /* Forward captured network events from the MAIN world to the service worker.
+   * Same-origin page scripts can also postMessage this namespace, so we still
+   * require a known event kind and the page origin; the worker then refuses
+   * anything not coming from an arena.ai tab. */
+  var ALLOWED_EVT_KINDS = {
+    interceptor_ready: 1,
+    page_context: 1,
+    session_hint: 1,
+    endpoint: 1,
+    battle_vote: 1,
+    stream_end: 1,
+    stream_done: 1,
+    ws: 1,
+    stream_chunk: 1,
+    rsc_row: 1,
+    request: 1,
+    sse: 1,
+    json: 1,
+    sse_raw: 1
+  };
+
   window.addEventListener("message", function (ev) {
     if (ev.source !== window || !ev.data || ev.data.type !== AE.MSG_NS) return;
+    if (ev.origin && ev.origin !== location.origin) return;
+    if (!ev.data.evt || !ALLOWED_EVT_KINDS[ev.data.evt.kind]) return;
     try {
       chrome.runtime.sendMessage({ type: "AE_EVENT", evt: ev.data.evt }, function () {
         void chrome.runtime.lastError; // swallow "worker sleeping" races
@@ -121,7 +143,9 @@
     if (msg.type === "AE_FETCH_ATTACHMENTS") {
       // Fetch artifact bytes (workspace/preview-token URLs) same-origin and
       // return data URLs so the popup can save them beside the export JSON.
-      var urls = (msg.urls || []).slice(0, 30);
+      var urls = (msg.urls || []).slice(0, 30).filter(function (u) {
+        return !AE.dom.isAllowedAttachmentUrl || AE.dom.isAllowedAttachmentUrl(u);
+      });
       var results = [];
       var chain = Promise.resolve();
       urls.forEach(function (url, i) {

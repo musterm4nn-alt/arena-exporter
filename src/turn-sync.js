@@ -1,4 +1,4 @@
-/* Debounced turn-complete archive sync. Safe when the native host is absent.
+/* Debounced turn-complete archive sync. Writes through chrome.downloads.
  *
  * Everything here is keyed by conversation. Two arena.ai tabs must not share a
  * debounce timer, and must never archive each other's DOM: the snapshot decides

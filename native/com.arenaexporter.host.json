@@ -1,9 +1,0 @@
-{
-  "name": "com.arenaexporter.host",
-  "description": "Arena Archive native host",
-  "path": "HOST_PATH_PLACEHOLDER",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://PLACEHOLDER_EXTENSION_ID/"
-  ]
-}

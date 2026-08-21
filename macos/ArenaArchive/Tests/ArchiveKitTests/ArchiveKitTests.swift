@@ -8,6 +8,7 @@ final class ArchiveKitTests: XCTestCase {
         let store = ArchiveStore(root: dir)
         XCTAssertThrowsError(try store.safeRelpath("../etc/passwd"))
         XCTAssertThrowsError(try store.safeRelpath("/tmp/x"))
+        XCTAssertThrowsError(try store.safeRelpath("../\(dir.lastPathComponent)-evil/x"))
     }
 
     func testSubtypeLockedOnSecondSync() throws {

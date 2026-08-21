@@ -42,7 +42,7 @@ function installInterceptor(events) {
     Uint8Array,
     URL, // the interceptor resolves capture URLs against the page origin
     setTimeout, clearTimeout,
-    location: { href: "https://arena.ai/c/test" },
+    location: { href: "https://arena.ai/c/test", origin: "https://arena.ai" },
     navigator: { sendBeacon: function () { return true; } }, // hooked by the interceptor
     XMLHttpRequest: mockXHR(),
     WebSocket: function () {},

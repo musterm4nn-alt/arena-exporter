@@ -24,6 +24,15 @@ do {
     check("reject absolute", true)
 }
 
+let parent = dir.deletingLastPathComponent()
+let siblingName = dir.lastPathComponent + "-evil"
+do {
+    _ = try store.safeRelpath("../\(siblingName)/x")
+    check("reject sibling prefix", false)
+} catch {
+    check("reject sibling prefix", true)
+}
+
 let chat1: [String: Any] = [
     "key": "c:abc",
     "mode": "battle",
@@ -41,9 +50,6 @@ check("subtype locked", first.rel == second.rel && store.resolve("c:abc")?.subty
 
 let slug = ArchiveStore.slug(title: "Liquid glass LLM dashboard", key: "c:01a01b66-19b7")
 check("slug words", slug.contains("liquid-glass") && slug.contains("01a01b66"))
-
-let ping = NativeProtocol.handle(message: ["type": "ping", "id": 1], store: store)
-check("ping ok", ping["ok"] as? Bool == true)
 
 if failed > 0 { FileHandle.standardError.write(Data("\(failed) failed\n".utf8)); exit(1) }
 print("all ArchiveKitProbe checks passed")

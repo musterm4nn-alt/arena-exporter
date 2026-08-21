@@ -15,6 +15,8 @@ function makeCtx(downloadOpts) {
     console, setTimeout, clearTimeout,
     JSON, Math, Date, Object, Array, String, Number, Set, Promise,
     encodeURIComponent, decodeURIComponent,
+    crypto: globalThis.crypto,
+    TextEncoder, TextDecoder,
     chrome: {
       runtime: { lastError: null },
       storage: { local: fakeStorageArea() },
@@ -136,6 +138,8 @@ function payloadFor(key, title, turns, models) {
     const ctx = {
       console, setTimeout, clearTimeout, JSON, Math, Date, Object, Array, String, Number, Set, Promise,
       encodeURIComponent, decodeURIComponent,
+      crypto: globalThis.crypto,
+      TextEncoder, TextDecoder,
       chrome: {
         runtime: { lastError: null },
         storage: { local: fakeStorageArea() },
@@ -145,7 +149,8 @@ function payloadFor(key, title, turns, models) {
           download: (o, cb) => { writes.push(o.filename); cb(1); },
           search: (q, cb) => cb([{ id: 1, state: "complete", filename: "/fake/Downloads/response.md", error: null }]),
           erase: (q, cb) => cb([1]),
-          setUiOptions: (o, cb) => cb && cb()
+          setUiOptions: (o, cb) => cb && cb(),
+          onChanged: { addListener: () => {} }
         }
       }
     };
@@ -155,6 +160,34 @@ function payloadFor(key, title, turns, models) {
     }
     const res = await ctx.AE.writeArchiveFile("arena-archive/battle/text/x/battle-01/A/response.md", "body");
     check("path rewrite detected", res.ok === false && /rewrote the target path/.test(res.error || ""));
+  }
+
+  console.log("Path traversal is refused:");
+  {
+    const { AE, writes } = makeCtx();
+    const res = await AE.writeArchiveFile("arena-archive/../../evil.txt", "nope");
+    check("dot-dot write rejected", res.ok === false && /illegal path/.test(res.error || ""));
+    check("no download issued", writes.length === 0);
+    check("safeArchivePath strips traversal", AE.safeArchivePath("../etc/passwd") === null);
+    check("safeArchivePath keeps nested lane path", AE.safeArchivePath("battle-01/A/response.md") === "battle-01/A/response.md");
+  }
+
+  console.log("Oversized conversation.json is slimmed, not dropped:");
+  {
+    const { AE } = makeCtx();
+    const slim = AE.slimArchiveJson(JSON.stringify({
+      session: { conversation_key: "c:x" },
+      meta: {
+        captured_requests: [{ body: "huge" }],
+        stream_samples: ["x"],
+        evaluation_streams: { a: "y" },
+        endpoint_catalog: ["https://arena.ai/x"],
+        completeness: "full"
+      }
+    }));
+    const o = JSON.parse(slim);
+    check("debug fields stripped", !o.meta.captured_requests && !o.meta.stream_samples && !o.meta.evaluation_streams && !o.meta.endpoint_catalog);
+    check("completeness kept", o.meta.completeness === "full");
   }
 
   console.log(`\n${passed} passed, ${failed} failed`);

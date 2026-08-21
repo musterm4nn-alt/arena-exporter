@@ -26,6 +26,8 @@ const ctx = vm.createContext({
   console,
   setTimeout, clearTimeout,
   JSON, Math, Date, Object, Array, String, Number, Set, Promise,
+  crypto: globalThis.crypto,
+  TextEncoder, TextDecoder,
   importScripts: (...files) => {
     for (const f of files) vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), ctx);
   },
@@ -35,7 +37,6 @@ const ctx = vm.createContext({
     runtime: {
       onMessage: { addListener: (fn) => { messageListener = fn; } },
       lastError: null
-      // no connectNative: the native host is absent, so the sync itself no-ops.
     },
     tabs: {
       query: (_q, cb) => cb(TABS),
@@ -100,6 +101,17 @@ function check(name, cond) {
 
   check("both conversations synced (per-key debounce)",
     snapshotRequests.includes(7) && snapshotRequests.includes(9));
+
+  console.log("Manual Write to archive now is keyed by the popup's tab:");
+  snapshotRequests.length = 0;
+  await send({ type: "AE_SYNC", tabId: 7, sessionKey: "c:AAA" });
+  check("manual sync snapshots tab 7, not tab 9",
+    snapshotRequests.length === 1 && snapshotRequests[0] === 7);
+
+  snapshotRequests.length = 0;
+  await send({ type: "AE_SYNC", tabId: 9, sessionKey: "c:BBB" });
+  check("manual sync snapshots tab 9 when asked",
+    snapshotRequests.length === 1 && snapshotRequests[0] === 9);
 
   console.log("\n" + passed + " passed, " + failed + " failed");
   process.exit(failed ? 1 : 0);
