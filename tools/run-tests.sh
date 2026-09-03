@@ -3,11 +3,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 node tests/normalize.test.js
+node tests/dom-extract.test.js
 node tests/background.test.js
 node tests/turn-sync.test.js
+node tests/popup-routing.test.js
 node tests/interceptor.test.js
 node tests/archive.test.js
 node tests/archive-sink.test.js
+node tests/native-sink.test.js
+node tests/fixes.test.js
+node tests/capture-health.test.js
 if command -v swift >/dev/null; then
   # XCTest ships with full Xcode, not the Command Line Tools, so `swift test`
   # cannot even compile under a CLT-only toolchain. Probe for the framework
