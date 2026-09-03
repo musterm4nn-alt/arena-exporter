@@ -219,6 +219,15 @@ console.log("Init applied from request body onto heartbeat-prefixed stream:");
   check("workspace template files", (r.workspaceFiles || []).some(f => f.path === "package.json"));
 }
 
+console.log("Image battle stream files:");
+{
+  const body = '{"id":"img-1","mode":"battle"}a2:[{"type":"image","url":"https://cdn.arena.ai/out/foo.png"}]b2:[{"type":"image","imageUrl":"https://pub-abc.r2.dev/bar.webp"}]ad:{"finishReason":"stop"}bd:{"finishReason":"stop"}';
+  const r = AE.parseBattleStream(body);
+  check("lane A image url", (r.lanes.a.files || []).some(f => f.downloadUrl === "https://cdn.arena.ai/out/foo.png" && f.path === "foo.png"));
+  check("lane B r2 image", (r.lanes.b.files || []).some(f => /bar\.webp$/.test(f.path) && f.downloadUrl.indexOf("r2.dev") !== -1));
+  check("image files are not code", !r.lanes.a.code && !r.lanes.b.code);
+}
+
 console.log("Ballot click path:");
 {
   function el(tag, attrs, text, parent) {
@@ -259,6 +268,12 @@ console.log("Ballot click path:");
   check("padded ballot text is not a vote", AE.dom.voteFromPath([longBallotish]) == null);
   const ariaBallot = el("button", { "aria-label": "Both are good" }, "");
   check("aria-labelled ballot still counts", AE.dom.voteFromPath([ariaBallot]).choice === "both_good");
+  const previewTab = el("button", { role: "tab", "aria-selected": "true" }, "Option B B is better");
+  const optionLabel = el("span", {}, "Option B", previewTab);
+  const nestedDisabledVote = el("button", { disabled: "" }, "B is better", previewTab);
+  nestedDisabledVote.disabled = true;
+  check("preview tab is not a vote", AE.dom.voteFromPath([optionLabel, previewTab]) == null);
+  check("disabled vote nested in a preview tab is not a vote", AE.dom.voteFromPath([nestedDisabledVote, previewTab]) == null);
 }
 
 console.log("Evaluation request bodies keep their history:\n");
@@ -336,8 +351,9 @@ console.log("Attachment fetches are origin-locked:");
   check("subdomain allowed", AE.dom.isAllowedAttachmentUrl("https://cdn.arena.ai/x") === true);
   check("third party blocked", AE.dom.isAllowedAttachmentUrl("https://evil.example/steal") === false);
   check("http blocked", AE.dom.isAllowedAttachmentUrl("http://arena.ai/x") === false);
+  check("r2.dev allowed", AE.dom.isAllowedAttachmentUrl("https://pub-abc.r2.dev/out.png") === true);
+  check("r2.cloudflarestorage allowed", AE.dom.isAllowedAttachmentUrl("https://bucket.r2.cloudflarestorage.com/x.png") === true);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
-

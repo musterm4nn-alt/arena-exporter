@@ -32,11 +32,30 @@ AE.dom = {};
         log.querySelectorAll('[role="button"][aria-expanded="false"][aria-label="Expand"]').forEach(function (b) {
           try { b.click(); clicked++; } catch (e) {}
         });
+
+        /* Current arena.ai code-battle rows use Radix disclosures.  Their
+         * buttons have an aria-controls/id pair but no aria-label="Expand";
+         * the old selector therefore left every file body (the actual tool
+         * arguments) unmounted.  Restrict this pass to labels understood by
+         * the modern tool mapper so ballot/navigation controls are untouched. */
+        log.querySelectorAll('button[aria-expanded="false"][aria-controls]').forEach(function (b) {
+          var label = compactText(b.innerText || b.textContent || "");
+          if (!toolNameFromModernLabel(label)) return;
+          try { b.click(); clicked++; } catch (e) {}
+        });
+      } else {
+        /* Keep the fallback useful on layouts that omit role=log. */
+        document.querySelectorAll('button[aria-expanded="false"][aria-controls]').forEach(function (b) {
+          var label = compactText(b.innerText || b.textContent || "");
+          if (!toolNameFromModernLabel(label)) return;
+          try { b.click(); clicked++; } catch (e) {}
+        });
       }
     } catch (e) { /* ignore */ }
     // Give the app a beat to render expanded content before scraping.
     return new Promise(function (resolve) {
-      setTimeout(function () { resolve(clicked); }, clicked ? 500 : 50);
+      var delay = clicked ? Math.min(2500, 500 + Math.ceil(clicked / 20) * 100) : 50;
+      setTimeout(function () { resolve(clicked); }, delay);
     });
   };
 
@@ -161,25 +180,80 @@ AE.dom = {};
 
   function extractAssistantContent(el) {
     var content = [];
+    var seenToolRows = [];
+
+    function addModernToolRow(row) {
+      if (!row || seenToolRows.indexOf(row) !== -1) return;
+      var label = compactText(row.innerText || row.textContent || "");
+      var toolName = toolNameFromModernLabel(label);
+      if (!toolName) return;
+      seenToolRows.push(row);
+      var path = modernPathFromLabel(label);
+      var detail = modernDisclosureDetail(row);
+      var isEdit = /^(?:edited|updated|patched)\b/i.test(label);
+      var args = path ? { path: path } : null;
+      var block = {
+        type: "tool_call",
+        tool_name: toolName,
+        call_id: null,
+        arguments: args,
+        summary: clip(label, 400),
+        status: "success",
+        source: "dom"
+      };
+      if (detail) {
+        block.detail_source = detail.source;
+        if (detail.code) {
+          if (!args) args = {};
+          if (isEdit) args.patch = detail.code;
+          else args.content = detail.code;
+          block.arguments = args;
+          if (isEdit && detail.diff) block.diff = detail.diff;
+          if (!isEdit && toolName !== "create_file") block.output = detail.code;
+        } else if (detail.text) {
+          block.output = detail.text;
+        }
+      }
+      content.push(block);
+    }
 
     // Tool / file-operation rows: "Write  cool.html  48 lines"
     toArray(el.querySelectorAll('[role="button"][aria-label="Expand"]')).forEach(function (row) {
+      if (toolNameFromModernLabel(compactText(row.innerText || row.textContent || ""))) {
+        addModernToolRow(row);
+        return;
+      }
       var verbEl = row.querySelector('span[class*="text-text-secondary"]');
       var fileEl = row.querySelector('span[class*="font-mono"]');
       var verb = verbEl ? verbEl.innerText.trim() : "";
       var file = fileEl ? fileEl.innerText.trim() : "";
       var summary = clip(row.innerText, 400);
       if (!summary) return;
+      seenToolRows.push(row);
+      var oldDetail = modernDisclosureDetail(row);
+      var oldArgs = file ? { file: file } : null;
+      if (oldDetail && oldDetail.code) {
+        if (!oldArgs) oldArgs = {};
+        oldArgs.content = oldDetail.code;
+      }
       content.push({
         type: "tool_call",
         tool_name: verb || "unknown",
         call_id: null,
-        arguments: file ? { file: file } : null,
+        arguments: oldArgs,
         summary: summary,
         status: "success",
+        detail_source: oldDetail ? oldDetail.source : undefined,
+        output: oldDetail && !oldDetail.code ? oldDetail.text : undefined,
         source: "dom"
       });
     });
+
+    /* Modern Radix rows have an aria-controls target and a normal button role,
+     * but no aria-label="Expand". They are the rows that contain the actual
+     * create/edit/read payloads in today's Arena UI. */
+    toArray(el.querySelectorAll('button[aria-expanded][aria-controls], [role="button"][aria-expanded][aria-controls]'))
+      .forEach(addModernToolRow);
 
     // Artifact cards (title + type badge + iframe preview holding file source)
     toArray(el.querySelectorAll('div[role="button"][class*="artifact"]')).forEach(function (card) {
@@ -199,7 +273,7 @@ AE.dom = {};
 
     // Response prose, excluding already-captured regions
     var clone = el.cloneNode(true);
-    toArray(clone.querySelectorAll('[role="button"][aria-label="Expand"], div[role="button"][class*="artifact"], iframe')).forEach(function (n) {
+    toArray(clone.querySelectorAll('[role="button"][aria-label="Expand"], button[aria-expanded][aria-controls], [role="button"][aria-expanded][aria-controls], div[role="button"][class*="artifact"], iframe')).forEach(function (n) {
       n.remove();
     });
     var text = "";
@@ -512,17 +586,33 @@ AE.dom = {};
   var VOTE_LABEL_MAX = 80;
 
   /* Shared by the content-script click handler and Node click tests. */
+  function inRoleTabSubtree(node) {
+    var cur = node;
+    while (cur && cur.nodeType === 1) {
+      if (cur.getAttribute && cur.getAttribute("role") === "tab") return true;
+      cur = cur.parentElement;
+    }
+    return false;
+  }
+
   AE.dom.voteFromPath = function (path) {
     if (!path || !path.length) return null;
     for (var i = 0; i < path.length; i++) {
       var node = path[i];
       if (!node || node.nodeType !== 1) continue;
+      /* Code battles put a disabled "A/B is better" button inside each
+       * preview tab. Clicking the surrounding tab produces a trusted event
+       * whose composed path contains both labels; it is navigation, never a
+       * ballot action. */
+      if (inRoleTabSubtree(node)) continue;
       var tag = String(node.tagName || "").toLowerCase();
       var testid = String(node.getAttribute ? node.getAttribute("data-testid") : "" || "");
       var voteAttr = (node.hasAttribute && (node.hasAttribute("data-vote") || node.hasAttribute("data-choice"))) ||
         /vote|better|neither|both/i.test(testid);
       var isControl = tag === "button" || tag === "input" ||
         (node.getAttribute && node.getAttribute("role") === "button") || voteAttr;
+      if (!isControl) continue;
+      if (node.disabled || (node.getAttribute && node.getAttribute("aria-disabled") === "true")) continue;
       var labelParts = [];
       if (node.getAttribute) {
         ["aria-label", "title", "data-vote", "data-choice", "data-testid"].forEach(function (a) {
@@ -544,10 +634,6 @@ AE.dom = {};
       }
       if (!choice) continue;
       var shortAB = /^(?:model\s*)?[ab]$/i.test(String(label || "").replace(/\s+/g, " ").trim());
-      if (!isControl && !shortAB) {
-        /* Phrase on a non-control (div) is OK; lone A/B is not. */
-      }
-      if (!isControl && shortAB) continue;
       if (shortAB && !voteAttr && !inBallotSubtree(node)) continue;
       return { node: node, choice: choice, label: label };
     }
@@ -589,6 +675,286 @@ AE.dom = {};
     return all.replace(/\s+$/g, "").trim();
   }
 
+  /* Arena's current code-battle UI (2026-09) no longer uses carousel slides
+   * or "Message from …" headings. Each lane is a rounded card whose first
+   * child is a sticky role=button header ("Option A/B" before the vote, the
+   * revealed model afterward). Keep this structural so Tailwind color/class
+   * churn does not make the fallback brittle. */
+  function modernBattlePanes() {
+    var panes = [];
+    var seen = [];
+    var headers;
+    try { headers = document.querySelectorAll('[role="button"]'); } catch (e) { return panes; }
+    for (var i = 0; i < headers.length; i++) {
+      var header = headers[i];
+      var pane = header.parentElement;
+      if (!pane || pane.firstElementChild !== header) continue;
+      var cls = String(pane.className || "");
+      if (cls.indexOf("rounded-xl") === -1 || cls.indexOf("overflow-hidden") === -1) continue;
+      var label = compactText(header.innerText || header.textContent || "");
+      var whole = compactText(pane.innerText || pane.textContent || "");
+      var hasMedia = false;
+      try { hasMedia = !!(pane.querySelector("img, video")); } catch (e) { hasMedia = false; }
+      if (!label || label.length > 100) continue;
+      if (whole.length < label.length + 40 && !hasMedia) continue;
+      if (/^(?:created|creating|edited|read|search|explor|deployed|show\s+(?:more|less))\b/i.test(label)) continue;
+      if (seen.indexOf(pane) !== -1) continue;
+      seen.push(pane);
+      panes.push({ pane: pane, header: header, label: label });
+    }
+    return panes;
+  }
+
+  function toolNameFromModernLabel(label) {
+    if (/^(?:created|creating|wrote|write)\b/i.test(label)) return "create_file";
+    if (/^(?:edited|updated|patched)\b/i.test(label)) return "edit_file";
+    if (/^read\b/i.test(label)) return "read_file";
+    if (/^search\b/i.test(label)) return "grep_files";
+    if (/^deployed\b/i.test(label)) return "deploy_project";
+    if (/^explor/i.test(label)) return "explore";
+    return null;
+  }
+
+  function modernPathFromLabel(label) {
+    var pathMatch = String(label || "").match(/(?:^|\s)([^\s<>:"|?*]+\.(?:html?|css|js|jsx|ts|tsx|json|md|txt|py|rb|go|rs|java|c|cpp|h|hpp|svg|xml|ya?ml))(?:\s|$)/i);
+    return pathMatch ? pathMatch[1] : null;
+  }
+
+  function preserveText(el) {
+    if (!el) return "";
+    var text = typeof el.innerText === "string" ? el.innerText : (el.textContent || "");
+    return String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  }
+
+  function cleanBlockText(text) {
+    return String(text || "").replace(/^\n+|\n+$/g, "");
+  }
+
+  /* Code blocks are rendered as one <span class="line"> per source line.
+   * innerText preserves those line breaks and, unlike textContent, keeps the
+   * indentation that is part of the tool argument. */
+  function codeTextFromDisclosure(target) {
+    if (!target) return "";
+    var nodes = [];
+    try { nodes = toArray(target.querySelectorAll("pre code")); } catch (e) {}
+    if (!nodes.length) {
+      try { nodes = toArray(target.querySelectorAll("pre")); } catch (e) {}
+    }
+    return nodes.map(function (node) { return cleanBlockText(preserveText(node)); })
+      .filter(function (text) { return !!text; }).join("\n\n");
+  }
+
+  function diffLinesFromDisclosure(target) {
+    if (!target) return [];
+    var nodes = [];
+    try { nodes = toArray(target.querySelectorAll("pre code .line, pre .line")); } catch (e) {}
+    return nodes.map(function (node) {
+      var cls = String(node.className || "").toLowerCase();
+      var kind = /\bdiff\s+add\b/.test(cls) ? "add"
+        : /\bdiff\s+remove\b/.test(cls) ? "remove" : "context";
+      return { kind: kind, text: preserveText(node) };
+    });
+  }
+
+  /* Return the mounted body of a Radix tool disclosure.  `null` means the
+   * panel is still collapsed/unavailable; callers retain the heading summary
+   * in that case instead of claiming that an empty body was captured. */
+  function modernDisclosureDetail(button) {
+    if (!button || typeof document === "undefined") return null;
+    var id = button.getAttribute && button.getAttribute("aria-controls");
+    if (!id) return null;
+    var target = document.getElementById(id);
+    if (!target || target.hidden || target.getAttribute("aria-hidden") === "true") return null;
+    var code = codeTextFromDisclosure(target);
+    var text = cleanBlockText(preserveText(target));
+    if (!code && !text) return null;
+    var diff = diffLinesFromDisclosure(target);
+    return {
+      text: text,
+      code: code || null,
+      diff: diff.length ? diff : null,
+      source: "dom_expanded"
+    };
+  }
+
+  /* Kept public for the small DOM fixture test and for future selector tuning;
+   * it exposes no page state beyond the selected disclosure body. */
+  AE.dom.captureModernToolDetail = modernDisclosureDetail;
+
+  function pageModality() {
+    try {
+      var path = String((typeof location !== "undefined" && location.pathname) || "");
+      if (/\/image(?:-edit)?(?:\/|$)/i.test(path)) return "image";
+      if (/\/video(?:-edit)?(?:\/|$)/i.test(path)) return "video";
+      if (/\/code(?:\/|$)/i.test(path)) return "code";
+      if (/\/search(?:\/|$)/i.test(path)) return "search";
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  function guessMediaName(url, fallbackExt, index) {
+    var ext = fallbackExt || ".png";
+    try {
+      var u = new URL(String(url), "https://arena.ai/");
+      var base = (u.pathname.split("/").pop() || "").split("?")[0];
+      if (/\.(png|jpe?g|webp|gif|avif|svg|mp4|webm|mov)$/i.test(base)) return base;
+    } catch (e) { /* ignore */ }
+    return "image-" + (index + 1) + ext;
+  }
+
+  function isUiChromeMedia(el, url) {
+    url = String(url || "");
+    if (/\/_next\/static\//i.test(url)) return true;
+    if (/favicon|sprite|emoji-icon/i.test(url)) return true;
+    var w = 0, h = 0;
+    try {
+      w = el.naturalWidth || el.videoWidth || parseInt(el.getAttribute("width") || "0", 10) || 0;
+      h = el.naturalHeight || el.videoHeight || parseInt(el.getAttribute("height") || "0", 10) || 0;
+    } catch (e) { /* ignore */ }
+    if ((w && w < 48) || (h && h < 48)) return true;
+    return false;
+  }
+
+  function collectMediaFromPane(pane) {
+    var files = [];
+    var seen = {};
+    if (!pane) return files;
+    function add(url, kind, el) {
+      if (!url || seen[url]) return;
+      if (!/^(https?:|blob:|data:image|data:video)/i.test(url)) return;
+      if (el && isUiChromeMedia(el, url)) return;
+      seen[url] = true;
+      var video = kind === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(url);
+      var ext = video ? ".mp4" : ".png";
+      var rec = {
+        path: guessMediaName(url, ext, files.length),
+        contentType: video ? "video/mp4" : "image/png",
+        source: "dom"
+      };
+      if (url.indexOf("data:") === 0) rec.content = url;
+      else rec.downloadUrl = url;
+      files.push(rec);
+    }
+    try {
+      toArray(pane.querySelectorAll("img")).forEach(function (img) {
+        add(img.currentSrc || img.src, "image", img);
+      });
+      toArray(pane.querySelectorAll("video")).forEach(function (vid) {
+        add(vid.currentSrc || vid.src, "video", vid);
+        toArray(vid.querySelectorAll("source")).forEach(function (src) {
+          add(src.src, "video", vid);
+        });
+      });
+    } catch (e) { /* ignore */ }
+    return files;
+  }
+
+  function mergeFiles(into, extra) {
+    var out = Array.isArray(into) ? into.slice() : [];
+    var seen = {};
+    out.forEach(function (f) {
+      var k = (f && (f.downloadUrl || f.url || f.path)) || "";
+      if (k) seen[k] = true;
+    });
+    (extra || []).forEach(function (f) {
+      if (!f) return;
+      var k = f.downloadUrl || f.url || f.path;
+      if (k && seen[k]) return;
+      if (k) seen[k] = true;
+      out.push(f);
+    });
+    return out;
+  }
+
+  AE.dom.collectMediaFromPane = collectMediaFromPane;
+  AE.dom.pageModality = pageModality;
+
+  function modernPaneData(item) {
+    var pane = item.pane;
+    var response = paneResponseText(pane);
+    var tools = [];
+    var toolCalls = [];
+    var files = [];
+    var fileSeen = {};
+    var controls = pane.querySelectorAll('button, [role="button"]');
+    for (var i = 0; i < controls.length; i++) {
+      if (controls[i] === item.header) continue;
+      var label = compactText(controls[i].innerText || controls[i].textContent || "");
+      if (!label || label.length > 240) continue;
+      var toolName = toolNameFromModernLabel(label);
+      if (!toolName) continue;
+      if (tools.indexOf(toolName) === -1) tools.push(toolName);
+      var path = modernPathFromLabel(label);
+      var detail = modernDisclosureDetail(controls[i]);
+      var isEdit = /^(?:edited|updated|patched)\b/i.test(label);
+      var args = path ? { path: path } : null;
+      var call = {
+        toolCallId: null,
+        toolName: toolName,
+        args: args,
+        summary: label,
+        source: "dom"
+      };
+      if (detail) {
+        call.detail_source = detail.source;
+        if (detail.code) {
+          if (!args) args = {};
+          /* Created/Wrote rows contain the file argument. Edited rows render
+           * a patch, so label it as such rather than pretending it is the
+           * complete post-edit file. */
+          if (isEdit) args.patch = detail.code;
+          else args.content = detail.code;
+          call.args = args;
+          if (isEdit && detail.diff) call.diff = detail.diff;
+          if (!isEdit && toolName !== "create_file") call.output = detail.code;
+        } else if (detail.text) {
+          call.output = detail.text;
+        }
+      }
+      toolCalls.push(call);
+      if (path && (toolName === "create_file" || toolName === "edit_file") && !fileSeen[path]) {
+        fileSeen[path] = true;
+        var file = {
+          path: path,
+          contentType: null,
+          content: detail && !isEdit && detail.code ? detail.code : null,
+          tool: toolName,
+          source: "dom"
+        };
+        if (detail && isEdit && detail.code) {
+          file.patch = detail.code;
+          if (detail.diff) file.diff = detail.diff;
+        }
+        files.push(file);
+      } else if (path && (toolName === "create_file" || toolName === "edit_file") && detail && detail.code) {
+        /* Keep the first archive path per file, but retain later edit patches
+         * in the JSON so no tool body disappears when a file is edited again. */
+        var existingFile = files.filter(function (f) { return f && f.path === path; })[0];
+        if (existingFile && isEdit) {
+          if (!existingFile.patches) existingFile.patches = [];
+          existingFile.patches.push(detail.code);
+          if (detail.diff) {
+            if (!existingFile.diffs) existingFile.diffs = [];
+            existingFile.diffs.push(detail.diff);
+          }
+        } else if (existingFile && !isEdit && !existingFile.content) {
+          existingFile.content = detail.code;
+          existingFile.tool = toolName;
+        }
+      }
+    }
+    var completeText = compactText(pane.innerText || pane.textContent || "");
+    return {
+      label: item.label,
+      response: response,
+      finished: /\bdeployed the project\b|\bimplementation is complete\b|\bcomplete and verified\b/i.test(completeText),
+      tools: tools,
+      tool_calls: toolCalls,
+      files: mergeFiles(files, collectMediaFromPane(pane)),
+      code: files.length > 0
+    };
+  }
+
   function sliceResponsesBetweenHeaders(models) {
     var html = document.body.innerHTML || "";
     var re = /Message from\s+([^<"]{1,60})/g;
@@ -626,6 +992,7 @@ AE.dom = {};
   function isVoteControl(el) {
     if (!el || el.nodeType !== 1) return false;
     var tag = String(el.tagName || "").toLowerCase();
+    if (el.getAttribute("role") === "tab") return false;
     return tag === "button" || tag === "input" || el.getAttribute("role") === "button" ||
       el.hasAttribute("data-vote") || el.hasAttribute("data-choice") ||
       /vote|better|neither|both/i.test(String(el.getAttribute("data-testid") || ""));
@@ -758,6 +1125,8 @@ AE.dom = {};
     var negativeLanes = [];
     var controls = [];
     var ballotVisible = false;
+    var responses = [null, null];
+    var laneData = [null, null];
     try {
       controls = collectVoteControls();
       ballotVisible = controls.some(function (c) { return c.visible && !c.disabled; });
@@ -770,6 +1139,29 @@ AE.dom = {};
       models = lastTwo.map(function (h) { return h.name; }).filter(function (n) {
         return n && !(AE.isPlaceholderModel && AE.isPlaceholderModel(n));
       });
+
+      var modern = modernBattlePanes();
+      var lastModern = modern.length >= 2 ? modern.slice(-2) : [];
+      if (lastModern.length === 2) {
+        laneData = [modernPaneData(lastModern[0]), modernPaneData(lastModern[1])];
+        responses = [laneData[0].response, laneData[1].response];
+        var modernModels = laneData.map(function (lane) { return lane.label; }).filter(function (n) {
+          return n && !(AE.isPlaceholderModel && AE.isPlaceholderModel(n)) &&
+            !/^(?:option|response|model)\s*[ab]$/i.test(n);
+        });
+        if (modernModels.length === 2) models = modernModels;
+        greenLanes = [];
+        negativeLanes = [];
+        lastModern.forEach(function (item, idx) {
+          var cls = String(item.pane.className || "").toLowerCase();
+          var lane = idx === 0 ? "A" : "B";
+          if (/border-interactive-positive|bg-interactive-positive/.test(cls)) greenLanes.push(lane);
+          if (/border-interactive-negative|border-negative|border-red/.test(cls)) negativeLanes.push(lane);
+        });
+        if (greenLanes.length === 1 && models.length === 2) {
+          winnerModel = models[greenLanes[0] === "A" ? 0 : 1];
+        }
+      }
 
       var greenSelector = '[class*="border-interactive-positive" i], [class*="bg-interactive-positive" i], [data-winner="true"], [aria-label*="winner" i]';
       var greenEls = document.querySelectorAll(greenSelector);
@@ -795,7 +1187,6 @@ AE.dom = {};
       // Each battle pane is a carousel slide containing its own "Message from"
       // header, result card, and response prose. When present, use slide
       // containment for the winner (exact) and extract the visible response.
-      var responses = [null, null];
       var slides = document.querySelectorAll('[aria-roledescription="slide"]');
       if (slides.length >= 2) {
         var slidePanes = [];
@@ -819,7 +1210,7 @@ AE.dom = {};
           var greenCount = lastSlides.filter(function (p) { return p.green; }).length;
           if (greenCount === 1) { winnerModel = models[greenIdx]; greenLanes = [greenIdx === 0 ? "A" : "B"]; }
         }
-      } else {
+      } else if (lastModern.length !== 2) {
         // Fallback: response text = rendered HTML between consecutive headers.
         responses = sliceResponsesBetweenHeaders(models);
       }
@@ -835,6 +1226,15 @@ AE.dom = {};
         }
       }
     } catch (e) { /* ignore */ }
+    var modality = pageModality();
+    if (!modality) {
+      var hasImg = laneData.some(function (ln) {
+        return ln && Array.isArray(ln.files) && ln.files.some(function (f) {
+          return f && /^image\//i.test(f.contentType || "") || (f && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(f.path || f.downloadUrl || ""));
+        });
+      });
+      if (hasImg) modality = "image";
+    }
     return {
       models: models,
       anonymous: models.length < 2,
@@ -845,7 +1245,9 @@ AE.dom = {};
       greenLanes: greenLanes,
       negativeLanes: negativeLanes,
       winnerModel: winnerModel,
-      responses: responses
+      responses: responses,
+      lanes: laneData,
+      modality: modality
     };
   };
 
@@ -865,7 +1267,10 @@ AE.dom = {};
       var u = new URL(String(url), base);
       if (u.protocol === "blob:") return true;
       if (u.protocol !== "https:") return false;
-      return /^([a-z0-9-]+\.)*arena\.ai$/i.test(u.hostname);
+      if (/^([a-z0-9-]+\.)*(arena\.ai|lmarena\.ai)$/i.test(u.hostname)) return true;
+      if (/(^|\.)r2\.dev$/i.test(u.hostname)) return true;
+      if (/(^|\.)r2\.cloudflarestorage\.com$/i.test(u.hostname)) return true;
+      return false;
     } catch (e) {
       return false;
     }
@@ -875,7 +1280,9 @@ AE.dom = {};
     if (!AE.dom.isAllowedAttachmentUrl(url)) {
       return Promise.resolve({ url: url, ok: false, error: "blocked origin" });
     }
-    return fetch(url, { credentials: "include", cache: "no-store" })
+    var arenaHost = false;
+    try { arenaHost = /^([a-z0-9-]+\.)*(arena\.ai|lmarena\.ai)$/i.test(new URL(String(url), "https://arena.ai/").hostname); } catch (e) { arenaHost = false; }
+    return fetch(url, { credentials: arenaHost ? "include" : "omit", cache: "no-store" })
       .then(function (resp) {
         if (!resp.ok) return { url: url, ok: false, error: "HTTP " + resp.status };
         var ct = "";
@@ -897,4 +1304,3 @@ AE.dom = {};
       });
   };
 })();
-

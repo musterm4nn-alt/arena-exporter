@@ -57,7 +57,9 @@ function freshState(key) {
     currentStreamKey: null,
     streamDirty: false,
     truncatedEval: false,
-    storageError: false
+    storageError: false,
+    modelHints: {},
+    labelsPending: false
   };
 }
 
@@ -88,6 +90,8 @@ function hydrateSession(raw, key) {
   s.streamDirty = false;
   s.truncatedEval = !!raw.truncatedEval;
   s.storageError = !!raw.storageError;
+  s.modelHints = raw.modelHints && typeof raw.modelHints === "object" ? raw.modelHints : {};
+  s.labelsPending = !!raw.labelsPending;
   (s.messages || []).forEach(function (m, index) {
     if (m && m.id != null && s.messageIndex[m.id] == null) s.messageIndex[m.id] = index;
     ((m && m.content) || []).forEach(function (b) { registerSeenOn(s, b); });
@@ -180,7 +184,39 @@ function migrateSession(fromKey, toKey) {
     delete seenByKey[fromKey];
     delete store.sessions[fromKey];
   } else {
-    /* Real destination already exists — drop the placeholder bucket. */
+    /* Real destination already exists. The source bucket can still hold real
+     * data (e.g. a "default"/placeholder bucket that captured events before
+     * the conversation key was known), so fold it into the destination
+     * instead of dropping it on the floor. */
+    var dst = store.sessions[toKey];
+    (src.messages || []).forEach(function (m) {
+      dst.messages.push(m);
+      if (m && m.id != null && dst.messageIndex[m.id] == null) dst.messageIndex[m.id] = dst.messages.length - 1;
+      ((m && m.content) || []).forEach(function (b) { registerSeenOn(dst, b); });
+    });
+    (src.warnings || []).forEach(function (w) { addWarning(dst, w); });
+    (src.battleVotes || []).forEach(function (v) { dst.battleVotes.push(v); });
+    (src.capturedRequests || []).forEach(function (r) { dst.capturedRequests.push(r); });
+    Object.keys(src.evaluationStreams || {}).forEach(function (ek) {
+      if (dst.evaluationStreams[ek] == null) {
+        dst.evaluationStreams[ek] = src.evaluationStreams[ek];
+        if (src.evaluationSequence && src.evaluationSequence[ek] != null && dst.evaluationSequence[ek] == null) {
+          dst.evaluationSequence[ek] = src.evaluationSequence[ek];
+        }
+      }
+    });
+    if (src.stats) {
+      dst.stats.events = (dst.stats.events || 0) + (src.stats.events || 0);
+      dst.stats.unknown = (dst.stats.unknown || 0) + (src.stats.unknown || 0);
+      dst.stats.streamChunks = (dst.stats.streamChunks || 0) + (src.stats.streamChunks || 0);
+      dst.stats.lastEventAt = Math.max(dst.stats.lastEventAt || 0, src.stats.lastEventAt || 0);
+    }
+    if (src.truncatedEval) dst.truncatedEval = true;
+    if (!dst.session.url && src.session.url) dst.session.url = src.session.url;
+    if (!dst.session.title && src.session.title) dst.session.title = src.session.title;
+    if (!dst.session.session_id || dst.session.session_id === stripKeyPrefix(toKey)) {
+      if (src.session.session_id && src.session.session_id !== "default") dst.session.session_id = src.session.session_id;
+    }
     delete store.sessions[fromKey];
     delete seenByKey[fromKey];
   }
@@ -203,9 +239,14 @@ function resolveSessionForEvent(evt, sender) {
   if (!key && evt && evt.kind === "session_hint" && evt.sessionId) key = "s:" + evt.sessionId;
   /* Page URL (the tab, or page_context) — not API URLs on the event. */
   if (!key && evt && evt.kind === "page_context") key = conversationKeyFromUrl(evt.url || tabUrl);
+  /* Plain capture events route sticky: once a tab has an established mapping,
+   * it wins over the tab URL. Otherwise a /c/<id> tab streaming through
+   * /api/chat/<uuid> alternates buckets (hint events → s:<uuid>, everything
+   * else → c:<id>) and the conversation splits in half. page_context and
+   * session_hint above still re-point the tab within a single event. */
+  if (!key && tabId != null && store.tabKeys[tabId]) key = store.tabKeys[tabId];
   if (!key) key = conversationKeyFromUrl(tabUrl);
   if (!key && evt && evt.kind === "session_hint") key = conversationKeyFromUrl(evt.url || "");
-  if (!key && tabId != null && store.tabKeys[tabId]) key = store.tabKeys[tabId];
   if (!key) key = store.activeKey || "default";
 
   var prev = (tabId != null && store.tabKeys[tabId]) || null;
@@ -300,7 +341,7 @@ function scheduleSave() {
         tabKeys: store.tabKeys,
         activeKey: store.activeKey
       };
-      var saveResult = chrome.storage.session.set({ [STATE_KEY]: payload });
+      var saveResult = captureStorageArea().set({ [STATE_KEY]: payload });
       if (saveResult && typeof saveResult.catch === "function") {
         saveResult.catch(function () {
           var s = ensureState();
@@ -369,9 +410,21 @@ function listSessionSummaries() {
   }).sort(function (a, b) { return (b.lastEventAt || 0) - (a.lastEventAt || 0); });
 }
 
+/* In-memory capture is persisted in chrome.storage.session when present
+ * (Chrome, Firefox 115+). If that area is missing, fall back to local for
+ * this payload only — local survives browser restarts, unlike session. */
+function captureStorageArea() {
+  try {
+    if (chrome.storage && chrome.storage.session && typeof chrome.storage.session.get === "function") {
+      return chrome.storage.session;
+    }
+  } catch (e) { /* session area unavailable */ }
+  return chrome.storage.local;
+}
+
 function startStoreLoad() {
   try {
-    var loadResult = chrome.storage.session.get([STATE_KEY, LEGACY_STATE_KEY]);
+    var loadResult = captureStorageArea().get([STATE_KEY, LEGACY_STATE_KEY]);
     if (loadResult && typeof loadResult.then === "function") {
       loadResult.then(finishStateLoad).catch(function () { finishStateLoad({}); });
     } else {

@@ -163,6 +163,59 @@ function check(name, cond) {
   check("contestants named from DOM", fd.battles[0].anonymous === false && fd.battles[0].contestants[0].model === "modelA-x" && fd.battles[0].contestants[1].model === "modelB-y");
   check("winner lane mapped from green highlight", fd.battles[0].winner === "B" && fd.battles[0].winner_model === "modelB-y");
 
+  console.log("Modern code-battle DOM backfills a missed lane:");
+  const savedEvalSessionKey = vm.runInContext("store.activeKey", ctx);
+  const savedEvalStreams = vm.runInContext("JSON.stringify(store.sessions[store.activeKey].evaluationStreams)", ctx);
+  vm.runInContext(`(() => {
+    const streams = store.sessions[store.activeKey].evaluationStreams;
+    const key = Object.keys(streams)[0];
+    streams[key] = '{"id":"evX","mode":"battle","modelAMessageId":"ma","modelBMessageId":"mb","userMessage":{"content":"pick a color"}}b0:"Blue "bd:{"finishReason":"stop"}';
+  })()`, ctx);
+  const modernDom = { source: "dom", url: "https://arena.ai/c/test", messages: [], battle: {
+    models: ["claude-fable-5.1-max", "glm-5.1"], anonymous: false,
+    responses: ["DOM recovered lane A", "DOM lane B should not replace network text"],
+    lanes: [
+      { response: "DOM recovered lane A", finished: true, tools: ["create_file"],
+        tool_calls: [{ toolName: "create_file", args: { path: "index.html" }, source: "dom" }],
+        files: [{ path: "index.html", content: null, tool: "create_file", source: "dom" }], code: true },
+      { response: "DOM lane B should not replace network text", finished: true, tools: [], tool_calls: [], files: [], code: true }
+    ]
+  } };
+  const modernExp = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: modernDom })).json);
+  check("empty network lane A response is backfilled from DOM", modernExp.battles[0].contestants[0].response === "DOM recovered lane A");
+  check("network lane B remains authoritative", modernExp.battles[0].contestants[1].response === "Blue ");
+  check("DOM tool metadata backfills the missed lane", modernExp.battles[0].contestants[0].tools.includes("create_file") && modernExp.battles[0].contestants[0].files[0].path === "index.html");
+  check("DOM-recovered code lane keeps the code subtype", modernExp.battles[0].subtype === "code");
+  vm.runInContext("store.sessions[store.activeKey].evaluationStreams = {}", ctx);
+  const domOnlyExp = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: modernDom })).json);
+  check("DOM-only reopened battle preserves both responses",
+    domOnlyExp.battles[0].dom_only === true &&
+    domOnlyExp.battles[0].contestants[0].response === "DOM recovered lane A" &&
+    domOnlyExp.battles[0].contestants[1].response === "DOM lane B should not replace network text");
+  check("DOM-only reopened battle preserves tools and file paths",
+    domOnlyExp.battles[0].contestants[0].tools.includes("create_file") &&
+    domOnlyExp.battles[0].contestants[0].files[0].path === "index.html");
+  check("DOM-only reopened code battle is classified as code", domOnlyExp.battles[0].subtype === "code");
+  const anonymousDom = JSON.parse(JSON.stringify(modernDom));
+  anonymousDom.url = "https://arena.ai/c/anonymous-reopen";
+  anonymousDom.battle.models = [];
+  anonymousDom.battle.anonymous = true;
+  anonymousDom.battle.greenLanes = ["B"];
+  const anonymousDomExp = JSON.parse((await send({
+    type: "AE_EXPORT", sessionKey: "c:anonymous-reopen", mode: "full_history", snapshot: anonymousDom
+  })).json);
+  check("anonymous DOM-only reopened battle is still exported",
+    anonymousDomExp.battles.length === 1 && anonymousDomExp.battles[0].dom_only === true &&
+    anonymousDomExp.battles[0].anonymous === true);
+  check("anonymous DOM-only battle keeps lane text and code metadata",
+    anonymousDomExp.battles[0].contestants[0].response === "DOM recovered lane A" &&
+    anonymousDomExp.battles[0].contestants[0].model === null &&
+    anonymousDomExp.battles[0].contestants[0].tool_calls.length === 1 &&
+    anonymousDomExp.battles[0].subtype === "code");
+  check("anonymous DOM-only battle can retain a lane winner without inventing a model",
+    anonymousDomExp.battles[0].winner === "B" && anonymousDomExp.battles[0].winner_model === null);
+  vm.runInContext(`store.sessions[${JSON.stringify(savedEvalSessionKey)}].evaluationStreams = JSON.parse(${JSON.stringify(savedEvalStreams)}); store.activeKey = ${JSON.stringify(savedEvalSessionKey)}`, ctx);
+
   console.log("Pending default + manual override:");
   const tieSnap = { source: "dom", url: "https://arena.ai/c/tie", messages: [], battle: { models: ["mA", "mB"], anonymous: false, preVoteBallot: false, winnerModel: null } };
   const tieExp = await send({ type: "AE_EXPORT", mode: "full_history", snapshot: tieSnap });
@@ -252,6 +305,13 @@ function check(name, cond) {
   const expB = JSON.parse((await send({ type: "AE_EXPORT", sessionKey: "c:bbb", mode: "full_history", snapshot: null })).json);
   check("tab A only has its prompt", expA.messages.some(m => m.content.some(b => b.text === "prompt-aaa")) && !expA.messages.some(m => m.content.some(b => b.text === "prompt-bbb")));
   check("tab B only has its prompt", expB.messages.some(m => m.content.some(b => b.text === "prompt-bbb")) && !expB.messages.some(m => m.content.some(b => b.text === "prompt-aaa")));
+  const stateA = await send({ type: "AE_GET_STATE", tabId: 11, sessionKey: "c:aaa" });
+  check("popup state is selected by its active tab", stateA.state.conversationKey === "c:aaa" && stateA.state.title === "Chat A");
+  const mismatched = await send({
+    type: "AE_EXPORT", tabId: 11, sessionKey: "c:aaa", mode: "full_history",
+    snapshot: { source: "dom", url: "https://arena.ai/c/bbb", messages: [] }
+  });
+  check("mismatched tab and DOM snapshot is rejected", mismatched && mismatched.ok === false && /different conversations/.test(mismatched.error));
 
   console.log("Labeled sample after model reveal does not leak vote:");
   await send({ type: "AE_CLEAR" });
@@ -401,10 +461,10 @@ function check(name, cond) {
   }
   // A third vote so votes zip 1:1 onto the three rounds.
   await send({ type: "AE_EVENT", evt: { kind: "battle_vote", choice: "B is better", label: "B is better", source: "dom_click", url: pageUrl, capturedAt: new Date(Date.now() + 9000).toISOString() } });
-  const ctx = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: { source: "dom", url: pageUrl, messages: [], battle: { models: ["claude-haiku-4-5", "kimi-k3"], anonymous: false, ballotVisible: false } } })).json);
+  const contextExport = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: { source: "dom", url: pageUrl, messages: [], battle: { models: ["claude-haiku-4-5", "kimi-k3"], anonymous: false, ballotVisible: false } } })).json);
 
-  const at = (r, l) => ctx.battles[r].contestants.find(c => c.lane === l);
-  check("three rounds exported", ctx.battles.length === 3);
+  const at = (r, l) => contextExport.battles[r].contestants.find(c => c.lane === l);
+  check("three rounds exported", contextExport.battles.length === 3);
   check("first turn marked first_turn",
     at(0, "A").context_source === "first_turn" && at(0, "B").context_source === "first_turn");
   check("after an A win, A continues itself", at(1, "A").context_source === "self");
@@ -412,10 +472,10 @@ function check(name, cond) {
   check("after both_good, each lane stays on its own thread",
     at(2, "A").context_source === "self" && at(2, "B").context_source === "self");
   check("votes zipped onto their own rounds",
-    ctx.battles[0].outcome === "a_wins" && ctx.battles[1].outcome === "both_good" && ctx.battles[2].outcome === "b_wins");
+    contextExport.battles[0].outcome === "a_wins" && contextExport.battles[1].outcome === "both_good" && contextExport.battles[2].outcome === "b_wins");
   check("samples carry context provenance",
-    ctx.attribution_samples.filter(x => x.context_source === "cross_lane").length === 1 &&
-    ctx.attribution_samples.filter(x => x.context_source === "first_turn").length === 2);
+    contextExport.attribution_samples.filter(x => x.context_source === "cross_lane").length === 1 &&
+    contextExport.attribution_samples.filter(x => x.context_source === "first_turn").length === 2);
 
   console.log("Capture events from non-arena tabs are ignored:");
   {
@@ -430,7 +490,16 @@ function check(name, cond) {
       !JSON.stringify(after.messages).includes("injected from evil.com"));
   }
 
+  console.log("lmarena.ai (legacy host) senders are accepted:");
+  {
+    await send(
+      { type: "AE_EVENT", evt: { kind: "json", url: "https://lmarena.ai/api/agent/chat", data: { role: "user", content: "from lmarena host" } } },
+      { tab: { id: 100, url: "https://lmarena.ai/c/legacy-host" } }
+    );
+    const after = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", sessionKey: "c:legacy-host" })).json);
+    check("lmarena.ai sender accepted", JSON.stringify(after.messages).includes("from lmarena host"));
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
-

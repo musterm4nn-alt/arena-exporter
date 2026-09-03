@@ -1,6 +1,8 @@
 /* Service worker: routes capture events into per-conversation sessions,
  * assembles messages, and builds export JSON (network-as-truth, DOM fallback). */
-importScripts("lib/schema.js", "lib/normalize.js", "session-store.js", "battles.js", "attribution.js", "archive-layout.js", "markdown.js", "downloads-sink.js", "turn-sync.js");
+if (typeof importScripts === "function") {
+  importScripts("lib/schema.js", "lib/normalize.js", "session-store.js", "battles.js", "attribution.js", "archive-layout.js", "capture-health.js", "markdown.js", "downloads-sink.js", "native-sink.js", "turn-sync.js", "history-backfill.js", "status-led.js");
+}
 
 var STREAMING_WINDOW_MS = 2500;
 var AGENT_URL_RE = /(ai-proxy|\/api\/chat\/|stream\/create-chat|stream\/create-evaluation|stream\/post-to-evaluation|\/nextjs-api\/|\/api\/history|workspace)/i;
@@ -82,7 +84,7 @@ function recordEndpoint(evt, s) {
     s.endpoints.push({ url: short, status: evt.status || null, contentType: evt.contentType || "", count: 1, tier: tier });
     if (s.endpoints.length > 200) s.endpoints.shift();
   }
-  if (!s.session.url && /^https:\/\/([^/]+\.)?arena\.ai/.test(url)) s.session.url = url;
+  if (!s.session.url && /^https:\/\/([^/]+\.)?(arena\.ai|lmarena\.ai)/.test(url)) s.session.url = url;
 }
 
 function evaluationBaseKey(url) {
@@ -209,7 +211,74 @@ function tryUIMessage(parsed) {
   return true;
 }
 
+/* Accumulate model-shaped strings seen on the wire for this conversation.
+ * Resolution happens at export time: only a single dominant candidate claims
+ * orchestrator_model; anything ambiguous is exported as a candidate list so a
+ * human (or a fingerprint pass) can decide. */
+function noteModelHints(s, data) {
+  if (!AE.scanForModelHints || !s) return;
+  var found = null;
+  try { found = AE.scanForModelHints(data, {}); } catch (e) { return; }
+  Object.keys(found).forEach(function (name) {
+    if (!s.modelHints[name]) s.modelHints[name] = { count: 0, first_seen: new Date().toISOString() };
+    s.modelHints[name].count += found[name];
+    s.modelHints[name].last_seen = new Date().toISOString();
+  });
+}
+
+function resolveOrchestratorModel(s) {
+  if (s.session && s.session.orchestrator_model) {
+    return { model: s.session.orchestrator_model, source: "arena_reveal" };
+  }
+  var hints = (s && s.modelHints) || {};
+  var names = Object.keys(hints);
+  if (!names.length) return { model: null, source: null };
+  names.sort(function (a, b) { return hints[b].count - hints[a].count; });
+  var total = names.reduce(function (n, k) { return n + hints[k].count; }, 0);
+  var top = names[0];
+  /* Claim identity only when evidence is essentially unanimous; with two or
+   * more strong candidates (e.g. an orchestrator plus a search-side model)
+  	* stay silent and surface the candidates instead. */
+  var unanimous = names.length === 1 || hints[top].count >= Math.ceil(total * 0.9);
+  if (unanimous) return { model: top, source: "network_scan" };
+  return { model: null, source: null, candidates: names.slice(0, 5) };
+}
+
 function newBuilder() { return { slots: [], byId: {}, tools: {} }; }
+
+/* Rebuilds regenerate message content from builder slots only. When a stream
+ * resumes without a "start" frame (worker woke mid-stream, interceptor
+ * attached late), the builder must therefore be seeded with EVERY block kind
+ * already captured for that message -- not just text/thinking -- or the next
+ * rebuild silently deletes tool calls, results, and artifacts. */
+function seedBuilderFromMessage(b, msg) {
+  if (!b || !msg || !Array.isArray(msg.content)) return b;
+  msg.content.forEach(function (blk) {
+    if (!blk || !blk.type) return;
+    if (blk.type === "thinking") {
+      var ts = { kind: "thinking", id: blk.call_id || blk.id || null, text: blk.text || "" };
+      b.slots.push(ts);
+      if (ts.id) b.byId[ts.id] = ts;
+    } else if (blk.type === "text") {
+      b.slots.push({ kind: "text", id: null, text: blk.text || "" });
+    } else if (blk.type === "artifact") {
+      b.slots.push({ kind: "artifact", block: JSON.parse(JSON.stringify(blk)) });
+    } else if (blk.type === "tool_call") {
+      var sl = toolSlot(b, blk.call_id || null);
+      if (blk.tool_name) sl.name = blk.tool_name;
+      if (blk.arguments !== undefined) { sl.input = blk.arguments; sl.inputText = ""; }
+      if (blk.status) sl.status = blk.status;
+    } else if (blk.type === "tool_result" && blk.call_id && b.tools[blk.call_id]) {
+      var rs = b.tools[blk.call_id];
+      rs.output = blk.output;
+      rs.status = blk.status === "error" ? "error" : "success";
+    } else {
+      /* command/action/unknown shapes round-trip verbatim through an artifact slot */
+      b.slots.push({ kind: "artifact", block: JSON.parse(JSON.stringify(blk)) });
+    }
+  });
+  return b;
+}
 
 function outText(v) {
   if (typeof v === "string") return v;
@@ -341,27 +410,21 @@ function handleStreamChunk(c) {
     var resumeKey = null;
     if (continueId && s.messageIndex[continueId] != null) {
       resumeKey = continueId;
-      if (!s.streamBuilders[resumeKey]) s.streamBuilders[resumeKey] = newBuilder();
     } else if (s.messages.length) {
       var last = s.messages[s.messages.length - 1];
       if (last && last.role === "assistant" && last.id) {
         resumeKey = last.id;
-        if (!s.streamBuilders[resumeKey]) {
-          s.streamBuilders[resumeKey] = newBuilder();
-          if (last.content && last.content.length) {
-            last.content.forEach(function (blk) {
-              if (blk.type === "thinking") s.streamBuilders[resumeKey].slots.push({ kind: "thinking", text: blk.text || "" });
-              else if (blk.type === "text") s.streamBuilders[resumeKey].slots.push({ kind: "text", text: blk.text || "" });
-            });
-          }
-        }
         s.messageIndex[resumeKey] = s.messages.length - 1;
       }
     }
     if (!resumeKey) {
       resumeKey = genId("stream");
-      s.streamBuilders[resumeKey] = newBuilder();
       ensureStreamMessageByKey(resumeKey, null);
+    }
+    if (!s.streamBuilders[resumeKey]) {
+      s.streamBuilders[resumeKey] = newBuilder();
+      var idx = s.messageIndex[resumeKey];
+      if (idx != null && s.messages[idx]) seedBuilderFromMessage(s.streamBuilders[resumeKey], s.messages[idx]);
     }
     s.currentStreamKey = resumeKey;
   }
@@ -511,6 +574,9 @@ function handleEvent(evt, sender) {
   var syncTabId = sender && sender.tab && sender.tab.id != null ? sender.tab.id : null;
   s.stats.events++;
   s.stats.lastEventAt = Date.now();
+  if (evt.kind === "sse" || evt.kind === "stream_chunk" || evt.kind === "sse_raw" || evt.kind === "ws") {
+    s.stats.lastStreamAt = Date.now();
+  }
 
   if (evt.kind === "interceptor_ready") {
     if (!s.session.url) s.session.url = evt.url || "";
@@ -548,6 +614,7 @@ function handleEvent(evt, sender) {
     recordRequest(s, { method: "WS", url: evt.url, body: evt.text });
     try {
       var wsData = JSON.parse(evt.text);
+      noteModelHints(s, wsData);
       if (tryUIMessage(wsData)) { scheduleSave(); return; }
       var wsBlocks = AE.normalizeCaptured(wsData, { streaming: false });
       if (wsBlocks.length) appendBlocks(wsBlocks);
@@ -575,6 +642,7 @@ function handleEvent(evt, sender) {
     recordRequest(s, evt);
     var reqParsed = null;
     try { reqParsed = JSON.parse(evt.body); } catch (e) { /* non-JSON */ }
+    if (reqParsed) noteModelHints(s, reqParsed);
     if (reqParsed && tryUIMessage(reqParsed)) { scheduleSave(); return; }
     var reqBlocks = reqParsed ? AE.normalizeCaptured(reqParsed, { streaming: false }) : [];
     if (reqBlocks.length) {
@@ -589,7 +657,8 @@ function handleEvent(evt, sender) {
     return;
   }
   if (evt.kind === "sse" || evt.kind === "json") {
-    if (tryRealtimeRecords(evt.data, evt.url)) { scheduleSave(); return; }
+    if (tryRealtimeRecords(evt.data, evt.url)) { noteModelHints(s, evt.data); scheduleSave(); return; }
+    noteModelHints(s, evt.data);
     if (tryUIMessage(evt.data)) { scheduleSave(); return; }
     var blocks = AE.normalizeCaptured(evt.data, { streaming: evt.kind === "sse" });
     if (evt.kind === "json" && WORKSPACE_URL_RE.test(evt.url || "")) {
@@ -726,10 +795,25 @@ function deriveCompleteness(s, warnings) {
   return "full";
 }
 
+function sessionIsStreaming(s) {
+  var at = s && s.stats ? (s.stats.lastStreamAt || 0) : 0;
+  return !!(at && (Date.now() - at) < STREAMING_WINDOW_MS);
+}
+
+function applyCaptureHealth(s, snapshot, extra) {
+  if (!s || !AE.captureHealth || !AE.healthInputFromSession) return { warnings: [], critical: false };
+  extra = extra || {};
+  extra.streaming = extra.streaming != null ? extra.streaming : sessionIsStreaming(s);
+  var health = AE.captureHealth(AE.healthInputFromSession(s, snapshot, extra));
+  s.warnings = AE.mergeHealthWarnings(s.warnings || [], health);
+  return health;
+}
+
 function buildExport(mode, domSnapshot) {
   var s = ensureState();
   flushStreamMessage(s);
-  var warnings = s.warnings.slice();
+  applyCaptureHealth(s, domSnapshot);
+  var warnings = (s.warnings || []).slice();
   var captureSources = ["network"];
   var messages = s.messages.map(function (m) { return JSON.parse(JSON.stringify(m)); });
 
@@ -761,10 +845,13 @@ function buildExport(mode, domSnapshot) {
   }
 
   var battles = buildBattles(s, domSnapshot);
+  if (mode === "last_message" && battles.length) battles = battles.slice(-1);
 
   if (!messages.length && !battles.length) {
     warnings.push("No conversation data captured. Open an Agent Mode or Battle chat, interact with it, then export again.");
   }
+
+  var orchestrator = resolveOrchestratorModel(s);
 
   var payload = {
     schema_version: AE.SCHEMA_VERSION,
@@ -772,14 +859,15 @@ function buildExport(mode, domSnapshot) {
       mode: mode,
       exported_at: new Date().toISOString(),
       extension_version: extensionVersion(),
-      schema_version: AE.SCHEMA_VERSION,
       source: { site: "arena.ai", mode: battles.length ? "battle" : "agent", url: s.session.url || null }
     },
     session: {
       session_id: s.session.session_id,
       conversation_key: s.session.conversation_key || null,
       started_at: s.session.started_at,
-      orchestrator_model: null,
+      orchestrator_model: orchestrator.model,
+      orchestrator_model_source: orchestrator.source,
+      orchestrator_model_candidates: orchestrator.candidates || null,
       turn_count: messages.filter(function (m) { return m.role === "user"; }).length
     },
     messages: exported,
@@ -809,6 +897,17 @@ function buildExport(mode, domSnapshot) {
   };
   payload.attribution_samples = buildAttributionSamples(s, payload);
   if (AE.decorateArchivePaths) AE.decorateArchivePaths(payload, s.archiveRel);
+  if (AE.listUrlOnlyFiles) {
+    var urlOnly = AE.listUrlOnlyFiles(payload);
+    applyCaptureHealth(s, domSnapshot, { urlOnlyFiles: urlOnly, payload: payload });
+    var healthOnly = (s.warnings || []).filter(function (w) {
+      return AE.isCaptureHealthWarning && AE.isCaptureHealthWarning(w);
+    });
+    warnings = AE.mergeHealthWarnings(warnings, { warnings: healthOnly });
+    s.warnings = warnings.slice();
+    payload.meta.warnings = warnings;
+    payload.meta.completeness = deriveCompleteness(s, warnings);
+  }
 
   var sid = String(s.session.session_id || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
   var filenamePrefix = battles.length ? "arena_battle" : "arena_agent";
@@ -837,21 +936,117 @@ function getStateSummary() {
     endpointCount: s.endpoints.length,
     endpoints: s.endpoints.slice(0, 50).map(function (e) { return { url: e.url, tier: e.tier }; }),
     warningCount: s.warnings.length,
-    warnings: s.warnings.slice(-5),
+    warnings: s.warnings.slice(),
+    captureHealthCritical: (s.warnings || []).some(function (w) {
+      return AE.isCaptureHealthWarning && AE.isCaptureHealthWarning(w) &&
+        (w === AE.CAPTURE_HEALTH_MSG.BATTLE_NO_EVAL || w === AE.CAPTURE_HEALTH_MSG.AGENT_NO_STREAM);
+    }),
     events: s.stats.events,
     unknownEvents: s.stats.unknown,
     streamChunkCount: s.stats.streamChunks || 0,
     battleVoteCount: Array.isArray(s.battleVotes) ? s.battleVotes.length : 0,
     lastBattleVote: Array.isArray(s.battleVotes) && s.battleVotes.length ? s.battleVotes[s.battleVotes.length - 1] : null,
-    streaming: s.stats.lastEventAt > 0 && (Date.now() - s.stats.lastEventAt) < STREAMING_WINDOW_MS,
+    streaming: sessionIsStreaming(s),
     lastSync: s.lastSync || null,
-    archiveRel: s.archiveRel || null
+    archiveRel: s.archiveRel || null,
+    nativeSink: typeof AE.nativeLastStatus === "function" ? AE.nativeLastStatus() : null
   };
 }
 
 function isArenaSender(sender) {
   var url = (sender && sender.tab && sender.tab.url) || "";
-  return /^https:\/\/([^/]+\.)?arena\.ai\//i.test(url);
+  return /^https:\/\/([^/]+\.)?(arena\.ai|lmarena\.ai)\//i.test(url);
+}
+
+/* Popup actions are about the popup's active tab, never whichever capture
+ * session happened to receive the latest event. Full History used to combine
+ * the active page's DOM with a different tab's network session, producing a
+ * valid-looking export with the wrong URL and conversation id. */
+function activateRequestSession(msg) {
+  msg = msg || {};
+  var explicitKey = typeof msg.sessionKey === "string" ? msg.sessionKey : null;
+  var snapshotKey = msg.snapshot && msg.snapshot.url ? conversationKeyFromUrl(msg.snapshot.url) : null;
+  if (explicitKey && snapshotKey && explicitKey !== snapshotKey) {
+    return { error: "active tab and DOM snapshot refer to different conversations" };
+  }
+  /* Only an explicit popup/tab key may switch sessions. A snapshot URL is a
+   * consistency check, not authority to redirect an older internal caller. */
+  var key = explicitKey || null;
+  var s;
+  if (key) {
+    if (!store.sessions[key]) store.sessions[key] = freshState(key);
+    store.activeKey = key;
+    s = store.sessions[key];
+    s.session.conversation_key = key;
+    if (msg.tabId != null) {
+      store.tabKeys[msg.tabId] = key;
+      store.tabKeys[String(msg.tabId)] = key;
+    }
+  } else {
+    s = ensureState();
+  }
+  if (msg.snapshot && msg.snapshot.url) s.session.url = msg.snapshot.url;
+  if (msg.snapshot && msg.snapshot.title) s.session.title = msg.snapshot.title;
+  return { key: key, session: s, error: null };
+}
+
+
+function downloadTextFile(filename, text, mime, saveAs) {
+  mime = mime || "application/json;charset=utf-8";
+  saveAs = saveAs !== false;
+  filename = String(filename || "export.json").replace(/[\\/:*?"<>|]/g, "_");
+  return new Promise(function (resolve) {
+    var blobUrl = null;
+    try {
+      if (typeof URL !== "undefined" && URL.createObjectURL && typeof Blob !== "undefined") {
+        blobUrl = URL.createObjectURL(new Blob([text], { type: mime }));
+      }
+    } catch (e0) { blobUrl = null; }
+    var dataUrl = "data:" + mime + "," + encodeURIComponent(text);
+    function attempt(url, useSaveAs, triedBlob) {
+      try {
+        chrome.downloads.download({
+          url: url,
+          filename: filename,
+          saveAs: !!useSaveAs,
+          conflictAction: "uniquify"
+        }, function (id) {
+          var err = (chrome.runtime.lastError && chrome.runtime.lastError.message) || null;
+          if (err && useSaveAs) { attempt(url, false, triedBlob); return; }
+          if (err && triedBlob && url === blobUrl) { attempt(dataUrl, useSaveAs, false); return; }
+          if (blobUrl && url === blobUrl) {
+            try { URL.revokeObjectURL(blobUrl); } catch (e1) { /* ignore */ }
+          }
+          resolve({ ok: !err && id != null, error: err, id: id });
+        });
+      } catch (e) {
+        if (blobUrl && url === blobUrl) {
+          try { URL.revokeObjectURL(blobUrl); } catch (e2) { /* ignore */ }
+        }
+        resolve({ ok: false, error: String(e) });
+      }
+    }
+    attempt(blobUrl || dataUrl, saveAs, !!blobUrl);
+  });
+}
+
+function downloadDataUrlFile(filename, dataUrl) {
+  filename = String(filename || "file").replace(/[\\/:*?"<>|]/g, "_");
+  return new Promise(function (resolve) {
+    try {
+      chrome.downloads.download({
+        url: dataUrl,
+        filename: filename,
+        saveAs: false,
+        conflictAction: "uniquify"
+      }, function (id) {
+        var err = (chrome.runtime.lastError && chrome.runtime.lastError.message) || null;
+        resolve({ ok: !err && id != null, error: err });
+      });
+    } catch (e) {
+      resolve({ ok: false, error: String(e) });
+    }
+  });
 }
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
@@ -865,17 +1060,34 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (stateReady) handleEvent(msg.evt, sender);
     else pendingEvents.push({ evt: msg.evt, sender: sender });
     sendResponse({ ok: true, queued: !stateReady });
+    try { if (AE.refreshStatusLed) AE.refreshStatusLed(); } catch (eLed) {}
     return;
   }
   if (msg.type === "AE_GET_STATE") {
     stateReadyPromise.then(function () {
-      sendResponse({ ok: true, state: getStateSummary(), sessions: listSessionSummaries() });
+      var selected = activateRequestSession(msg);
+      if (selected.error) { sendResponse({ ok: false, error: selected.error }); return; }
+      var s = selected.session;
+      if (msg.snapshot) applyCaptureHealth(s, msg.snapshot);
+      var finish = function () {
+        sendResponse({ ok: true, state: getStateSummary(), sessions: listSessionSummaries() });
+        try { if (AE.refreshStatusLed) AE.refreshStatusLed(); } catch (eLed) {}
+        /* Opening the popup/options page is the natural moment to re-check
+         * battles whose model reveal was missed by the retry ladder. */
+        if (s.labelsPending) {
+          scheduleTurnSync("state_poll_label_retry", s.session.conversation_key, null);
+        }
+      };
+      if (typeof AE.nativeStatus === "function") AE.nativeStatus().then(finish);
+      else finish();
     });
     return true;
   }
   if (msg.type === "AE_SET_MANUAL_VOTE") {
     stateReadyPromise.then(function () {
-      var s = ensureState();
+      var selected = activateRequestSession(msg);
+      if (selected.error) { sendResponse({ ok: false, error: selected.error }); return; }
+      var s = selected.session;
       if (msg.choice === "clear") {
         for (var i = s.battleVotes.length - 1; i >= 0; i--) {
           if (s.battleVotes[i].source === "manual") { s.battleVotes.splice(i, 1); break; }
@@ -893,14 +1105,215 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     });
     return true;
   }
+  if (msg.type === "AE_SAVE_TEXT") {
+    downloadTextFile(msg.filename, msg.text || "", msg.mime, msg.saveAs !== false).then(sendResponse);
+    return true;
+  }
   if (msg.type === "AE_EXPORT") {
     stateReadyPromise.then(function () {
-      if (msg.sessionKey && store.sessions[msg.sessionKey]) store.activeKey = msg.sessionKey;
-      var out = buildExport(msg.mode === "last_message" ? "last_message" : "full_history", msg.snapshot);
-      sendResponse({ ok: true, json: JSON.stringify(out.payload, null, 2), filename: out.filename });
+      var selected = activateRequestSession(msg);
+      if (selected.error) { sendResponse({ ok: false, error: selected.error }); return; }
+      var mode = msg.mode === "last_message" ? "last_message" : "full_history";
+      var out = buildExport(mode, msg.snapshot);
+      var payload = out.payload;
+      var after = (AE.finalizeArchivePayload)
+        ? AE.finalizeArchivePayload(payload, { tabId: msg.tabId })
+        : Promise.resolve(payload);
+      after.then(function () {
+        if (AE.applyCompletenessMeta) AE.applyCompletenessMeta(payload);
+        var json = JSON.stringify(payload, null, 2);
+        if (!msg.save) {
+          sendResponse({ ok: true, json: json, filename: out.filename, payload: null });
+          return;
+        }
+        var stamp = (function () {
+          var d = new Date();
+          var p = function (n) { return String(n).padStart(2, "0"); };
+          return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+        })();
+        var dir = "arena-exporter-attachments/" + stamp + "/";
+        var downloads = [];
+        if (AE.decorateInlineArtifacts) {
+          var inline = AE.decorateInlineArtifacts(payload, dir);
+          (inline.saved || []).forEach(function (s) {
+            if (s && s.dataUrl && s.path) downloads.push({ dataUrl: s.dataUrl, path: s.path });
+          });
+        }
+        downloadTextFile(out.filename, json, "application/json;charset=utf-8", true).then(function (dl) {
+          var chain = Promise.resolve();
+          downloads.forEach(function (d) {
+            chain = chain.then(function () { return downloadDataUrlFile(d.path, d.dataUrl); });
+          });
+          chain.then(function () {
+            sendResponse({
+              ok: !!dl.ok,
+              json: json,
+              filename: out.filename,
+              error: dl.error || null,
+              savedCount: downloads.length
+            });
+          });
+        });
+      }, function (err) {
+        sendResponse({ ok: false, error: String(err && err.message ? err.message : err) });
+      });
     });
     return true;
   }
+
+  if (msg.type === "AE_HISTORY_PROGRESS") {
+    if (!globalThis.__aeBackfill) globalThis.__aeBackfill = {};
+    var p = globalThis.__aeBackfill;
+    if (msg.stage) p.stage = msg.stage;
+    if (msg.page != null) p.page = msg.page;
+    if (msg.count != null) p.count = msg.count;
+    if (msg.index != null) p.index = msg.index;
+    if (msg.total != null) p.total = msg.total;
+    if (msg.title != null) p.title = msg.title;
+    if (msg.id != null) p.id = msg.id;
+    sendResponse({ ok: true });
+    return;
+  }
+  if (msg.type === "AE_HISTORY_STATUS") {
+    sendResponse({ ok: true, backfill: globalThis.__aeBackfill || { running: false } });
+    return;
+  }
+  if (msg.type === "AE_HISTORY_BACKFILL") {
+    if (globalThis.__aeBackfill && globalThis.__aeBackfill.running) {
+      sendResponse({ ok: false, error: "backfill already running", backfill: globalThis.__aeBackfill });
+      return;
+    }
+    var tabId = msg.tabId;
+    globalThis.__aeBackfill = { running: true, stage: "start", written: 0, skipped: 0, failed: 0, listed: 0, error: null, failedItems: [] };
+    var tabMsg = function (payload) {
+      return new Promise(function (resolve) {
+        try {
+          chrome.tabs.sendMessage(tabId, payload, function (got) {
+            var err = chrome.runtime.lastError;
+            if (err) resolve({ ok: false, error: err.message || "no response — reload the arena.ai tab" });
+            else resolve(got || { ok: false, error: "no response — open an arena.ai tab and reload it" });
+          });
+        } catch (e) {
+          resolve({ ok: false, error: String(e) });
+        }
+      });
+    };
+    var finish = function (res) {
+      globalThis.__aeBackfill.running = false;
+      if (res && res.ok === false) globalThis.__aeBackfill.error = res.error || globalThis.__aeBackfill.error;
+      try { sendResponse(res); } catch (e) { /* popup may have closed */ }
+    };
+    AE.archiveIndexLoad().then(function (index) {
+      var skip = {};
+      Object.keys(index || {}).forEach(function (k) { skip[k] = true; });
+      globalThis.__aeBackfill.stage = "list";
+      return tabMsg({ type: "AE_HISTORY_LIST" }).then(function (got) {
+        if (!got || !got.ok) {
+          return { ok: false, error: (got && got.error) || "history list failed" };
+        }
+        var list = got.list || [];
+        var wanted = [];
+        var skipped = 0;
+        list.forEach(function (item) {
+          if (item && item.id) wanted.push(item);
+        });
+        globalThis.__aeBackfill.listed = list.length;
+        globalThis.__aeBackfill.skipped = skipped;
+        globalThis.__aeBackfill.total = wanted.length;
+        var failed = [];
+        var written = 0;
+        var chain = Promise.resolve();
+        wanted.forEach(function (item, i) {
+          chain = chain.then(function () {
+            globalThis.__aeBackfill.stage = "fetch";
+            globalThis.__aeBackfill.index = i + 1;
+            globalThis.__aeBackfill.total = wanted.length;
+            globalThis.__aeBackfill.title = item.title || "";
+            globalThis.__aeBackfill.id = item.id;
+            return tabMsg({ type: "AE_HISTORY_FETCH", item: item }).then(function (gotRec) {
+              if (!gotRec || !gotRec.ok || !gotRec.record) {
+                failed.push({ id: item.id, error: (gotRec && gotRec.error) || "fetch failed" });
+                globalThis.__aeBackfill.failed = failed.length;
+                globalThis.__aeBackfill.failedItems = failed.slice(-20);
+                return;
+              }
+              var payload = AE.historyRecordToPayload(gotRec.record);
+              if (!payload || !payload.session || !payload.session.conversation_key) {
+                failed.push({ id: item.id, error: "could not convert" });
+                globalThis.__aeBackfill.failed = failed.length;
+                return;
+              }
+              if (!((payload.messages || []).length || (payload.battles || []).length)) {
+                failed.push({ id: item.id, error: "empty conversation" });
+                globalThis.__aeBackfill.failed = failed.length;
+                return;
+              }
+              var key = payload.session.conversation_key;
+              var prior = index[key] || index["c:" + item.id] || null;
+              var alreadyGreen = !!(prior && (prior.completeness === "green" || prior.completeness === "full"));
+              if (AE.applyHonestSubtype) AE.applyHonestSubtype(payload);
+              var urls = AE.collectArtifactUrls ? AE.collectArtifactUrls(payload) : [];
+              if (alreadyGreen && !urls.length) {
+                skipped += 1;
+                globalThis.__aeBackfill.skipped = skipped;
+                return;
+              }
+              if (AE.shouldSkipEmptyArchive && AE.shouldSkipEmptyArchive(payload) && !urls.length) {
+                skipped += 1;
+                globalThis.__aeBackfill.skipped = skipped;
+                return;
+              }
+              var existingRel = (prior && prior.rel) || null;
+              globalThis.__aeBackfill.stage = "fetch";
+              return AE.finalizeArchivePayload(payload, { tabId: tabId, existingRel: existingRel }).then(function () {
+              var score = payload.meta && payload.meta.completeness_detail;
+              if (score && score.emptyShell && !score.prompt && !(score.files && score.files.expected)) {
+                skipped += 1;
+                globalThis.__aeBackfill.skipped = skipped;
+                return;
+              }
+              globalThis.__aeBackfill.stage = "write";
+              var files = AE.filesToWrite ? AE.filesToWrite(payload) : [];
+              return writeArchiveBest(payload, files).then(function (res) {
+                if (res && res.ok) {
+                  written += 1;
+                  globalThis.__aeBackfill.written = written;
+                  globalThis.__aeBackfill.lastRel = res.rel;
+                } else {
+                  failed.push({ id: payload.session.conversation_key, error: (res && res.error) || "write failed" });
+                  globalThis.__aeBackfill.failed = failed.length;
+                  globalThis.__aeBackfill.failedItems = failed.slice(-20);
+                }
+              });
+              });
+            }).then(function () {
+              return new Promise(function (r) { setTimeout(r, 180); });
+            });
+          });
+        });
+        return chain.then(function () {
+          globalThis.__aeBackfill.failed = failed.length;
+          globalThis.__aeBackfill.written = written;
+          globalThis.__aeBackfill.stage = "done";
+          globalThis.__aeBackfill.failedItems = failed.slice(-20);
+          return {
+            ok: true,
+            written: written,
+            skipped: skipped,
+            listed: list.length,
+            failed: failed,
+            backfill: globalThis.__aeBackfill
+          };
+        });
+      });
+    }).then(finish, function (err) {
+      globalThis.__aeBackfill.running = false;
+      globalThis.__aeBackfill.error = String(err);
+      finish({ ok: false, error: String(err), backfill: globalThis.__aeBackfill });
+    });
+    return true;
+  }
+
   if (msg.type === "AE_SYNC") {
     stateReadyPromise.then(function () {
       var tabId = msg.tabId != null ? msg.tabId : null;
@@ -909,6 +1322,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         key = store.tabKeys[tabId] || store.tabKeys[String(tabId)] || null;
       }
       runTurnSync("manual", key, tabId).then(function (result) {
+        if (key && store.sessions[key]) store.activeKey = key;
         sendResponse({ ok: !!(result && result.ok), sync: result, state: getStateSummary() });
       });
     });
@@ -918,10 +1332,28 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
    * the archive path works before a capture depends on it. */
   if (msg.type === "AE_TEST_ARCHIVE") {
     var stamp = new Date().toISOString();
-    AE.writeArchiveFile(AE.ARCHIVE_DIR + "/_selftest.txt",
-      "arena-exporter archive self-test\n" + stamp + "\n").then(function (res) {
-      sendResponse(res);
-    });
+    var body = "arena-exporter archive self-test\n" + stamp + "\n";
+    var viaDownloads = function () {
+      return AE.writeArchiveFile(AE.ARCHIVE_DIR + "/_selftest.txt", body);
+    };
+    var done = function (res) { sendResponse(res); };
+    if (typeof AE.writeNativeSelftest === "function") {
+      AE.writeNativeSelftest(body).then(function (res) {
+        if (res && res.ok) { done(res); return; }
+        if (res && res.fallback) return viaDownloads().then(done);
+        done(res);
+      });
+    } else {
+      viaDownloads().then(done);
+    }
+    return true;
+  }
+  if (msg.type === "AE_NATIVE_STATUS") {
+    if (typeof AE.nativeStatus === "function") {
+      AE.nativeStatus().then(function (st) { sendResponse(st); });
+    } else {
+      sendResponse({ state: "missing", connected: false, error: "host-missing", fallback: true });
+    }
     return true;
   }
   if (msg.type === "AE_ARCHIVE_INDEX") {
@@ -939,6 +1371,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
   if (msg.type === "AE_CLEAR") {
     stateReadyPromise.then(function () {
+      var selected = activateRequestSession(msg);
+      if (selected.error) { sendResponse({ ok: false, error: selected.error }); return; }
       clearActiveSession();
       sendResponse({ ok: true });
     });

@@ -7,10 +7,26 @@
  * truncated. */
 (function () {
   "use strict";
-  if (window.__arenaExporterInstalled) return;
-  window.__arenaExporterInstalled = true;
-
   var NS = "__ARENA_EXPORTER_EVT__";
+
+  function pingReady() {
+    try {
+      var target = "*";
+      try { if (location.origin) target = location.origin; } catch (e0) { /* ignore */ }
+      window.postMessage({ type: NS, evt: { kind: "interceptor_ready", url: location.href } }, target);
+    } catch (e1) { /* never break the host page */ }
+  }
+
+  window.addEventListener("message", function (ev) {
+    if (ev.source !== window || !ev.data || ev.data.type !== "__ARENA_EXPORTER_REBIND__") return;
+    pingReady();
+  });
+
+  if (window.__arenaExporterInstalled) {
+    pingReady();
+    return;
+  }
+  window.__arenaExporterInstalled = true;
 
   /* Agent Mode recon findings:
    *  - /ai-proxy/realtime/v1/sessions/<uuid>/out  → long-lived agent event stream
@@ -27,10 +43,12 @@
   var EVAL_EMIT_CHUNK = 8192;
 
   /* Third-party telemetry (Datadog RUM beacons and friends) was reaching the
-   * archive. Nothing outside arena.ai is ever interesting here. */
+   * archive. Nothing outside arena.ai / lmarena.ai (legacy host that 301s) is
+   * ever interesting here. Code-preview hosts such as arena.site are not
+   * hooked — the interceptor only observes same-site Arena API traffic. */
   function isArenaUrl(url) {
     try {
-      return /^([a-z0-9-]+\.)*arena\.ai$/i.test(new URL(String(url), location.href).hostname);
+      return /^([a-z0-9-]+\.)*(arena\.ai|lmarena\.ai)$/i.test(new URL(String(url), location.href).hostname);
     } catch (e) {
       return false;
     }

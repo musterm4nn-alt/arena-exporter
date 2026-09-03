@@ -3,7 +3,7 @@
 
 const $ = (id) => document.getElementById(id);
 
-const ARENA_URL_RE = /^https:\/\/([^/]+\.)?arena\.ai\//i;
+const ARENA_URL_RE = /^https:\/\/([^/]+\.)?(arena\.ai|lmarena\.ai)\//i;
 
 /* Show the active build version in the popup header (read live from the
  * manifest so it always matches what chrome://extensions reports). */
@@ -16,14 +16,32 @@ function setDot(cls) {
   dot.className = "dot " + cls;
 }
 
-function showProgress(text) {
+function isBusyStatus(text) {
+  const t = String(text || "");
+  if (/…$/.test(t) || /\.\.\.$/.test(t)) return true;
+  return /^(Listing|Fetching|Writing|Exporting|Archiving|Collecting|Saved DOM)/i.test(t);
+}
+
+function showProgress(text, grade) {
+  const msg = $("progress-msg");
   const card = $("progress");
-  card.classList.remove("hidden");
-  $("progress-msg").textContent = text;
+  if (!msg || !card) return;
+  msg.textContent = "";
+  msg.appendChild(document.createTextNode(text || "Idle"));
+  if (grade) {
+    const g = String(grade).toLowerCase();
+    const span = document.createElement("span");
+    span.className = "grade-" + (g === "green" || g === "full" ? "green"
+      : g === "amber" || g === "partial" ? "amber"
+      : g === "red" ? "red" : "amber");
+    span.textContent = " [" + String(grade).toUpperCase() + "]";
+    msg.appendChild(span);
+  }
+  card.classList.toggle("busy", isBusyStatus(text));
 }
 
 function hideProgress() {
-  $("progress").classList.add("hidden");
+  showProgress("Idle");
 }
 
 function sendBg(msg) {
@@ -55,6 +73,31 @@ async function activeTab() {
 
 /* ---------- rendering ---------- */
 
+
+function renderSinkStatus(st) {
+  const el = $("sink-status");
+  if (!el) return;
+  const n = st && st.nativeSink;
+  if (n && n.state === "ok") {
+    el.textContent = "Writing via Arena Archive app";
+  } else if (n && n.state === "no-root") {
+    el.textContent = "Open Arena Archive and pick a folder — using Downloads until then";
+  } else {
+    el.textContent = "Archive: Downloads/arena-archive/";
+  }
+}
+
+function ledClass(st, onArena) {
+  if (st.lastSync && st.lastSync.ok === false) return "error";
+  if (st.captureHealthCritical) return "error";
+  if (st.streaming) return "stream";
+  if (!onArena) return "idle";
+  if (st.nativeSink && st.nativeSink.state === "ok") return "ok";
+  return "warn";
+}
+
+let popupOnArena = false;
+
 function renderState(st) {
   $("stats").classList.remove("hidden");
   $("actions").classList.remove("hidden");
@@ -70,10 +113,19 @@ function renderState(st) {
   $("stat-streamchunks").textContent = st.streamChunkCount || 0;
   document.getElementById("row-streamchunks").classList.toggle("hidden", !(st.streamChunkCount > 0));
 
-  setDot(st.streaming ? "streaming" : "live");
-  $("status-dot").title = st.streaming ? "Agent response streaming…" : "Capture active";
+  const nativeOk = !!(st.nativeSink && st.nativeSink.state === "ok");
+  setDot(ledClass(st, popupOnArena));
+  $("status-dot").title = (st.lastSync && st.lastSync.ok === false) ? "Last archive write failed"
+    : st.captureHealthCritical ? "Capture health failure"
+    : st.streaming ? "Agent response streaming…"
+    : nativeOk ? "Archive connected"
+    : popupOnArena ? "Archive app not connected — using Downloads"
+    : "Idle";
   if (st.lastSync && st.lastSync.rel) {
-    showProgress("Last archive: " + st.lastSync.rel + (st.lastSync.ok ? "" : " (failed)"));
+    showProgress(
+      "Last archive: " + st.lastSync.rel + (st.lastSync.ok ? "" : " (failed)"),
+      st.lastSync.completeness
+    );
   }
 
   const warnList = $("warning-list");
@@ -100,6 +152,7 @@ function renderState(st) {
       list.appendChild(li);
     });
   }
+  renderSinkStatus(st);
 }
 
 /* ---------- export flow ---------- */
@@ -109,83 +162,41 @@ let lastExport = null; // { json, filename }
 async function doExport(mode) {
   const tab = await activeTab();
   $("btn-full").disabled = $("btn-last").disabled = true;
-  showProgress(mode === "last_message" ? "Exporting last message…" : "Exporting full history…");
-
-  // 1. Ask the page for a DOM snapshot (fallback/backfill + completeness check).
-  let snapshot = null;
-  if (tab && ARENA_URL_RE.test(tab.url || "")) {
-    snapshot = await sendTab(tab.id, { type: "AE_DOM_SNAPSHOT" });
-  }
-
-  // 2. Build the merged export in the service worker.
-  const res = await sendBg({ type: "AE_EXPORT", mode: mode, snapshot: snapshot });
-  if (!res || !res.ok) {
-    showProgress("Export failed — try reloading the extension.");
-    $("btn-full").disabled = $("btn-last").disabled = false;
-    return;
-  }
-
-  lastExport = { json: res.json, filename: res.filename };
-
-  // 3. Fetch + save attachment bytes beside the JSON (ported from v1.4.0).
-  let payload = null;
-  try { payload = JSON.parse(res.json); } catch (e) { payload = null; }
-  const stamp = stampNow();
-  const dir = "arena-exporter-attachments/" + stamp + "/";
-  const downloads = [];
-  const failed = [];
-  const inlineWarnings = [];
-  let savedCount = 0;
-
-  if (payload) {
-    const urls = collectArtifactUrls(payload);
-    if (urls.length && tab && ARENA_URL_RE.test(tab.url || "")) {
-      showProgress("Fetching " + urls.length + " attachment(s)…");
-      const fetched = await sendTab(tab.id, { type: "AE_FETCH_ATTACHMENTS", urls });
-      const results = (fetched && fetched.results) || [];
-      const titleByUrl = new Map();
-      (payload.messages || []).forEach((m) => (m.content || []).forEach((b) => {
-        if (b.type === "artifact" && b.content_or_url) titleByUrl.set(b.content_or_url, b.title || null);
-      }));
-      results.forEach((r) => { if (r && r.url && !r.title) r.title = titleByUrl.get(r.url) || null; });
-      const att = AE.decorateAttachments(payload, results, dir);
-      savedCount += att.saved.length;
-      att.saved.forEach((s) => {
-        const f = results.find((r) => r && r.ok && r.url === s.url);
-        if (f && f.dataUrl) downloads.push({ dataUrl: f.dataUrl, path: s.path });
-      });
-      failed.push(...att.failed);
+  showProgress(mode === "last_message" ? "Exporting last message…" : "Exporting full chat…");
+  try {
+    let snapshot = null;
+    if (tab && ARENA_URL_RE.test(tab.url || "")) {
+      snapshot = await sendTab(tab.id, { type: "AE_DOM_SNAPSHOT" });
     }
-    const inline = AE.decorateInlineArtifacts(payload, dir);
-    savedCount += inline.saved.length;
-    inline.saved.forEach((s) => downloads.push({ dataUrl: s.dataUrl, path: s.path }));
-    inlineWarnings.push(...inline.warnings);
-    payload.meta.attachments = { dir: dir, saved: savedCount, failed: failed, warnings: inlineWarnings };
-    if (savedCount) payload.meta.warnings.push("Saved " + savedCount + " attachment(s) to Downloads/" + dir);
+    const res = await sendBg(Object.assign({
+      type: "AE_EXPORT", mode: mode, snapshot: snapshot, save: true
+    }, tabRequestContext(tab)));
+    if (!res || !res.ok) {
+      showProgress((res && res.error) ? ("Export failed: " + res.error) : "Export failed — try reloading the extension.");
+      return;
+    }
+    lastExport = { json: res.json, filename: res.filename };
+    showProgress(res.savedCount
+      ? "Saved " + res.filename + " + " + res.savedCount + " attachment(s)"
+      : "Saved " + res.filename);
+  } catch (e) {
+    showProgress("Export failed: " + e);
+  } finally {
+    $("btn-full").disabled = $("btn-last").disabled = false;
   }
-
-  const finalJson = payload ? JSON.stringify(payload, null, 2) : res.json;
-  lastExport = { json: finalJson, filename: res.filename };
-
-  // 4. Save attachments (silent) first, then the JSON with its save dialog.
-  for (const d of downloads) await downloadDataUrl(d.dataUrl, d.path);
-  await downloadJson(finalJson, res.filename);
-  showProgress(savedCount
-    ? "Saved " + res.filename + " + " + savedCount + " attachment(s) → " + dir
-    : "Saved " + res.filename);
-  $("btn-full").disabled = $("btn-last").disabled = false;
 }
 
 function collectArtifactUrls(payload) {
+  if (typeof AE !== "undefined" && AE.collectArtifactUrls) return AE.collectArtifactUrls(payload, 50);
   const seen = new Set();
   const out = [];
   (payload.messages || []).forEach((m) => (m.content || []).forEach((b) => {
     if (b.type !== "artifact" || typeof b.content_or_url !== "string") return;
     const u = b.content_or_url;
     if (!/^(https?:|blob:)/i.test(u) || seen.has(u)) return;
-    if (/^https?:/i.test(u) && !/^https:\/\/([^/]+\.)?arena\.ai\//i.test(u)) return;
+    if (/^https?:/i.test(u) && !/^https:\/\/([^/]+\.)?(arena\.ai|lmarena\.ai)\//i.test(u)) return;
     seen.add(u);
-    if (out.length < 30) out.push(u);
+    if (out.length < 50) out.push(u);
   }));
   return out;
 }
@@ -206,13 +217,7 @@ function stampNow() {
 }
 
 function downloadJson(json, filename) {
-  const url = "data:application/json;charset=utf-8," + encodeURIComponent(json);
-  return new Promise((resolve) => {
-    chrome.downloads.download({ url: url, filename: filename, saveAs: true }, () => {
-      void chrome.runtime.lastError;
-      resolve();
-    });
-  });
+  return sendBg({ type: "AE_SAVE_TEXT", filename: filename, text: json, mime: "application/json;charset=utf-8", saveAs: true });
 }
 
 /* ---------- init ---------- */
@@ -220,16 +225,20 @@ function downloadJson(json, filename) {
 async function init() {
   const tab = await activeTab();
   const onArena = tab && ARENA_URL_RE.test(tab.url || "");
-  const res = await sendBg({ type: "AE_GET_STATE" });
+  let snapshot = null;
+  if (onArena) snapshot = await sendTab(tab.id, { type: "AE_DOM_SNAPSHOT" });
+  const res = await sendBg(Object.assign({ type: "AE_GET_STATE", snapshot }, tabRequestContext(tab)));
 
+  popupOnArena = onArena;
   if (!onArena) {
     if (res && res.ok && res.state && res.state.messageCount > 0) {
       $("context-msg").textContent = "Not on arena.ai — showing the last captured session. Export still works.";
       renderState(res.state);
-      setDot(res.state.streaming ? "streaming" : "live");
+      setDot(ledClass(res.state, false));
     } else {
-      setDot("off");
+      setDot("idle");
       $("context-msg").textContent = "Open an arena.ai Agent or Battle chat to start capturing.";
+      if (res && res.state) renderSinkStatus(res.state);
     }
     return;
   }
@@ -238,19 +247,69 @@ async function init() {
   if (!ping) {
     $("context-msg").textContent = "Content script not injected yet — reload this page once, then reopen the popup.";
     if (res && res.ok && res.state) renderState(res.state);
-    setDot("off");
+    setDot("error");
     return;
   }
 
   $("context-msg").textContent = "Capturing on: " + (tab.url || "").replace(/^https:\/\//, "").slice(0, 48);
 
   if (res && res.ok) renderState(res.state);
+
+  const hist = await sendBg({ type: "AE_HISTORY_STATUS" });
+  if (hist && hist.backfill && hist.backfill.running) watchBackfill();
 }
 
 function conversationKeyFromHref(href) {
   const m = /\/c\/([A-Za-z0-9_-]+)/.exec(String(href || ""));
   return m ? "c:" + m[1] : null;
 }
+
+function tabRequestContext(tab) {
+  return {
+    tabId: tab && tab.id != null ? tab.id : null,
+    sessionKey: tab ? conversationKeyFromHref(tab.url) : null
+  };
+}
+
+
+function formatBackfill(b) {
+  if (!b) return "History backfill…";
+  if (b.error && !b.running) return "History backfill failed: " + b.error;
+  if (b.stage === "list") return "Listing history… page " + (b.page || "?") + " (" + (b.count || 0) + ")";
+  if (b.stage === "fetch") return "Fetching " + (b.index || 0) + "/" + (b.total || "?") + (b.title ? " — " + String(b.title).slice(0, 40) : "");
+  if (b.stage === "write") return "Writing " + (b.index || 0) + "/" + (b.total || "?") + " (" + (b.written || 0) + " saved)";
+  if (b.stage === "done" || (!b.running && (b.written != null))) {
+    return "History: " + (b.written || 0) + " written, " + (b.skipped || 0) + " already archived, " + (b.failed || 0) + " failed.";
+  }
+  return "Archiving history… keep this tab on arena.ai.";
+}
+
+async function watchBackfill() {
+  if ($("btn-history")) $("btn-history").disabled = true;
+  showProgress("Archiving history… keep this tab on arena.ai.");
+  for (;;) {
+    const st = await sendBg({ type: "AE_HISTORY_STATUS" });
+    const b = st && st.backfill;
+    showProgress(formatBackfill(b));
+    if (!b || !b.running) {
+      if ($("btn-history")) $("btn-history").disabled = false;
+      return b;
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+}
+
+if ($("btn-history")) $("btn-history").addEventListener("click", async () => {
+  const tab = await activeTab();
+  if (!tab || !ARENA_URL_RE.test(tab.url || "")) {
+    showProgress("Open arena.ai first (any page, logged in).");
+    return;
+  }
+  $("btn-history").disabled = true;
+  showProgress("Listing history… keep this tab on arena.ai.");
+  sendBg({ type: "AE_HISTORY_BACKFILL", tabId: tab.id });
+  await watchBackfill();
+});
 
 if ($("btn-sync")) $("btn-sync").addEventListener("click", async () => {
   showProgress("Writing to archive…");
@@ -270,7 +329,9 @@ $("btn-last").addEventListener("click", () => doExport("last_message"));
 /* Manual vote override (ported from v1.4.0). */
 async function setManualVote(choice) {
   const tab = await activeTab();
-  const res = await sendBg({ type: "AE_SET_MANUAL_VOTE", choice: choice, url: (tab && tab.url) || "" });
+  const res = await sendBg(Object.assign({
+    type: "AE_SET_MANUAL_VOTE", choice: choice, url: (tab && tab.url) || ""
+  }, tabRequestContext(tab)));
   if (res && res.state) renderState(res.state);
   showProgress(choice === "clear" ? "Manual vote cleared." : "Manual vote set: " + choice);
 }
@@ -284,7 +345,9 @@ $("btn-copy").addEventListener("click", async () => {
   const tab = await activeTab();
   let snapshot = null;
   if (tab && ARENA_URL_RE.test(tab.url || "")) snapshot = await sendTab(tab.id, { type: "AE_DOM_SNAPSHOT" });
-  const res = await sendBg({ type: "AE_EXPORT", mode: "full_history", snapshot: snapshot });
+  const res = await sendBg(Object.assign({
+    type: "AE_EXPORT", mode: "full_history", snapshot: snapshot
+  }, tabRequestContext(tab)));
   if (!res || !res.ok) return;
   try {
     await navigator.clipboard.writeText(res.json);
@@ -295,9 +358,11 @@ $("btn-copy").addEventListener("click", async () => {
 });
 
 $("btn-clear").addEventListener("click", async () => {
-  await sendBg({ type: "AE_CLEAR" });
+  const tab = await activeTab();
+  const context = tabRequestContext(tab);
+  await sendBg(Object.assign({ type: "AE_CLEAR" }, context));
   showProgress("Capture buffer reset.");
-  const res = await sendBg({ type: "AE_GET_STATE" });
+  const res = await sendBg(Object.assign({ type: "AE_GET_STATE" }, context));
   if (res && res.ok) renderState(res.state);
 });
 
@@ -320,4 +385,11 @@ $("btn-domdebug").addEventListener("click", async () => {
 });
 
 init();
-
+setInterval(async () => {
+  if ($("btn-full") && $("btn-full").disabled) return;
+  if ($("progress") && $("progress").classList.contains("busy")) return;
+  const tab = await activeTab();
+  popupOnArena = !!(tab && ARENA_URL_RE.test(tab.url || ""));
+  const res = await sendBg(Object.assign({ type: "AE_GET_STATE" }, tabRequestContext(tab)));
+  if (res && res.ok && res.state) renderState(res.state);
+}, 1000);

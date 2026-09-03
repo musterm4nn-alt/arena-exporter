@@ -105,6 +105,42 @@ function payloadFor(key, title, turns, models) {
     check("models_pending false once named", index["c:pin"].models_pending === false);
   }
 
+  console.log("Conversation ids sharing a UUID prefix never share a folder:");
+  {
+    const { AE } = makeCtx();
+    const keyA = "c:01a05e6e-983b-77ee-85cf-0eb6404eb8ad";
+    const keyB = "c:01a05e6e-d1f2-7e76-9f89-826894685faf";
+    const first = await AE.writeArchive(payloadFor(keyA, "Same title", 1, ["m1", "m2"]),
+      [{ path: "conversation.json", content: "{}" }]);
+    const second = await AE.writeArchive(payloadFor(keyB, "Same title", 1, ["m1", "m2"]),
+      [{ path: "conversation.json", content: "{}" }]);
+    check("same-prefix UUIDs have distinct rel paths", first.rel !== second.rel);
+    check("first rel contains its full UUID", first.rel.endsWith("--01a05e6e-983b-77ee-85cf-0eb6404eb8ad"));
+    check("second rel contains its full UUID", second.rel.endsWith("--01a05e6e-d1f2-7e76-9f89-826894685faf"));
+  }
+
+  console.log("A legacy colliding index entry is relocated on next sync:");
+  {
+    const { AE, writes } = makeCtx();
+    const keyA = "c:01a05e6e-983b-77ee-85cf-0eb6404eb8ad";
+    const keyB = "c:01a05e6e-d1f2-7e76-9f89-826894685faf";
+    const legacyRel = "battle/text/chat--01a05e6e";
+    await AE.archiveIndexSave({
+      [keyA]: { rel: legacyRel, subtype: "text", hashes: { "conversation.json": "stale" } },
+      [keyB]: { rel: legacyRel, subtype: "text", hashes: { "conversation.json": "stale" } }
+    });
+    const payload = payloadFor(keyA, "Legacy chat", 1, ["m1", "m2"]);
+    const res = await AE.writeArchive(payload, [{ path: "conversation.json", content: "{}" }]);
+    check("legacy collision moves off the shared path", res.rel !== legacyRel);
+    check("legacy collision moves to its full-id path",
+      res.rel.endsWith("--01a05e6e-983b-77ee-85cf-0eb6404eb8ad"));
+    const conversationWrite = writes.find((w) =>
+      w.filename === "arena-archive/" + res.rel + "/conversation.json");
+    const archived = conversationWrite ? JSON.parse(decodeWrite(conversationWrite)) : null;
+    check("relocated conversation metadata records the new path",
+      archived && archived.archive && archived.archive.rel === res.rel);
+  }
+
   console.log("Subtype is locked to the first battle:");
   {
     const { AE } = makeCtx();
@@ -170,6 +206,33 @@ function payloadFor(key, title, turns, models) {
     check("no download issued", writes.length === 0);
     check("safeArchivePath strips traversal", AE.safeArchivePath("../etc/passwd") === null);
     check("safeArchivePath keeps nested lane path", AE.safeArchivePath("battle-01/A/response.md") === "battle-01/A/response.md");
+  }
+
+  console.log("Missing setUiOptions cannot suppress the download UI:");
+  {
+    const writes = [];
+    const ctx = {
+      console, setTimeout, clearTimeout, JSON, Math, Date, Object, Array, String, Number, Set, Promise,
+      encodeURIComponent, decodeURIComponent,
+      crypto: globalThis.crypto,
+      TextEncoder, TextDecoder,
+      chrome: {
+        runtime: { lastError: null },
+        storage: { local: fakeStorageArea() },
+        downloads: {
+          download: (o, cb) => { writes.push(o.filename); cb(1); },
+          search: (q, cb) => cb([{ id: 1, state: "complete", filename: "/fake/Downloads/" + writes[writes.length - 1], error: null }]),
+          erase: (q, cb) => cb([1]),
+          onChanged: { addListener: () => {} }
+        }
+      }
+    };
+    vm.createContext(ctx);
+    for (const f of ["lib/schema.js", "archive-layout.js", "markdown.js", "downloads-sink.js"]) {
+      vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), ctx);
+    }
+    const res = await ctx.AE.setSilentWrites(true);
+    check("returns false when setUiOptions is missing", res === false);
   }
 
   console.log("Oversized conversation.json is slimmed, not dropped:");

@@ -347,14 +347,18 @@ var AE = AE || {};
         var kind = (typeof o.mimeType === "string" && o.mimeType) ||
                    (typeof o.contentType === "string" && o.contentType) ||
                    (typeof o.type === "string" && o.type) || "file";
-        blocks.push({
+        var href = (typeof o.url === "string" && o.url) ||
+                   (typeof o.downloadUrl === "string" && o.downloadUrl) || null;
+        var inline = typeof o.content === "string" ? o.content : null;
+        var block = {
           type: "artifact",
           artifact_type: kind,
           title: title,
-          content_or_url: (typeof o.url === "string" && o.url) ||
-                          (typeof o.downloadUrl === "string" && o.downloadUrl) || null,
+          content_or_url: href || inline,
           source: "network"
-        });
+        };
+        if (inline) block.content = inline;
+        blocks.push(block);
       }
 
       for (var key of Object.keys(o)) {
@@ -489,7 +493,10 @@ var AE = AE || {};
         var msg = r && typeof r.message === "string" ? r.message : "";
         if (/Created\s+\S+\.(js|jsx|ts|tsx|html|py|css|vue|svelte)\b/i.test(msg)) codeFlag = true;
       });
-      if ((L.files && L.files.length) || (result.workspaceFiles && result.workspaceFiles.length)) codeFlag = true;
+      if ((result.workspaceFiles && result.workspaceFiles.length) || (L.files && L.files.some(function (f) {
+        var p = String((f && (f.path || f.downloadUrl || "")) || "");
+        return p && !/\.(png|jpe?g|webp|gif|avif|svg|mp4|webm|mov)(\?|$)/i.test(p);
+      }))) codeFlag = true;
       L.citations = cites;
       L.toolNames = Object.keys(toolNames);
       L.code = codeFlag;
@@ -512,6 +519,52 @@ var AE = AE || {};
     });
   }
 
+  function isMediaUrl(url) {
+    if (typeof url !== "string" || !url) return false;
+    if (/^(blob:|data:image|data:video)/i.test(url)) return true;
+    if (!/^https?:/i.test(url)) return false;
+    if (/\.(png|jpe?g|webp|gif|avif|svg|mp4|webm|mov)(\?|$)/i.test(url)) return true;
+    if (/cdn\.arena\.ai|r2\.dev|r2\.cloudflarestorage\.com/i.test(url)) return true;
+    return false;
+  }
+
+  function pushLaneMedia(L, url, kind) {
+    if (!isMediaUrl(url) && !/^https?:\/\/([a-z0-9-]+\.)*(arena\.ai|lmarena\.ai)\//i.test(url || "")) return;
+    if (!url) return;
+    if (!L.files) L.files = [];
+    if (L.files.some(function (f) { return f && (f.downloadUrl === url || f.url === url || f.content === url); })) return;
+    var video = kind === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(url);
+    var rec = {
+      path: "image-" + (L.files.length + 1) + (video ? ".mp4" : ".png"),
+      contentType: video ? "video/mp4" : "image/png",
+      source: "stream"
+    };
+    try {
+      var u = new URL(url, "https://arena.ai/");
+      var base = (u.pathname.split("/").pop() || "").split("?")[0];
+      if (/\.(png|jpe?g|webp|gif|avif|svg|mp4|webm|mov)$/i.test(base)) rec.path = base;
+    } catch (e) { /* keep default */ }
+    if (url.indexOf("data:") === 0) rec.content = url;
+    else rec.downloadUrl = url;
+    L.files.push(rec);
+  }
+
+  function ingestMediaItem(L, item) {
+    if (!item || typeof item !== "object") return;
+    var t = String(item.type || item.kind || "").toLowerCase();
+    var kind = /video/.test(t) ? "video" : "image";
+    var url = item.url || item.src || item.imageUrl || item.image_url || item.downloadUrl || item.uri || null;
+    if (typeof item.image === "string") url = url || item.image;
+    if (item.image && typeof item.image === "object") url = url || item.image.url || item.image.src;
+    if (item.output && typeof item.output === "object") url = url || item.output.url || item.output.src;
+    if (item.result && typeof item.result === "object") url = url || item.result.url || item.result.src;
+    if (url) pushLaneMedia(L, url, kind);
+    if (Array.isArray(item.images)) item.images.forEach(function (im) {
+      if (typeof im === "string") pushLaneMedia(L, im, "image");
+      else if (im && typeof im === "object") pushLaneMedia(L, im.url || im.src, "image");
+    });
+  }
+
   function ingestDataItems(result, L, val) {
     var items = Array.isArray(val) ? val : (val ? [val] : []);
     items.forEach(function (item) {
@@ -527,6 +580,12 @@ var AE = AE || {};
             });
           }
         });
+        return;
+      }
+      var t = String(item.type || item.kind || (item.event && item.event.type) || "").toLowerCase();
+      if (/image|media|video|t2i|txt2img|img/.test(t) || item.imageUrl || item.image_url || item.image || isMediaUrl(item.url || item.src || "")) {
+        ingestMediaItem(L, item);
+        if (item.event && typeof item.event === "object") ingestMediaItem(L, item.event);
       }
     });
   }
@@ -546,6 +605,44 @@ var AE = AE || {};
     var t = String(name == null ? "" : name).replace(/\s+/g, " ").trim();
     if (!t) return true;
     return /^(?:response|model|assistant|lane|player|option)\s*[ab]$/i.test(t);
+  };
+
+  /* ---------- orchestrator model identification (agent mode) ----------
+   * Agent Mode routes each session to a random model and does not reveal the
+   * name in the UI. The wire traffic still carries model-shaped strings under
+   * model-ish keys, so scan captured payloads for them and let the session
+   * accumulate evidence. Conservative on purpose: a value only counts when
+   * the KEY names a model field AND the VALUE looks like an internal model
+   * slug (vendor token or dotted version slug). */
+  var MODEL_FIELD_RE = /^(?:model|models|.*[_-]model|model[_-].*)$/i;
+  var MODEL_SLUG_RE = /^[a-z0-9][a-z0-9._:@\/-]{2,88}[a-z0-9)]$/i;
+  var VENDOR_TOKEN_RE = /(?:^|[._:-])(gpt|o[1345](?![a-z])|claude|opus|sonnet|haiku|gemini|grok|kimi|qwen|glm|deepseek|minimax|llama|mistral|nova|pixtral|phi|flux|dall)(?:[._:-]|$)/i;
+
+  AE.scanForModelHints = function (data, out) {
+    var found = out || {};
+    var visits = 0;
+    function note(value) {
+      var t = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+      if (!MODEL_SLUG_RE.test(t)) return;
+      if (AE.isPlaceholderModel(t)) return;
+      if (!VENDOR_TOKEN_RE.test(t) && !/^[a-z0-9]+[-._][0-9]/i.test(t)) return;
+      if (/^(?:unknown|none|null|default|auto|max)$/i.test(t)) return;
+      found[t] = (found[t] || 0) + 1;
+    }
+    function walk(o) {
+      if (!o || typeof o !== "object" || visits++ > 600) return;
+      if (Array.isArray(o)) { o.forEach(walk); return; }
+      Object.keys(o).forEach(function (k) {
+        var v = o[k];
+        if (typeof v === "string") {
+          if (MODEL_FIELD_RE.test(k)) note(v);
+        } else if (v && typeof v === "object") {
+          walk(v);
+        }
+      });
+    }
+    walk(data);
+    return found;
   };
 
   /* Evaluation request bodies are the only place the prior-turn context is

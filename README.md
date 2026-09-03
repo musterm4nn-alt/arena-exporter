@@ -1,35 +1,31 @@
 # Arena Agent Exporter
 
-**Version 1.16.1** — Chrome / Firefox MV3 extension that captures arena.ai **Agent** and **Battle** chats into structured JSON (schema 2.0) and an on-disk archive.
+Chrome / Firefox MV3 extension that captures arena.ai **Agent** and **Battle** chats into structured JSON (schema 2.0) and an on-disk archive under the browser's Downloads folder.
 
 ## Load the extension
 
 ### Chrome
 
-Load unpacked **this repository root** (the folder that contains `manifest.json`).
-
 1. Chrome → `chrome://extensions` → Developer mode → Load unpacked
-2. Select this repo root
-3. Reload after pulls
+2. Select this folder (`arena-exporter`), or unzip `arena-agent-exporter-ff.zip` and select that folder (it has `manifest.json` at the root)
+3. Reload after pulls.
 
-### Firefox
+### Firefox (temporary add-on)
 
-Load from the **`firefox/`** tree, or install the AMO unlisted zip. Gecko id: `arena-agent-exporter@local`.
+Firefox 121+ (MV3 service workers). Temporary add-ons **die when Firefox quits** — load again after restart.
 
 1. Firefox → `about:debugging#/runtime/this-firefox` → **This Firefox**
 2. **Load Temporary Add-on…**
-3. Select `firefox/manifest.json`
-4. Reload the Arena tab after loading
+3. Select `manifest.json` in this folder (or in the unzipped zip root — do not pick a nested folder whose name contains spaces if the file picker fights you)
+4. Reload the Arena tab after loading.
 
-Temporary add-ons **die when Firefox quits** — load again after restart.
-
-`downloads.ui` silent-shelf suppression is **Chrome-only**. Firefox always shows the download UI when falling back to Downloads.
+`downloads.ui` silent-shelf suppression is **Chrome-only**. Firefox always shows the download UI; archive files still land under Downloads/`arena-archive/`.
 
 ## Capture
 
 Open an arena.ai Agent or Battle tab. The interceptor runs at `document_start`. Use the popup:
 
-- **Write to archive now** — write the current tab's session to the archive
+- **Write to archive now** — write the current tab's session to `Downloads/arena-archive/`
 - **Export full history (JSON)** — download JSON (always available)
 - Vote override if the ballot click is missed
 
@@ -49,13 +45,9 @@ before Arena reveals either model name.
 
 ## Where the archive lives
 
-On **Windows**, archive writes go through the native **Arena Archive** app to `Documents\arena-archive` when that host is installed and a folder is chosen. If the native host is missing, hello fails, or no folder is chosen, the extension **falls back** to the browser Downloads folder (`Downloads/arena-archive/`).
-
-Native messaging (`chrome.runtime.connectNative`, host `com.arenaarchive.host`) is the writer path. The extension only writes — choosing the root is the app's job. Native host manifests live with the app installers, not in this extension. JSON export (download / copy) is unchanged.
-
 `chrome.downloads` can only write beneath the browser's download directory, and it refuses to follow a directory symlinked *out* of it — it shows a Save As dialog and then reports `complete` while silently writing to the Downloads root instead. It does create the target directory during path reservation before refusing, so seeing the folder appear proves nothing.
 
-When using the Downloads fallback, the real directory lives under Downloads and can be surfaced where you want it:
+So the real directory lives under Downloads and is surfaced where you want it:
 
 ```bash
 mkdir -p ~/Downloads/arena-archive
@@ -91,13 +83,13 @@ Open the extension's options page to self-test a write and to optionally suppres
 
 ## Arena Archive native app
 
-If the **Arena Archive** desktop app is installed (including the Windows writer), auto-archive and **Write to archive now** send files through native messaging to `com.arenaarchive.host` (stdio JSON; the app writes under the folder you pick there — on Windows typically `Documents\arena-archive`).
+If the **Arena Archive** desktop app is installed, auto-archive and **Write to archive now** send files through `chrome.runtime.connectNative` to the host `com.arenaarchive.host` (stdio JSON; the app writes under the folder you pick there). The extension only writes — choosing the root is the app's job.
 
-If the host is missing, hello fails, or no folder is chosen, the extension **falls back** to `chrome.downloads` under `Downloads/arena-archive/` — same load-unpacked Chrome/Firefox behaviour as before.
+If the host is missing, hello fails, or no folder is chosen, the extension **falls back** to `chrome.downloads` under `Downloads/arena-archive/` — same load-unpacked Chrome/Firefox behaviour as before. JSON export (download / copy) is unchanged. Native host manifests live with the app installers, not in this extension.
 
 ## Optional macOS reader
 
-A SwiftUI app that reads the archive (it does not write). A native Windows writer exists separately via the Arena Archive app above.
+A SwiftUI app that reads the archive (it does not write):
 
 ```bash
 cd macos/ArenaArchive
@@ -106,7 +98,7 @@ swift run ArenaArchive          # sidebar + markdown reader
 swift test                      # ArchiveKit path-safety / pinning
 ```
 
-Default archive root for the reader: `~/Downloads/arena-archive/` (the Downloads fallback folder). If you created the symlink above, `~/Documents/arena-archive` is the same tree. On Windows with the native app, the writer uses `Documents\arena-archive`.
+Default archive root: `~/Downloads/arena-archive/` (the same folder the extension writes). If you created the symlink above, `~/Documents/arena-archive` is the same tree.
 
 ## Tests
 

@@ -5,6 +5,9 @@
   "use strict";
   if (window.__arenaExporterContentInstalled) return;
   window.__arenaExporterContentInstalled = true;
+  try {
+    window.postMessage({ type: "__ARENA_EXPORTER_REBIND__", ts: Date.now() }, location.origin || "*");
+  } catch (eRebind) { /* ignore */ }
 
   /* Forward captured network events from the MAIN world to the service worker.
    * Same-origin page scripts can also postMessage this namespace, so we still
@@ -143,7 +146,7 @@
     if (msg.type === "AE_FETCH_ATTACHMENTS") {
       // Fetch artifact bytes (workspace/preview-token URLs) same-origin and
       // return data URLs so the popup can save them beside the export JSON.
-      var urls = (msg.urls || []).slice(0, 30).filter(function (u) {
+      var urls = (msg.urls || []).slice(0, 50).filter(function (u) {
         return !AE.dom.isAllowedAttachmentUrl || AE.dom.isAllowedAttachmentUrl(u);
       });
       var results = [];
@@ -155,6 +158,32 @@
       });
       chain.then(function () { sendResponse({ ok: true, results: results }); });
       return true; // async response
+    }
+
+    if (msg.type === "AE_HISTORY_LIST") {
+      AE.historyListAll({
+        onPage: function (st) {
+          try { chrome.runtime.sendMessage({ type: "AE_HISTORY_PROGRESS", stage: "list", page: st.page, count: st.count }); } catch (e) {}
+        }
+      }).then(function (list) {
+        sendResponse({ ok: true, list: list });
+      }).catch(function (err) {
+        var text = String(err && err.message ? err.message : err);
+        if (/HTTP 401|HTTP 403/.test(text)) text = "Not signed in on this tab — log into arena.ai, then try again.";
+        sendResponse({ ok: false, error: text });
+      });
+      return true;
+    }
+
+    if (msg.type === "AE_HISTORY_FETCH") {
+      var item = msg.item || {};
+      AE.historyFetchRecord(item).then(function (rec) {
+        rec._historyMeta = item;
+        sendResponse({ ok: true, record: rec });
+      }).catch(function (err) {
+        sendResponse({ ok: false, error: String(err && err.message ? err.message : err), id: item.id });
+      });
+      return true;
     }
 
     if (msg.type === "AE_DOM_DEBUG") {

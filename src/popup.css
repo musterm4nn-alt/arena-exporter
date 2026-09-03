@@ -96,10 +96,18 @@ h2 {
 
 /* Square, because a round dot on a pixel grid is just a blurry square. */
 .dot { width: 8px; height: 8px; display: inline-block; border: 1px solid transparent; }
-.dot.idle    { background: var(--dim); }
-.dot.live    { background: var(--ok); }
-.dot.streaming { background: var(--stream); }
-.dot.off     { background: transparent; border-color: var(--danger); }
+.dot.idle,
+.dot.warn    { background: var(--accent); }   /* toolbar idle/warn: amber arrow */
+.dot.ok,
+.dot.live    { background: var(--ok); }       /* toolbar connected: green arrow */
+.dot.stream,
+.dot.streaming { background: var(--stream); } /* toolbar capturing: blue arrow */
+.dot.error,
+.dot.off     { background: var(--danger); }   /* toolbar error: red arrow */
+
+.grade-green { color: var(--ok); }
+.grade-amber { color: var(--accent); }
+.grade-red { color: var(--danger); }
 
 /* ---------- surfaces ---------- */
 
@@ -207,8 +215,14 @@ details li.ep-agent::before { content: "> "; color: var(--accent); }
 
 /* ---------- misc ---------- */
 
-#progress { margin-bottom: 12px; border-color: var(--accent-dim); }
-#progress::before { content: ""; }
+#progress { margin-bottom: 10px; }
+#progress #progress-msg {
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#progress.busy { border-color: var(--accent-dim); }
+#progress.busy #progress-msg { color: var(--accent); }
 
 .vote-label { margin: 2px 0 4px; letter-spacing: 0.14em; text-transform: uppercase; }
 /* Equal columns: five ragged flex items wrapped badly at this width. */

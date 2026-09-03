@@ -170,15 +170,33 @@ function battleResult(vote, winnerModel, domModels, greenLanes, negativeLanes) {
   };
 }
 
+function isMediaFile(f) {
+  if (!f) return false;
+  var ct = String(f.contentType || f.media_type || "").toLowerCase();
+  if (/^image\//.test(ct) || /^video\//.test(ct)) return true;
+  var p = String(f.path || f.downloadUrl || f.url || "");
+  return /\.(png|jpe?g|webp|gif|avif|svg|mp4|webm|mov)(\?|$)/i.test(p);
+}
+
 function battleSubtype(parsed, contestants) {
   var hasCitations = contestants.some(function (c) { return c.sources && c.sources.length; });
   var hasCode = contestants.some(function (c) { return c.code; });
+  var hasImage = contestants.some(function (c) {
+    return (c.files || []).some(function (f) {
+      return isMediaFile(f) && !/^video\//.test(String(f.contentType || "")) && !/\.(mp4|webm|mov)(\?|$)/i.test(String(f.path || f.downloadUrl || ""));
+    });
+  });
+  var hasVideo = contestants.some(function (c) {
+    return (c.files || []).some(function (f) {
+      return /^video\//.test(String(f.contentType || "")) || /\.(mp4|webm|mov)(\?|$)/i.test(String(f.path || f.downloadUrl || ""));
+    });
+  });
   var mod = String((parsed && parsed.modality) || "").toLowerCase();
   if (mod === "webdev" || mod === "code") return "code";
+  if (mod === "image" || hasImage) return "image";
+  if (mod === "video" || hasVideo) return "video";
   if (hasCode) return "code";
   if (hasCitations) return "web-search";
-  if (mod === "image") return "image";
-  if (mod === "video") return "video";
   var codeish = contestants.some(function (c) {
     var t = c.response || "";
     return t.indexOf("```") !== -1 || /function\s*\(|=>\s*\{|<script|def\s+\w+\s*\(/.test(t);
@@ -298,6 +316,27 @@ function buildBattles(s, domSnapshot) {
     var lanes = ["a", "b"];
     var contestants = lanes.map(function (lane, i) {
       var L = parsed.lanes[lane] || { text: "", finished: false, finishReason: null, citations: [], files: [] };
+      var domLane = isLatest && battleDom && Array.isArray(battleDom.lanes) ? battleDom.lanes[i] : null;
+      var domResponse = isLatest && battleDom && Array.isArray(battleDom.responses) ? battleDom.responses[i] : null;
+      var response = L.text || (domLane && domLane.response) || domResponse || "";
+      var tools = Array.isArray(L.toolNames) ? L.toolNames.slice() : [];
+      if (domLane && Array.isArray(domLane.tools)) domLane.tools.forEach(function (name) {
+        if (tools.indexOf(name) === -1) tools.push(name);
+      });
+      var toolCalls = Array.isArray(L.tools) && L.tools.length ? L.tools :
+        (domLane && Array.isArray(domLane.tool_calls) ? domLane.tool_calls : []);
+      var files = Array.isArray(L.files) ? L.files.slice() : [];
+      if (domLane && Array.isArray(domLane.files)) {
+        var seenF = {};
+        files.forEach(function (f) { var k = (f && (f.downloadUrl || f.url || f.path)) || ""; if (k) seenF[k] = true; });
+        domLane.files.forEach(function (f) {
+          if (!f) return;
+          var k = f.downloadUrl || f.url || f.path;
+          if (k && seenF[k]) return;
+          if (k) seenF[k] = true;
+          files.push(f);
+        });
+      }
       var model = modelsForBattle[i] || null;
       if (model && AE.isPlaceholderModel && AE.isPlaceholderModel(model)) model = null;
       return {
@@ -306,21 +345,21 @@ function buildBattles(s, domSnapshot) {
         model_source: !anonymous && model ? modelSource : "unknown",
         context_source: roundIndex === 0 ? "first_turn" : laneContextSource(prevVote, lane.toUpperCase()),
         message_id: lane === "a" ? (init.modelAMessageId || null) : (init.modelBMessageId || null),
-        response: L.text,
-        finished: !!L.finished,
+        response: response,
+        finished: !!L.finished || !!(domLane && domLane.finished),
         finish_reason: L.finishReason,
         sources: L.citations || [],
-        tools: L.toolNames || [],
-        tool_calls: L.tools || [],
-        files: L.files || [],
-        code: !!L.code
+        tools: tools,
+        tool_calls: toolCalls,
+        files: files,
+        code: !!L.code || !!(domLane && domLane.code)
       };
     });
     var result = battleResult(voteForThisBattle, winnerModelForBattle, modelsForBattle, greenLanesForBattle, negativeLanesForBattle);
     battles.push({
       evaluation_id: init.id || null,
       mode: init.mode || "battle",
-      subtype: battleSubtype(parsed, contestants),
+      subtype: battleSubtype({ modality: parsed.modality || (battleDom && battleDom.modality) }, contestants),
       prompt: parsed.prompt || null,
       anonymous: anonymous,
       workspace_files: parsed.workspaceFiles || [],
@@ -335,25 +374,43 @@ function buildBattles(s, domSnapshot) {
     });
   });
 
-  if (!battles.length && battleDom && namedModels(rawDomModels).length >= 2) {
+  var domLanes = battleDom && Array.isArray(battleDom.lanes) ? battleDom.lanes : [];
+  var domResponses = battleDom && Array.isArray(battleDom.responses) ? battleDom.responses : [];
+  var hasDomLaneOutput = domLanes.length >= 2 && domLanes.some(function (lane) {
+    return lane && (lane.response || lane.code || (lane.tools && lane.tools.length) || (lane.files && lane.files.length));
+  });
+  var hasDomResponses = domResponses.length >= 2 && domResponses.some(function (text) { return !!text; });
+  if (!battles.length && battleDom &&
+      (namedModels(rawDomModels).length >= 2 || hasDomLaneOutput || hasDomResponses)) {
     var named = namedModels(rawDomModels);
+    var domAnonymous = named.length < 2;
     var domResult = battleResult(capturedVote || domVote, winnerModel, named, greenLanes, negativeLanes);
+    var domContestants = ["A", "B"].map(function (lane, i) {
+      var domLane = Array.isArray(battleDom.lanes) ? battleDom.lanes[i] : null;
+      domLane = domLane || {};
+      return {
+        lane: lane,
+        model: domAnonymous ? null : (named[i] || null),
+        message_id: null,
+        response: domLane.response || (battleDom.responses && battleDom.responses[i]) || "",
+        finished: typeof domLane.finished === "boolean" ? domLane.finished : null,
+        finish_reason: domLane.finish_reason || null,
+        sources: Array.isArray(domLane.sources) ? domLane.sources : [],
+        tools: Array.isArray(domLane.tools) ? domLane.tools : [],
+        tool_calls: Array.isArray(domLane.tool_calls) ? domLane.tool_calls : [],
+        files: Array.isArray(domLane.files) ? domLane.files : [],
+        code: !!domLane.code
+      };
+    });
     battles.push({
       evaluation_id: null,
       mode: "battle",
-      subtype: "text",
-      prompt: null,
-      anonymous: false,
+      subtype: battleSubtype({ modality: battleDom.modality }, domContestants),
+      prompt: battleDom.prompt || null,
+      anonymous: domAnonymous,
       dom_only: true,
-      workspace_files: [],
-      contestants: [
-        { lane: "A", model: named[0] || null, message_id: null,
-          response: (battleDom.responses && battleDom.responses[0]) || "", finished: null,
-          finish_reason: null, sources: [], tools: [], tool_calls: [], files: [], code: false },
-        { lane: "B", model: named[1] || null, message_id: null,
-          response: (battleDom.responses && battleDom.responses[1]) || "", finished: null,
-          finish_reason: null, sources: [], tools: [], tool_calls: [], files: [], code: false }
-      ],
+      workspace_files: Array.isArray(battleDom.workspace_files) ? battleDom.workspace_files : [],
+      contestants: domContestants,
       vote: domResult.vote,
       vote_choice: domResult.vote_choice,
       outcome: domResult.outcome,

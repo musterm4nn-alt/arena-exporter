@@ -6,7 +6,7 @@
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
-const { fakeStorageArea, fakeDownloads } = require("./fake-chrome");
+const { fakeStorageArea, fakeDownloads, decodeWrite } = require("./fake-chrome");
 const archiveWrites = [];
 
 const ROOT = path.join(__dirname, "..", "src");
@@ -19,8 +19,21 @@ const snapshotRequests = []; // tabIds that were asked for a DOM snapshot
  * "grab tabs[0]" behaviour would pick tab 9 for a tab-7 conversation. */
 const TABS = [
   { id: 9, url: "https://arena.ai/c/BBB" },
-  { id: 7, url: "https://arena.ai/c/AAA" }
+  { id: 7, url: "https://arena.ai/c/AAA" },
+  { id: 11, url: "https://arena.ai/c/DOMONLY" }
 ];
+const DOM_ONLY_SNAPSHOT = {
+  source: "dom", url: "https://arena.ai/c/DOMONLY", title: "Recovered battle", messages: [],
+  battle: {
+    models: ["model-a", "model-b"], responses: ["Recovered A", "Recovered B"],
+    lanes: [
+      { response: "Recovered A", finished: true, tools: ["create_file"],
+        tool_calls: [{ toolName: "create_file", args: { path: "index.html" }, source: "dom" }],
+        files: [{ path: "index.html", content: null, tool: "create_file", source: "dom" }], code: true },
+      { response: "Recovered B", finished: true, tools: [], tool_calls: [], files: [], code: true }
+    ]
+  }
+};
 
 const ctx = vm.createContext({
   console,
@@ -42,7 +55,8 @@ const ctx = vm.createContext({
       query: (_q, cb) => cb(TABS),
       sendMessage: (tabId, msg, cb) => {
         if (msg && msg.type === "AE_DOM_SNAPSHOT") snapshotRequests.push(tabId);
-        cb({ source: "dom", url: (TABS.find((t) => t.id === tabId) || {}).url, messages: [] });
+        cb(tabId === 11 ? DOM_ONLY_SNAPSHOT :
+          { source: "dom", url: (TABS.find((t) => t.id === tabId) || {}).url, messages: [] });
       }
     }
   }
@@ -112,6 +126,23 @@ function check(name, cond) {
   await send({ type: "AE_SYNC", tabId: 9, sessionKey: "c:BBB" });
   check("manual sync snapshots tab 9 when asked",
     snapshotRequests.length === 1 && snapshotRequests[0] === 9);
+
+  console.log("Manual sync repairs a reopened battle from DOM only:");
+  const tabDom = { tab: { id: 11, url: "https://arena.ai/c/DOMONLY" } };
+  await send({ type: "AE_EVENT", evt: { kind: "page_context", url: tabDom.tab.url, conversationKey: "c:DOMONLY" } }, tabDom);
+  snapshotRequests.length = 0;
+  const domSync = await send({ type: "AE_SYNC", tabId: 11, sessionKey: "c:DOMONLY" });
+  const domWrite = archiveWrites.filter((w) => /chat--DOMONLY\/conversation\.json$/.test(w.filename)).slice(-1)[0];
+  const domPayload = domWrite ? JSON.parse(decodeWrite(domWrite)) : null;
+  check("empty capture session still requests the current page DOM",
+    snapshotRequests.length === 1 && snapshotRequests[0] === 11);
+  check("DOM-only manual sync succeeds", !!(domSync && domSync.ok));
+  check("DOM-only manual sync archives recovered lane text and tools",
+    !!domPayload && domPayload.battles[0].contestants[0].response === "Recovered A" &&
+    domPayload.battles[0].contestants[0].tools.includes("create_file") &&
+    domPayload.battles[0].subtype === "code");
+  check("DOM-only reconstruction sets capture-health warning",
+    !!domPayload && (domPayload.meta.warnings || []).some((w) => /Capture health:.*no evaluation stream/.test(w)));
 
   console.log("\n" + passed + " passed, " + failed + " failed");
   process.exit(failed ? 1 : 0);

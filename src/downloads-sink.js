@@ -83,10 +83,17 @@ var AE = AE || {};
    * opt-in via settings rather than forced. */
   AE.setSilentWrites = function (enabled) {
     return new Promise(function (resolve) {
-      if (!chrome.downloads || !chrome.downloads.setUiOptions) { resolve(false); return; }
+      /* downloads.ui / setUiOptions is Chrome-only. Firefox has no equivalent;
+       * missing API or a failed call must not look like success. */
+      var downloadsUi = chrome.downloads && chrome.downloads["setUiOptions"];
+      if (typeof downloadsUi !== "function") {
+        resolve(false);
+        return;
+      }
       try {
-        chrome.downloads.setUiOptions({ enabled: !enabled }, function () {
-          void chrome.runtime.lastError;
+        downloadsUi({ enabled: !enabled }, function () {
+          var err = chrome.runtime.lastError;
+          if (err) { uiSuppressed = false; resolve(false); return; }
           uiSuppressed = !!enabled;
           resolve(uiSuppressed);
         });
@@ -134,7 +141,19 @@ var AE = AE || {};
       return Promise.resolve({ ok: false, path: relPath, error: "illegal path" });
     }
     var text = String(content == null ? "" : content);
-    var fitted = fitDataUrl(safe, text);
+    var fitted;
+    if (/^data:[^,]*,/.test(text)) {
+      if (text.length > MAX_DATA_URL_BYTES) {
+        return Promise.resolve({
+          ok: false,
+          path: safe,
+          error: "too large for a data: URL (" + text.length + " bytes encoded)"
+        });
+      }
+      fitted = { text: text, url: text };
+    } else {
+      fitted = fitDataUrl(safe, text);
+    }
     if (fitted.tooLarge) {
       return Promise.resolve({
         ok: false,
@@ -201,6 +220,15 @@ var AE = AE || {};
     return (latest.contestants || []).map(function (c) { return c && c.model; }).filter(Boolean);
   }
 
+  function archiveRelOwner(index, key, rel) {
+    var keys = Object.keys(index || {});
+    for (var i = 0; i < keys.length; i++) {
+      var otherKey = keys[i];
+      if (otherKey !== key && index[otherKey] && index[otherKey].rel === rel) return otherKey;
+    }
+    return null;
+  }
+
   /* Serial, not parallel: every write is a download plus a history erase, and
    * firing a dozen at once makes Chrome queue them unpredictably. */
   function writeSequential(jobs) {
@@ -223,14 +251,26 @@ var AE = AE || {};
    * Files whose content is byte-identical to the last successful write are
    * skipped, so a later turn does not rewrite every earlier turn's response.
    */
-  AE.writeArchive = function (payload, files) {
+  AE.writeArchive = function (payload, files, opts) {
+    opts = opts || {};
+    var prefix = opts.prefix != null ? opts.prefix : AE.ARCHIVE_DIR;
+    var writeJobs = opts.writeJobs || writeSequential;
+    var writeFile = opts.writeFile || AE.writeArchiveFile;
     return AE.archiveIndexLoad().then(function (index) {
       var session = (payload && payload.session) || {};
       var key = session.conversation_key || session.session_id;
       if (!key) return { ok: false, error: "no conversation key" };
 
       var existing = index[key] || null;
-      var rel = existing && existing.rel ? existing.rel : AE.archiveRelFor(payload, null);
+      var existingRel = existing && existing.rel ? existing.rel : null;
+      var collisionOwner = existingRel ? archiveRelOwner(index, key, existingRel) : null;
+      /* v1.15.0 and earlier used only the first eight UUID characters. If an
+       * old index has two keys pinned to that same folder, move each one to its
+       * new full-id path on its next sync instead of preserving the collision. */
+      var repairedCollision = !!collisionOwner;
+      var rel = existingRel && !repairedCollision
+        ? existingRel
+        : AE.archiveRelFor(payload, null);
       var relSafe = AE.safeArchivePath ? AE.safeArchivePath(rel) : rel;
       if (!relSafe) return { ok: false, error: "illegal archive path" };
       rel = relSafe;
@@ -238,11 +278,18 @@ var AE = AE || {};
         ? existing.subtype
         : (AE.firstBattleSubtype ? AE.firstBattleSubtype(payload) : null);
 
-      var hashes = (existing && existing.hashes) || {};
+      /* Hashes are relative to the conversation folder. A relocated chat must
+       * rewrite every file into its new folder even when its bytes are unchanged. */
+      var hashes = repairedCollision ? {} : ((existing && existing.hashes) || {});
       var nextHashes = {};
       var jobs = [];
       var skipped = 0;
       var rejected = [];
+
+      if (repairedCollision && AE.decorateArchivePaths && AE.filesToWrite) {
+        AE.decorateArchivePaths(payload, rel);
+        files = AE.filesToWrite(payload);
+      }
 
       var chain = Promise.resolve();
       (files || []).forEach(function (f) {
@@ -258,15 +305,16 @@ var AE = AE || {};
             if (hashes[filePath] === h) { skipped++; return; }
             jobs.push({
               path: filePath,
-              full: AE.ARCHIVE_DIR + "/" + rel + "/" + filePath,
-              content: f.content
+              full: prefix ? prefix + "/" + rel + "/" + filePath : rel + "/" + filePath,
+              content: f.content,
+              encoding: f.encoding || null
             });
           });
         });
       });
 
       return chain.then(function () {
-        return writeSequential(jobs).then(function (res) {
+        return writeJobs(jobs).then(function (res) {
           res.failed = (res.failed || []).concat(rejected);
           /* Only remember hashes for files that actually landed; a failed write
            * must be retried next turn, not skipped as unchanged. */
@@ -277,21 +325,27 @@ var AE = AE || {};
           });
 
           var models = latestModels(payload);
+          var detail = payload.meta && payload.meta.completeness_detail;
+          if (!detail && AE.scoreCompleteness) detail = AE.scoreCompleteness(payload);
+          var inferredSub = (AE.firstBattleSubtype && AE.firstBattleSubtype(payload)) || subtype;
           index[key] = {
             rel: rel,
             mode: (payload.battles || []).length ? "battle" : "agent",
-            subtype: subtype,
+            subtype: inferredSub || subtype,
             title: session.title || ((payload.battles || [])[0] || {}).prompt || "",
             url: (payload.export && payload.export.source && payload.export.source.url) || null,
             models: models,
             models_pending: !models.length,
             updated_at: new Date().toISOString(),
             turns: (payload.battles || []).length,
-            hashes: keep
+            hashes: keep,
+            completeness: detail ? detail.status : (payload.meta && payload.meta.completeness) || null,
+            files_with_bytes: detail && detail.files ? detail.files.withBytes : null,
+            files_expected: detail && detail.files ? detail.files.expected : null
           };
 
           return AE.archiveIndexSave(index)
-            .then(function () { return mirrorIndex(index, hashes); })
+            .then(function () { return mirrorIndex(index, hashes, writeFile, prefix); })
             .then(function () {
               return {
                 ok: res.failed.length === 0,
@@ -309,7 +363,9 @@ var AE = AE || {};
   /* On-disk copy for the reader app. chrome.storage.local stays authoritative;
    * this is written last so a crash leaves the mirror stale, never the source. */
   var lastMirrorHash = null;
-  function mirrorIndex(index, _prev) {
+  function mirrorIndex(index, _prev, writeFile, prefix) {
+    writeFile = writeFile || AE.writeArchiveFile;
+    prefix = prefix != null ? prefix : AE.ARCHIVE_DIR;
     var view = {};
     var durable = {};
     Object.keys(index).forEach(function (k) {
@@ -326,9 +382,10 @@ var AE = AE || {};
       };
     });
     var text = JSON.stringify({ version: 1, chats: view }, null, 2);
+    var idxPath = prefix ? prefix + "/" + AE.ARCHIVE_INDEX : AE.ARCHIVE_INDEX;
     return sha256Hex(JSON.stringify(durable)).then(function (h) {
       if (h === lastMirrorHash) return;
-      return AE.writeArchiveFile(AE.ARCHIVE_DIR + "/" + AE.ARCHIVE_INDEX, text).then(function (r) {
+      return writeFile(idxPath, text).then(function (r) {
         if (r.ok) lastMirrorHash = h;
       });
     });
