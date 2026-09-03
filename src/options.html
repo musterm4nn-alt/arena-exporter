@@ -19,6 +19,7 @@
     <div class="row">
       <button id="btn-selftest" class="primary">Test archive write</button>
     </div>
+    <p class="muted small" id="native-status" style="margin-top:8px">Checking Arena Archive host…</p>
     <p class="muted small" id="selftest-result" style="margin-top:8px"></p>
   </section>
 
@@ -28,9 +29,11 @@
       Suppresses the download bubble so archiving does not interrupt you. History
       entries are erased after each write either way. This setting affects the
       browser's download UI globally while enabled, so it stays off until you
-      turn it on.
+      turn it on. Chrome-only (<code>downloads.ui</code> / <code>setUiOptions</code>);
+      Firefox always shows the download UI.
     </p>
     <label class="muted small"><input type="checkbox" id="chk-silent" /> Suppress the download bubble</label>
+    <p class="muted small" id="silent-note" style="margin-top:8px"></p>
   </section>
 
   <section class="card">

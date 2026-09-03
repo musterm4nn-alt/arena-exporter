@@ -27,8 +27,13 @@ AE.renderMarkdown = function (payload) {
   if (exp.exported_at) lines.push("- Exported: " + exp.exported_at);
   var latest = battles.length ? battles[battles.length - 1] : null;
   if (latest) {
-    var models = (latest.contestants || []).map(function (c) { return c.model || c.lane; }).join(" vs ");
-    lines.push("- Models: " + (latest.anonymous ? "pending" : models));
+    /* Battles are anonymous until the post-vote reveal: contestants carry
+     * model: null, there is no `anonymous` field to read. */
+    var contestants = latest.contestants || [];
+    var named = contestants.filter(function (c) { return c && c.model; });
+    lines.push("- Models: " + (contestants.length && named.length === contestants.length
+      ? named.map(function (c) { return c.model; }).join(" vs ")
+      : "pending"));
     lines.push("- Outcome (latest): " + (latest.outcome || "pending"));
   }
   lines.push("");
@@ -50,8 +55,6 @@ AE.renderMarkdown = function (payload) {
         lines.push("");
         lines.push(c.model ? "(" + c.model + ")" : "(anonymous)");
         lines.push("");
-        var thinking = (c.tool_calls || []).length ? "" : "";
-        void thinking;
         if (c.response) {
           lines.push(c.response);
           lines.push("");
