@@ -1,7 +1,11 @@
 /* Build attribution_samples[]: one model output, never a whole battle.
  * Samples must not include vote, winner, or the opposing lane's text. */
 
+/* archive-layout.js also defines AE.padBattleIndex (loaded after this file in
+ * the worker's importScripts order), so resolve at call time and keep a local
+ * fallback instead of a second definition that can drift. */
 function padBattleIndex(n) {
+  if (typeof AE !== "undefined" && AE.padBattleIndex) return AE.padBattleIndex(n);
   return n < 10 ? "0" + n : String(n);
 }
 
@@ -101,7 +105,9 @@ function buildAttributionSamples(s, payload) {
       lane: null,
       model: (payload.session && payload.session.orchestrator_model) || null,
       model_labeled: !!(payload.session && payload.session.orchestrator_model),
-      model_source: (payload.session && payload.session.orchestrator_model) ? "arena_reveal" : "unknown",
+      model_source: (payload.session && payload.session.orchestrator_model)
+        ? (payload.session.orchestrator_model_source || "network_scan")
+        : "unknown",
       blocks: blocks,
       files: (blocks.filter(function (b) { return b.type === "artifact" && b.attachment && b.attachment.path; })
         .map(function (b) { return b.attachment.path; }))
