@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Arena Exporter</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body style="width: 560px; padding: 16px;">
+  <h1>Arena Archive</h1>
+
+  <section class="card">
+    <h2 style="font-size:13px;margin:0 0 6px">Archive location</h2>
+    <p class="muted small">
+      Conversations are written to <code id="archive-path">Downloads/arena-archive/</code>.
+      Chrome can only write beneath its own download directory, so to see the
+      archive elsewhere, link it:
+    </p>
+    <pre class="muted small" style="white-space:pre-wrap"><code>ln -s ~/Downloads/arena-archive ~/Documents/arena-archive</code></pre>
+    <div class="row">
+      <button id="btn-selftest" class="primary">Test archive write</button>
+    </div>
+    <p class="muted small" id="native-status" style="margin-top:8px">Checking Arena Archive host…</p>
+    <p class="muted small" id="selftest-result" style="margin-top:8px"></p>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:13px;margin:0 0 6px">Silent writes</h2>
+    <p class="muted small">
+      Suppresses the download bubble so archiving does not interrupt you. History
+      entries are erased after each write either way. This setting affects the
+      browser's download UI globally while enabled, so it stays off until you
+      turn it on. Chrome-only (<code>downloads.ui</code> / <code>setUiOptions</code>);
+      Firefox always shows the download UI.
+    </p>
+    <label class="muted small"><input type="checkbox" id="chk-silent" /> Suppress the download bubble</label>
+    <p class="muted small" id="silent-note" style="margin-top:8px"></p>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:13px;margin:0 0 6px">Archived conversations</h2>
+    <p class="muted small" id="index-summary">Loading…</p>
+    <ol id="index-list" class="muted small"></ol>
+  </section>
+
+  <script src="lib/schema.js"></script>
+  <script src="archive-layout.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>
