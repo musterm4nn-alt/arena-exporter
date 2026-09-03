@@ -1,0 +1,94 @@
+{
+  "manifest_version": 3,
+  "name": "Arena Agent Exporter",
+  "version": "1.16.1",
+  "description": "Chrome/Firefox MV3: export arena.ai Agent Mode and Battle Mode conversations as structured, LLM-friendly JSON with reasoning, tools, artifacts, model names, and explicit A/B/both/neither battle outcomes.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "arena-agent-exporter@local",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  },
+  "permissions": [
+    "storage",
+    "downloads",
+    "clipboardWrite",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "https://arena.ai/*",
+    "https://*.arena.ai/*",
+    "https://lmarena.ai/*",
+    "https://*.lmarena.ai/*",
+    "https://*.r2.cloudflarestorage.com/*",
+    "https://*.r2.dev/*"
+  ],
+  "background": {
+    "scripts": [
+      "src/lib/schema.js",
+      "src/lib/normalize.js",
+      "src/session-store.js",
+      "src/battles.js",
+      "src/attribution.js",
+      "src/archive-layout.js",
+      "src/capture-health.js",
+      "src/markdown.js",
+      "src/downloads-sink.js",
+      "src/native-sink.js",
+      "src/turn-sync.js",
+      "src/history-backfill.js",
+      "src/status-led.js",
+      "src/background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://arena.ai/*",
+        "https://*.arena.ai/*",
+        "https://lmarena.ai/*",
+        "https://*.lmarena.ai/*"
+      ],
+      "js": [
+        "src/interceptor.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://arena.ai/*",
+        "https://*.arena.ai/*",
+        "https://lmarena.ai/*",
+        "https://*.lmarena.ai/*"
+      ],
+      "js": [
+        "src/lib/schema.js",
+        "src/lib/dom-extract.js",
+        "src/history-backfill.js",
+        "src/content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "Arena Agent Exporter",
+    "default_icon": {
+      "16": "icons/led/16-idle.png",
+      "32": "icons/led/32-idle.png",
+      "48": "icons/led/48-idle.png"
+    }
+  },
+  "options_page": "src/options.html"
+}
