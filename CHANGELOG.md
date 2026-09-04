@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.18.0 — 2026-09-04
+
+- Added optional automatic backups to a private GitHub repository, with repository-scoped token setup, status, pause/disconnect, manual upload and existing-folder import.
+- Keep the newest pending snapshot per conversation in IndexedDB, retry offline failures, and preserve newer turns when an older upload finishes.
+- Upload only changed files, merge the remote archive index, preserve unrelated remote files and retry concurrent branch changes without force-pushing.
+- Added an Open conversation folder button for the selected Arena tab. Downloads folders open in the system file manager; external native archives show their actual path.
+- Added optional GitHub host/data permissions and a browser alarm for queued uploads. Backups stay disabled until connected.
+- Preserved the Firefox last-message download fix. Added backup failure/concurrency/privacy tests, selected-tab folder tests, and a real-browser IndexedDB/import fixture.
+
 ## 1.17.1 — 2026-09-04
 
 - Fixed Firefox JSON exports revoking their Blob URL before the browser finished consuming it, which could cause an extension download error.

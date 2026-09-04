@@ -1,7 +1,7 @@
 /* Service worker: routes capture events into per-conversation sessions,
  * assembles messages, and builds export JSON (network-as-truth, DOM fallback). */
 if (typeof importScripts === "function") {
-  importScripts("lib/schema.js", "lib/privacy.js", "lib/page-data.js", "lib/normalize.js", "lib/evaluation-stream.js", "session-store.js", "request-capture.js", "battles.js", "attribution.js", "archive-layout.js", "capture-health.js", "markdown.js", "downloads-sink.js", "native-sink.js", "turn-sync.js", "history-backfill.js", "status-led.js");
+  importScripts("lib/schema.js", "lib/privacy.js", "lib/page-data.js", "lib/normalize.js", "lib/evaluation-stream.js", "session-store.js", "request-capture.js", "battles.js", "attribution.js", "archive-layout.js", "capture-health.js", "markdown.js", "downloads-sink.js", "native-sink.js", "backup-store.js", "github-backup.js", "turn-sync.js", "archive-folder.js", "history-backfill.js", "status-led.js");
 }
 
 var STREAMING_WINDOW_MS = 2500;
@@ -1173,6 +1173,32 @@ function downloadDataUrlFile(filename, dataUrl) {
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (!msg || typeof msg.type !== "string" || msg.type.indexOf("AE_") !== 0) return;
+
+  if (msg.type.indexOf("AE_GITHUB_") === 0 || msg.type === "AE_OPEN_FOLDER") {
+    var optionsUrl = chrome.runtime.getURL("src/options.html");
+    var popupUrl = chrome.runtime.getURL("src/popup.html");
+    if (!sender || sender.id !== chrome.runtime.id || ![optionsUrl, popupUrl].includes(sender.url)) {
+      sendResponse({ ok: false, error: "Open this action from the extension." });
+      return;
+    }
+    var action;
+    if (msg.type === "AE_GITHUB_STATUS") action = function () { return AE.githubStatus(); };
+    if (msg.type === "AE_GITHUB_FLUSH") action = function () { return AE.githubFlush(true); };
+    if (msg.type === "AE_OPEN_FOLDER") action = function () { return AE.openConversationFolder(msg); };
+    if (sender.url === optionsUrl) {
+      if (msg.type === "AE_GITHUB_CONFIGURE") action = function () { return AE.githubConfigure(msg.config || {}); };
+      if (msg.type === "AE_GITHUB_PAUSE") action = function () { return AE.githubPause(!!msg.forget); };
+      if (msg.type === "AE_GITHUB_IMPORT") action = async function () {
+        var queued = await AE.githubEnqueue(msg.key, msg.rel, msg.files, msg.entry);
+        return queued.queued ? { ok: true } : { ok: false, error: "Connect GitHub backups before importing an archive." };
+      };
+    }
+    Promise.resolve().then(function () {
+      if (!action) throw new Error("This action is only available in extension Settings.");
+      return action();
+    }).then(sendResponse, function (error) { sendResponse({ ok: false, error: error.message || "Backup action failed." }); });
+    return true;
+  }
 
   if (msg.type === "AE_EVENT") {
     if (!isArenaSender(sender)) {

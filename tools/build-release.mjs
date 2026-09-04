@@ -44,7 +44,7 @@ firefox.optional_permissions = (firefox.optional_permissions || []).filter(permi
 if (!firefox.optional_permissions.length) delete firefox.optional_permissions;
 firefox.background = { scripts };
 
-const shared = new Map([...sourceFiles("src"), ...sourceFiles("icons"), "CHANGELOG.md", "docs/export-schema.md"].map(file => [file, fs.readFileSync(path.join(root, file))]));
+const shared = new Map([...sourceFiles("src"), ...sourceFiles("icons"), "CHANGELOG.md", "docs/export-schema.md", "docs/github-backup.md"].map(file => [file, fs.readFileSync(path.join(root, file))]));
 
 function readme(browser) {
   const install = browser === "chrome"
@@ -53,6 +53,7 @@ function readme(browser) {
   return "# Arena Agent Exporter " + manifest.version + " (" + (browser === "chrome" ? "Chrome" : "Firefox") + ")\n\n" + install +
     "\nCaptures Agent, Battle, Direct and Side-by-Side chats. Use **Write to archive now** or **Export full chat** in the popup. Turns also archive automatically.\n\n" +
     "Files go to `Downloads/arena-archive/`, or to the folder selected in the optional Arena Archive native app. Agent model identities remain unset when Arena does not reveal them.\n\n" +
+    "Use **Open conversation folder** for the selected Arena chat. Connect a private repository in **Settings → GitHub backups** for automatic backups and existing-archive import. See [GitHub backup setup](docs/github-backup.md).\n\n" +
     "See [release notes](CHANGELOG.md), [export metadata](docs/export-schema.md), and the [repository README](https://github.com/musterm4nn-alt/arena-exporter#readme).\n\n" +
     "Generated with `node tools/build-release.mjs`; edit the shared source in the repository root.\n";
 }

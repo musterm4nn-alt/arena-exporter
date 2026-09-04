@@ -38,6 +38,15 @@
 
 * { box-sizing: border-box; }
 
+.options-page { width: min(680px, 100%); padding: 16px; margin: 0 auto; }
+.options-page > .card { margin-top: 16px; }
+.settings-form { display: grid; gap: 8px; }
+.settings-form input { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+.settings-form input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+a { color: var(--accent); }
+#backup-status, #github-status, #github-import-status { overflow-wrap: anywhere; }
+#github-import { display: block; max-width: 100%; margin-top: 8px; }
+
 body {
   width: 352px;           /* 32 grid units */
   margin: 0;

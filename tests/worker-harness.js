@@ -8,7 +8,7 @@ function worker(options = {}) {
   let sequence = 0, listener;
   const local = options.local || fakeStorageArea();
   const context = vm.createContext({
-    console, URL: options.URL || URL, Blob, TextEncoder, TextDecoder, crypto: globalThis.crypto,
+    console, URL: options.URL || URL, Blob, TextEncoder, TextDecoder, crypto: globalThis.crypto, AbortController, btoa, atob,
     setTimeout: (fn, ms) => { const id = ++sequence; timers.set(id, { fn, ms }); return id; },
     clearTimeout: (id) => timers.delete(id), setInterval: () => ++sequence, clearInterval: () => {},
     fetch: options.fetch || (async () => ({ ok: false, status: 404 })),
@@ -16,6 +16,7 @@ function worker(options = {}) {
       storage: { session: options.session || fakeStorageArea(), local },
       downloads: options.downloads || fakeDownloads(writes),
       runtime: {
+        id: "arena-test", getURL: name => "chrome-extension://arena-test/" + name,
         lastError: null, onMessage: { addListener: fn => { listener = fn; } },
         getManifest: () => JSON.parse(fs.readFileSync(path.join(root, "..", "manifest.json"), "utf8"))
       },
@@ -33,7 +34,8 @@ function worker(options = {}) {
     vm.runInContext(fs.readFileSync(path.join(root, "background.js"), "utf8"), context, { filename: "background.js" });
   }
   const send = (message, tab = { id: 1, url: "https://arena.ai/" }) => new Promise(resolve => {
-    const value = listener(message, tab ? { tab } : {}, resolve);
+    const value = listener(message, tab ? { tab, url: tab.url, id: "arena-test" } :
+      { url: "chrome-extension://arena-test/src/popup.html", id: "arena-test" }, resolve);
     if (value === undefined) resolve(null);
   });
   return {

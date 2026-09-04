@@ -1,4 +1,4 @@
-# Arena Agent Exporter 1.17.1 (Firefox)
+# Arena Agent Exporter 1.18.0 (Firefox)
 
 Requires Firefox 140.0+.
 
@@ -9,6 +9,8 @@ Requires Firefox 140.0+.
 Captures Agent, Battle, Direct and Side-by-Side chats. Use **Write to archive now** or **Export full chat** in the popup. Turns also archive automatically.
 
 Files go to `Downloads/arena-archive/`, or to the folder selected in the optional Arena Archive native app. Agent model identities remain unset when Arena does not reveal them.
+
+Use **Open conversation folder** for the selected Arena chat. Connect a private repository in **Settings → GitHub backups** for automatic backups and existing-archive import. See [GitHub backup setup](docs/github-backup.md).
 
 See [release notes](CHANGELOG.md), [export metadata](docs/export-schema.md), and the [repository README](https://github.com/musterm4nn-alt/arena-exporter#readme).
 

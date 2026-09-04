@@ -135,7 +135,7 @@ var AE = AE || {};
     chrome.downloads.onChanged.addListener(function () { /* keepalive */ });
   }
 
-  AE.writeArchiveFile = function (relPath, content) {
+  AE.writeArchiveFile = function (relPath, content, options) {
     var safe = AE.safeArchivePath ? AE.safeArchivePath(relPath) : relPath;
     if (!safe) {
       return Promise.resolve({ ok: false, path: relPath, error: "illegal path" });
@@ -170,12 +170,21 @@ var AE = AE || {};
           resolve({ ok: false, path: safe, error: (err && err.message) || "download refused" });
           return;
         }
-        awaitTerminal(id, 0).then(function (res) {
+        awaitTerminal(id, 0).then(async function (res) {
+          var landedPath = (res.resolved || "").replace(/\\/g, "/");
+          var correctPath = landedPath === safe || landedPath.endsWith("/" + safe);
+          if (options && options.reveal && res.ok && correctPath) {
+            try {
+              // Firefox's browser namespace reports show() failures as a Promise.
+              var downloadsApi = typeof browser !== "undefined" ? browser.downloads : chrome.downloads;
+              var shown = await downloadsApi.show(id);
+              if (shown === false) throw new Error("Folder could not be opened.");
+            } catch (error) { res.ok = false; res.error = "Folder could not be opened: " + error.message; }
+          }
           return eraseWhenSettled(id).then(function () {
             /* Chrome reports "complete" even when it has silently rewritten the
              * target, so verify the path it actually used ends where we asked. */
-            var wantTail = safe.split("/").join("/");
-            var landed = res.resolved && res.resolved.replace(/\\/g, "/").indexOf(wantTail) !== -1;
+            var landed = correctPath;
             resolve({
               ok: res.ok && landed,
               path: safe,
@@ -369,15 +378,17 @@ var AE = AE || {};
 
           return AE.archiveIndexSave(index)
             .then(function () { return mirrorIndex(index, destination, writeFile, prefix); })
-            .then(function (mirror) {
+            .then(async function (mirror) {
               if (mirror && !mirror.ok) res.failed.push({ path: AE.ARCHIVE_INDEX, error: mirror.error || "archive index mirror failed" });
-              return {
+              var result = {
                 ok: res.failed.length === 0,
                 rel: rel,
                 written: res.written.map(function (w) { return w.path; }),
                 skipped: skipped,
                 failed: res.failed
               };
+              if (AE.githubQueueArchive) await AE.githubQueueArchive(payload, files, result);
+              return result;
             });
         });
       });

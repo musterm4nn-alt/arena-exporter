@@ -229,6 +229,8 @@ function downloadJson(json, filename) {
 async function init() {
   const tab = await activeTab();
   const onArena = tab && ARENA_URL_RE.test(tab.url || "");
+  if ($("btn-folder")) $("btn-folder").disabled = !(onArena && conversationKeyFromHref(tab.url));
+  refreshBackupStatus();
   let snapshot = null;
   if (onArena) snapshot = await sendTab(tab.id, { type: "AE_DOM_SNAPSHOT" });
   const res = await sendBg(Object.assign({ type: "AE_GET_STATE", snapshot }, tabRequestContext(tab)));
@@ -327,6 +329,25 @@ if ($("btn-sync")) $("btn-sync").addEventListener("click", async () => {
   else showProgress((res && res.sync && res.sync.error) || "Archive write failed — JSON export still works.");
   if (res && res.state) renderState(res.state);
 });
+async function refreshBackupStatus() {
+  if (!$("backup-status")) return;
+  const st = await sendBg({ type: "AE_GITHUB_STATUS" });
+  $("backup-status").textContent = !st || !st.ok ? "GitHub backups: open Settings to check." :
+    st.error ? "GitHub backup: " + st.error :
+    !st.enabled ? "GitHub backups: " + (st.connected ? "paused" : "set up in Settings") :
+    st.running ? "GitHub backup uploading…" : st.pending ? "GitHub: " + st.pending + " conversation(s) waiting for backup" :
+    st.lastSuccess ? "GitHub backed up " + new Date(st.lastSuccess).toLocaleString() : "GitHub connected — ready for new archives";
+}
+if ($("btn-settings")) $("btn-settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
+if ($("btn-folder")) $("btn-folder").addEventListener("click", async () => {
+  $("btn-folder").disabled = true;
+  showProgress("Opening conversation folder…");
+  const tab = await activeTab();
+  const res = await sendBg(Object.assign({ type: "AE_OPEN_FOLDER" }, tabRequestContext(tab)));
+  showProgress(res && res.ok ? "Opened conversation folder." : ((res && res.error) || "Could not open folder.") + (res && res.path ? " " + res.path : ""));
+  $("btn-folder").disabled = !(tab && ARENA_URL_RE.test(tab.url || "") && conversationKeyFromHref(tab.url));
+});
+setInterval(refreshBackupStatus, 5000);
 if ($("btn-full")) $("btn-full").addEventListener("click", () => doExport("full_history"));
 $("btn-last").addEventListener("click", () => doExport("last_message"));
 

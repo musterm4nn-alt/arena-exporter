@@ -445,7 +445,7 @@ var AE = AE || {};
         mode: "full_history",
         exported_at: new Date().toISOString(),
         extension_version: (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getManifest)
-          ? chrome.runtime.getManifest().version : "1.17.1",
+          ? chrome.runtime.getManifest().version : "1.18.0",
         source: {
           site: "arena.ai",
           mode: mode,
@@ -518,7 +518,7 @@ var AE = AE || {};
         mode: "full_history",
         exported_at: new Date().toISOString(),
         extension_version: (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getManifest)
-          ? chrome.runtime.getManifest().version : "1.17.1",
+          ? chrome.runtime.getManifest().version : "1.18.0",
         source: {
           site: "arena.ai",
           mode: "agent",

@@ -5,8 +5,35 @@
   <title>Arena Exporter</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
-<body style="width: 560px; padding: 16px;">
+<body class="options-page">
   <h1>Arena Archive</h1>
+
+  <section class="card" id="github-backups">
+    <h2>GitHub backups</h2>
+    <p class="muted small">Automatically back up conversations and attachments to your private GitHub repository after they are archived. Keep the browser open for uploads; offline changes wait here until GitHub is available.</p>
+    <form id="github-form" class="settings-form">
+      <label for="github-repo">Private repository (owner/name)</label>
+      <input id="github-repo" placeholder="yourname/arena-archive" required autocomplete="off" spellcheck="false" />
+      <label for="github-branch">Branch (blank uses the default branch)</label>
+      <input id="github-branch" placeholder="main" autocomplete="off" spellcheck="false" />
+      <label for="github-folder">Folder in repository</label>
+      <input id="github-folder" value="arena-archive" required autocomplete="off" spellcheck="false" />
+      <label for="github-token">GitHub token</label>
+      <input id="github-token" type="password" placeholder="Leave blank to keep the saved token" autocomplete="off" spellcheck="false" />
+      <p class="muted small">Create a <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">fine-grained personal access token</a> for only your archive repository, with <strong>Contents: read and write</strong>. The token is saved in this browser profile, never in your archive.</p>
+      <div class="row"><button type="submit" id="github-connect" class="primary">Connect and enable backups</button></div>
+    </form>
+    <div class="row" style="margin-top:8px">
+      <button id="github-now">Back up now</button>
+      <button id="github-pause">Pause</button>
+      <button id="github-disconnect">Disconnect</button>
+    </div>
+    <p id="github-status" class="muted small" role="status" aria-live="polite">Checking backup status…</p>
+    <p class="muted small">To back up an existing archive, select its <code>arena-archive</code> folder below. Only conversation folders are imported. New archive writes are backed up automatically after connecting. Paused-period writes can be included by importing again.</p>
+    <label for="github-import">Back up an existing archive folder</label>
+    <input id="github-import" type="file" webkitdirectory multiple />
+    <p id="github-import-status" class="muted small" role="status" aria-live="polite"></p>
+  </section>
 
   <section class="card">
     <h2 style="font-size:13px;margin:0 0 6px">Archive location</h2>
