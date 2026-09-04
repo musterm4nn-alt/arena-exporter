@@ -1,13 +1,13 @@
 # Arena Agent Exporter
 
-Version **1.17.0** is a Manifest V3 extension for exporting arena.ai **Agent**, **Battle**, **Direct**, and **Side-by-Side** conversations as structured JSON and readable Markdown. It records streamed text, reasoning, tools, files, transport outcomes, and model label provenance.
+Version **1.17.1** is a Manifest V3 extension for exporting arena.ai **Agent**, **Battle**, **Direct**, and **Side-by-Side** conversations as structured JSON and readable Markdown. It records streamed text, reasoning, tools, files, transport outcomes, and model label provenance.
 
 ## Install
 
 ### Chrome
 
 1. Open `chrome://extensions` and enable Developer mode.
-2. Choose **Load unpacked** and select the repository root, or unzip `dist/Arena-Agent-Exporter-1.17.0-chrome.zip` and select that folder.
+2. Choose **Load unpacked** and select the repository root, or unzip `dist/Arena-Agent-Exporter-1.17.1-chrome.zip` and select that folder.
 3. Reload the Arena tab. After updating the source, also press **Reload** on the extension card.
 
 The manifest keeps the same public key across releases to preserve the unpacked extension ID.
@@ -17,7 +17,7 @@ The manifest keeps the same public key across releases to preserve the unpacked 
 Firefox uses its own complete build under `firefox/`, with an ordered `background.scripts` manifest. Use this build when loading the add-on in Firefox.
 
 1. Open `about:debugging#/runtime/this-firefox`.
-2. Choose **Load Temporary Add-on** and select `firefox/manifest.json`, or select the manifest in the extracted `dist/Arena-Agent-Exporter-1.17.0-firefox.zip`.
+2. Choose **Load Temporary Add-on** and select `firefox/manifest.json`, or select the manifest in the extracted `dist/Arena-Agent-Exporter-1.17.1-firefox.zip`.
 3. Reload the Arena tab.
 
 The Firefox build requires Firefox 140 or later. A temporary add-on must be loaded again after Firefox restarts. Its download UI is not suppressed.

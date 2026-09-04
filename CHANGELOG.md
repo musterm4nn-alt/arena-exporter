@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.17.1 — 2026-09-04
+
+- Fixed Firefox JSON exports revoking their Blob URL before the browser finished consuming it, which could cause an extension download error.
+- Wait for download completion before reporting success, and surface interrupted JSON or attachment downloads.
+- Respect cancellation of the Save As dialog instead of retrying silently.
+- Added a regression test covering the actual last-message save flow, delayed download completion, interruption, cancellation, and already-completed downloads.
+
 ## 1.17.0 — 2026-09-03
 
 ### Capture integrity

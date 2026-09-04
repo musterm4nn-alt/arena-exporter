@@ -29,7 +29,7 @@ function zipEntries(file) {
 (async () => {
   const chrome = require("../manifest.json");
   const firefox = require("../firefox/manifest.json");
-  assert.equal(chrome.version, "1.17.0");
+  assert.equal(chrome.version, "1.17.1");
   assert.equal(firefox.version, chrome.version);
   assert.equal(chrome.background.service_worker, "src/background.js");
   assert.ok(!firefox.key);

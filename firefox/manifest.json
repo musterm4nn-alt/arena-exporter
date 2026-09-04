@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Arena Agent Exporter",
-  "version": "1.17.0",
+  "version": "1.17.1",
   "description": "Export Arena Agent, Battle, Direct and Side-by-Side chats with messages, tools, files and explicit model provenance.",
   "icons": {
     "16": "icons/icon16.png",

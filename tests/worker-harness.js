@@ -8,13 +8,13 @@ function worker(options = {}) {
   let sequence = 0, listener;
   const local = options.local || fakeStorageArea();
   const context = vm.createContext({
-    console, URL, Blob, TextEncoder, TextDecoder, crypto: globalThis.crypto,
+    console, URL: options.URL || URL, Blob, TextEncoder, TextDecoder, crypto: globalThis.crypto,
     setTimeout: (fn, ms) => { const id = ++sequence; timers.set(id, { fn, ms }); return id; },
     clearTimeout: (id) => timers.delete(id), setInterval: () => ++sequence, clearInterval: () => {},
     fetch: options.fetch || (async () => ({ ok: false, status: 404 })),
     chrome: {
       storage: { session: options.session || fakeStorageArea(), local },
-      downloads: fakeDownloads(writes),
+      downloads: options.downloads || fakeDownloads(writes),
       runtime: {
         lastError: null, onMessage: { addListener: fn => { listener = fn; } },
         getManifest: () => JSON.parse(fs.readFileSync(path.join(root, "..", "manifest.json"), "utf8"))
