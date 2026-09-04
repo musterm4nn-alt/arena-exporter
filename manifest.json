@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Arena Agent Exporter",
-  "version": "1.16.1",
+  "version": "1.17.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArhQpGxV1Ter6QjTSEm27ZiKNjdxpTf4P0uHH20qxzVRHexkuXD3DDUqiqgVDOEfMVMrc9/CuU6YbsrsNvawFNIhZRXugBtsfvu673zyKJjkpZQYZR5v9hzCKxIMQBNJ2u+KE1M5V4zPe/tlq6NSLol1EU+LEeqN481kpcEGoLfvAygGVm33w8TGo99OHcRHdixTmmRzH/OHKZbdRzVydVzOYwQKUFrbspC563YRfyZ+FiNQFbsd6xTJHskrmpVPe+RiJLhBne9JY8CroYtQc0NwyKyHY2Cad/UVSADnDi0DZ3lWeoIriThMzCEcq9Ah3kHzrS+OWwkoHV5qIhWu08wIDAQAB",
-  "description": "Chrome/Firefox MV3: export arena.ai Agent Mode and Battle Mode conversations as structured, LLM-friendly JSON with reasoning, tools, artifacts, model names, and explicit A/B/both/neither battle outcomes.",
+  "description": "Export Arena Agent, Battle, Direct and Side-by-Side chats with messages, tools, files and explicit model provenance.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -49,6 +49,9 @@
         "https://*.lmarena.ai/*"
       ],
       "js": [
+        "src/lib/schema.js",
+        "src/lib/privacy.js",
+        "src/lib/page-data.js",
         "src/interceptor.js"
       ],
       "run_at": "document_start",
@@ -63,6 +66,8 @@
       ],
       "js": [
         "src/lib/schema.js",
+        "src/lib/privacy.js",
+        "src/lib/page-data.js",
         "src/lib/dom-extract.js",
         "src/history-backfill.js",
         "src/content.js"

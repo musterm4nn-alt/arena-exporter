@@ -50,6 +50,7 @@ function installInterceptor(events) {
     window: null
   };
   sandbox.window = sandbox;
+  sandbox.addEventListener = () => {};
   sandbox.globalThis = sandbox;
   sandbox.window.postMessage = function (msg) { events.push(msg); };
   let pendingRes = null;
@@ -58,6 +59,9 @@ function installInterceptor(events) {
   };
   sandbox.__setFetchResult = function (res) { pendingRes = res; };
   vm.createContext(sandbox);
+  for (const file of ["lib/schema.js", "lib/privacy.js", "lib/page-data.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "src", file), "utf8"), sandbox);
+  }
   vm.runInContext(
     fs.readFileSync(path.join(__dirname, "..", "src", "interceptor.js"), "utf8"),
     sandbox
@@ -65,13 +69,14 @@ function installInterceptor(events) {
   return sandbox;
 }
 
-function responseFor(url, body, contentType) {
+function responseFor(url, body, contentType, options = {}) {
   const make = function () {
     return {
-      status: 200,
-      headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? contentType : "") },
+      status: options.status || 200,
+      headers: { get: (k) => (String(k).toLowerCase() === "content-type" ? contentType : (options.headers || {})[String(k).toLowerCase()] || "") },
       clone() { return make(); },
-      body: { getReader() { return readerFromString(body, 1024); } }
+      text: async () => body,
+      body: { getReader() { return readerFromString(body, options.chunkSize || 1024); } }
     };
   };
   return make();
@@ -133,6 +138,42 @@ function responseFor(url, body, contentType) {
   // `endpoint` is emitted immediately after the isCaptureUrl gate, so its
   // presence is exactly the signal that the origin check let the URL through.
   check("arena origin still captured", events4.some((e) => e && e.evt && e.evt.kind === "endpoint"));
+
+  console.log("SSE handles one-byte reads, UTF-8 and all legal line endings:");
+  for (const newline of ["\n", "\r\n", "\r"]) {
+    const captured = [], stream = installInterceptor(captured);
+    const payload = { records: [{ body: JSON.stringify({ data: { type: "text-delta", id: "txt-0", delta: "Grüße 🧪" }, id: "part-1" }) }] };
+    const text = "data: " + JSON.stringify(payload) + newline + newline;
+    const streamUrl = "https://arena.ai/ai-proxy/realtime/v1/sessions/12345678/out";
+    stream.__setFetchResult(responseFor(streamUrl, text, "text/plain", { chunkSize: 1 }));
+    const original = await stream.fetch(streamUrl);
+    await new Promise(resolve => setImmediate(resolve));
+    const frame = captured.find(message => message.evt && message.evt.kind === "sse");
+    check("SSE survives " + JSON.stringify(newline) + " with a fragmented data prefix", !!frame && JSON.parse(frame.evt.data.records[0].body).data.delta === "Grüße 🧪");
+    check("the page still receives the original response", await original.text() === text);
+  }
+
+  console.log("Failed selections and Request bodies are captured without producing output:");
+  const rejectedEvents = [], rejected = installInterceptor(rejectedEvents);
+  const evaluationUrl = "https://arena.ai/nextjs-api/stream/create-evaluation";
+  const errorBody = JSON.stringify({ error: "Selected model is not available for user selection", publicAccessToken: "synthetic-private-token" });
+  rejected.__setFetchResult(responseFor(evaluationUrl, errorBody, "application/json", {
+    status: 400, headers: { "x-stream-version": "v2", "x-session-settled": "true", authorization: "synthetic-auth" }
+  }));
+  const request = { url: evaluationUrl, method: "POST", clone: () => ({ text: async () => JSON.stringify({ mode: "direct-battle", modelAId: "requested-id", recaptchaV2Token: "synthetic-captcha" }) }) };
+  const pending = rejected.fetch(request);
+  rejected.location.href = "https://arena.ai/c/navigated-away";
+  await pending;
+  await new Promise(resolve => setImmediate(resolve));
+  const requestEvent = rejectedEvents.find(message => message.evt.kind === "request").evt;
+  const errorEvent = rejectedEvents.find(message => message.evt.kind === "request_error").evt;
+  const endpoint = rejectedEvents.find(message => message.evt.kind === "endpoint").evt;
+  check("Request clones preserve mode and requested id", JSON.parse(requestEvent.body).mode === "direct-battle" && JSON.parse(requestEvent.body).modelAId === "requested-id");
+  check("request and response retain the same identity and initiating page", requestEvent.requestId === errorEvent.requestId && errorEvent.pageUrl === "https://arena.ai/c/test");
+  check("HTTP error is emitted as an outcome", errorEvent.status === 400 && /Selected model/.test(errorEvent.error));
+  check("HTTP error is never consumed as an evaluation stream", !rejectedEvents.some(message => message.evt.kind === "stream_chunk"));
+  check("only allowlisted response headers are retained", endpoint.headers["x-stream-version"] === "v2" && endpoint.headers["x-session-settled"] === "true" && !endpoint.headers.authorization);
+  check("credentials are removed before bridging into the extension", !JSON.stringify(rejectedEvents).includes("synthetic-captcha") && !JSON.stringify(rejectedEvents).includes("synthetic-private-token") && !JSON.stringify(rejectedEvents).includes("synthetic-auth"));
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

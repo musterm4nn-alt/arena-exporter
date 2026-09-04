@@ -7,7 +7,7 @@ const vm = require("vm");
 
 const ctx = { URL };
 vm.createContext(ctx);
-for (const f of ["../src/lib/schema.js", "../src/lib/normalize.js", "../src/lib/dom-extract.js"]) {
+for (const f of ["../src/lib/schema.js", "../src/lib/privacy.js", "../src/lib/page-data.js", "../src/lib/normalize.js", "../src/lib/dom-extract.js"]) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, f), "utf8"), ctx);
 }
 const AE = ctx.AE;

@@ -128,7 +128,7 @@ function loadWorker(kind) {
   const runtime = {
     lastError: null,
     onMessage: { addListener: (fn) => { messageListener = fn; } },
-    getManifest: () => ({ version: "1.15.8" })
+    getManifest: () => require("../manifest.json")
   };
   if (kind === "ok") {
     runtime.connectNative = fakeConnectNative({

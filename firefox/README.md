@@ -1,16 +1,15 @@
-# Arena Agent Exporter (Firefox)
+# Arena Agent Exporter 1.17.0 (Firefox)
 
-**Version 1.16.1** — Firefox MV3 tree. Gecko id: `arena-agent-exporter@local`.
+Requires Firefox 140.0+.
 
-## Load
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Choose **Load Temporary Add-on** and select this folder's `manifest.json`.
+3. Reload the Arena tab. Temporary installations must be loaded again after restarting Firefox.
 
-Load this folder as a temporary add-on, or install the AMO unlisted zip.
+Captures Agent, Battle, Direct and Side-by-Side chats. Use **Write to archive now** or **Export full chat** in the popup. Turns also archive automatically.
 
-1. Firefox → `about:debugging#/runtime/this-firefox` → **This Firefox**
-2. **Load Temporary Add-on…**
-3. Select this folder's `manifest.json`
-4. Reload the Arena tab
+Files go to `Downloads/arena-archive/`, or to the folder selected in the optional Arena Archive native app. Agent model identities remain unset when Arena does not reveal them.
 
-Temporary add-ons **die when Firefox quits** — load again after restart.
+See [release notes](CHANGELOG.md), [export metadata](docs/export-schema.md), and the [repository README](https://github.com/musterm4nn-alt/arena-exporter#readme).
 
-See the [repository README](../README.md) for capture behaviour, archive layout, the native Arena Archive app (Windows writer under `Documents\arena-archive` with Downloads fallback), tests, and the macOS reader.
+Generated with `node tools/build-release.mjs`; edit the shared source in the repository root.

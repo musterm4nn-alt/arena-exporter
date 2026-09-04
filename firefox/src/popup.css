@@ -1,0 +1,250 @@
+/* Departure Mono (SIL OFL 1.1) — see fonts/README.md.
+ *
+ * Two rules from the typeface drive everything here:
+ *   1. font-size must be a multiple of 11px or the pixel grid smears. The scale
+ *      is 11px and 22px, full stop.
+ *   2. it ships one weight, so nothing sets font-weight — a synthetic bold
+ *      would destroy the very thing we picked the font for.
+ *
+ * With size and weight both unavailable, hierarchy is carried by colour, case,
+ * letter-spacing and rules. Corners are square and borders 1px: rounded
+ * geometry fights a bitmap face. */
+
+@font-face {
+  font-family: "Departure Mono";
+  src: url("fonts/DepartureMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block; /* never flash a fallback; the metrics differ wildly */
+}
+
+:root {
+  color-scheme: dark;
+  --bg: #0c0d10;
+  --panel: #131519;
+  --panel-hi: #1a1d23;
+  --line: #262a32;
+  --text: #d8dce2;
+  --dim: #6e7683;
+  --accent: #ffa724;      /* departure-board amber */
+  --accent-dim: #7a5312;
+  --ok: #5ddc7a;
+  --stream: #5ac8fa;
+  --warn: #ffd166;
+  --danger: #ff6b6b;
+
+  --u: 11px;              /* the grid unit, and the only usable font size */
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 352px;           /* 32 grid units */
+  margin: 0;
+  font-family: "Departure Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: var(--u);
+  line-height: 16px;
+  background: var(--bg);
+  color: var(--text);
+  /* Pixel faces must not be smoothed; antialiasing is what makes them mushy. */
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+/* ---------- header ---------- */
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 22px is the only other on-grid size, but at 352px it swallowed the header and
+ * pushed the badge onto its own line. Prominence comes from tracking instead. */
+h1 {
+  font-size: var(--u);
+  line-height: 16px;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text);
+}
+
+h2 {
+  font-size: var(--u);
+  line-height: 16px;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;   /* case + tracking stand in for the missing bold */
+  color: var(--accent);
+}
+
+.version-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--accent-dim);
+  background: transparent;
+  color: var(--accent);
+  font-size: var(--u);
+  line-height: 14px;
+  letter-spacing: 0.04em;
+  vertical-align: 3px;
+}
+
+/* Square, because a round dot on a pixel grid is just a blurry square. */
+.dot { width: 8px; height: 8px; display: inline-block; border: 1px solid transparent; }
+.dot.idle,
+.dot.warn    { background: var(--accent); }   /* toolbar idle/warn: amber arrow */
+.dot.ok,
+.dot.live    { background: var(--ok); }       /* toolbar connected: green arrow */
+.dot.stream,
+.dot.streaming { background: var(--stream); } /* toolbar capturing: blue arrow */
+.dot.error,
+.dot.off     { background: var(--danger); }   /* toolbar error: red arrow */
+
+.grade-green { color: var(--ok); }
+.grade-amber { color: var(--accent); }
+.grade-red { color: var(--danger); }
+
+/* ---------- surfaces ---------- */
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  padding: 10px 12px;
+  margin: 0 12px 10px;
+}
+.card:first-of-type { margin-top: 10px; }
+
+.card.warn { border-color: var(--accent-dim); }
+.card.warn ul { margin: 0; padding-left: 14px; color: var(--warn); }
+.card.warn li::marker { content: "! "; color: var(--warn); }
+
+.hidden { display: none !important; }
+.muted { color: var(--dim); }
+/* Deliberately NOT a smaller size — 11px is the floor. Dimmer, not smaller. */
+.small { color: var(--dim); }
+.note { margin-top: 8px; color: var(--dim); }
+
+/* ---------- stats ---------- */
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 1px 0;
+  gap: 8px;
+}
+/* Leader dots: a departure board reads across, not in columns. */
+.stat-row::before {
+  content: "";
+  order: 1;
+  flex: 1 1 auto;
+  align-self: center;
+  height: 0;
+  border-bottom: 1px dotted var(--line);
+}
+.stat-row span { order: 0; color: var(--dim); }
+.stat-row b { order: 2; color: var(--text); }
+
+/* ---------- controls ---------- */
+
+.btn-col { display: flex; flex-direction: column; gap: 6px; }
+.row { display: flex; gap: 6px; }
+.row button { flex: 1; }
+
+button {
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--panel-hi);
+  color: var(--text);
+  padding: 6px 10px;
+  cursor: pointer;
+  text-align: center;
+  letter-spacing: 0.04em;
+  transition: background 0.1s steps(2), color 0.1s steps(2);
+}
+button:hover { background: #22262e; border-color: #333844; }
+button:active { background: #2a2f39; }
+button:disabled { opacity: 0.4; cursor: default; }
+button:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+
+button.primary {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.primary:hover { background: var(--accent); color: #16110a; }
+button.primary.secondary { border-color: var(--line); color: var(--text); }
+button.primary.secondary:hover { background: var(--panel-hi); color: var(--text); border-color: var(--accent-dim); }
+button.danger { color: var(--danger); border-color: #4a2626; }
+button.danger:hover { background: var(--danger); color: #180a0a; border-color: var(--danger); }
+
+/* ---------- endpoint catalog ---------- */
+
+details summary {
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  list-style: none;
+}
+details summary::-webkit-details-marker { display: none; }
+details summary::before { content: "+ "; color: var(--dim); }
+details[open] summary::before { content: "- "; }
+details ol {
+  margin: 8px 0 0;
+  padding-left: 0;
+  list-style: none;
+  max-height: 154px;       /* 14 rows */
+  overflow-y: auto;
+}
+details li {
+  color: var(--dim);
+  word-break: break-all;
+  margin-bottom: 2px;
+}
+details li::before { content: "· "; color: var(--line); }
+details li.ep-agent { color: var(--text); }
+details li.ep-agent::before { content: "> "; color: var(--accent); }
+
+/* ---------- misc ---------- */
+
+#progress { margin-bottom: 10px; }
+#progress #progress-msg {
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#progress.busy { border-color: var(--accent-dim); }
+#progress.busy #progress-msg { color: var(--accent); }
+
+.vote-label { margin: 2px 0 4px; letter-spacing: 0.14em; text-transform: uppercase; }
+/* Equal columns: five ragged flex items wrapped badly at this width. */
+.vote-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.vote-btn { padding: 4px 0; letter-spacing: 0.06em; }
+
+code { color: var(--accent); }
+pre { margin: 6px 0; }
+a { color: var(--accent); }
+
+/* Options page reuses these tokens; it is wider than the popup. */
+label { display: block; cursor: pointer; }
+
+/* Archived-conversation list: a bare <ol> outside <details> would otherwise
+ * fall back to decimal markers and browser padding. */
+#index-list {
+  margin: 6px 0 0;
+  padding-left: 0;
+  list-style: none;
+  max-height: 192px;
+  overflow-y: auto;
+}
+#index-list li { color: var(--dim); margin-bottom: 2px; word-break: break-word; }
+#index-list li::before { content: "> "; color: var(--accent-dim); }
+input[type="checkbox"] { accent-color: var(--accent); vertical-align: -1px; }

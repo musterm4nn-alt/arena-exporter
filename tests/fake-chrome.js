@@ -11,12 +11,12 @@ function fakeStorageArea() {
     get: (keys, cb) => {
       const list = Array.isArray(keys) ? keys : [keys];
       const out = {};
-      list.forEach((k) => { if (k in data) out[k] = data[k]; });
+      list.forEach((k) => { if (k in data) out[k] = JSON.parse(JSON.stringify(data[k])); });
       if (cb) { cb(out); return; }
       return Promise.resolve(out);
     },
     set: (obj, cb) => {
-      Object.assign(data, obj);
+      Object.assign(data, JSON.parse(JSON.stringify(obj)));
       if (cb) { cb(); return; }
       return Promise.resolve();
     }

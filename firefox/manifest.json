@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Arena Agent Exporter",
-  "version": "1.16.1",
-  "description": "Chrome/Firefox MV3: export arena.ai Agent Mode and Battle Mode conversations as structured, LLM-friendly JSON with reasoning, tools, artifacts, model names, and explicit A/B/both/neither battle outcomes.",
+  "version": "1.17.0",
+  "description": "Export Arena Agent, Battle, Direct and Side-by-Side chats with messages, tools, files and explicit model provenance.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -36,8 +36,12 @@
   "background": {
     "scripts": [
       "src/lib/schema.js",
+      "src/lib/privacy.js",
+      "src/lib/page-data.js",
       "src/lib/normalize.js",
+      "src/lib/evaluation-stream.js",
       "src/session-store.js",
+      "src/request-capture.js",
       "src/battles.js",
       "src/attribution.js",
       "src/archive-layout.js",
@@ -60,6 +64,9 @@
         "https://*.lmarena.ai/*"
       ],
       "js": [
+        "src/lib/schema.js",
+        "src/lib/privacy.js",
+        "src/lib/page-data.js",
         "src/interceptor.js"
       ],
       "run_at": "document_start",
@@ -74,6 +81,8 @@
       ],
       "js": [
         "src/lib/schema.js",
+        "src/lib/privacy.js",
+        "src/lib/page-data.js",
         "src/lib/dom-extract.js",
         "src/history-backfill.js",
         "src/content.js"

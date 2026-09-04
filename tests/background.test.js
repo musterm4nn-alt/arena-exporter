@@ -15,9 +15,12 @@ let messageListener = null;
 const ctx = vm.createContext({
   console,
   setTimeout, clearTimeout,
+  setInterval, clearInterval,
   JSON, Math, Date, Object, Array, String, Number, Set, Promise,
   crypto: globalThis.crypto,
   TextEncoder, TextDecoder,
+  URL,
+  fetch: async () => ({ ok: false, status: 404 }),
   importScripts: (...files) => {
     for (const f of files) vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), ctx);
   },
@@ -26,7 +29,8 @@ const ctx = vm.createContext({
     downloads: fakeDownloads(archiveWrites),
     runtime: {
       onMessage: { addListener: (fn) => { messageListener = fn; } },
-      lastError: null
+      lastError: null,
+      getManifest: () => JSON.parse(fs.readFileSync(path.join(ROOT, "..", "manifest.json"), "utf8"))
     }
   }
 });
@@ -83,7 +87,8 @@ function check(name, cond) {
 
   console.log("Realtime records envelope + data-stream chunks:");
   await send({ type: "AE_EVENT", evt: { kind: "request", url: "https://arena.ai/ai-proxy/realtime/v1/sessions/01a01965/in/append", method: "POST", body: JSON.stringify({ kind: "message", payload: { message: { id: "ui-user-2", role: "user", parts: [{ type: "text", text: "now stream one" }] } } }) } });
-  const rec = (body) => ({ kind: "sse", url: "https://arena.ai/ai-proxy/realtime/v1/sessions/01a01965/out", event: "message", data: { records: [{ seq_num: 1, timestamp: Date.now(), body: JSON.stringify({ data: body, id: "x" }) }], tail: { seq_num: 2 } } });
+  let recordSequence = 0;
+  const rec = (body) => ({ kind: "sse", url: "https://arena.ai/ai-proxy/realtime/v1/sessions/01a01965/out", event: "message", data: { records: [{ seq_num: ++recordSequence, timestamp: Date.now(), body: JSON.stringify({ data: body, id: "record-" + recordSequence }) }], tail: { seq_num: recordSequence + 1 } } });
   await send({ type: "AE_EVENT", evt: { kind: "sse", url: "https://arena.ai/ai-proxy/realtime/v1/sessions/01a01965/out", event: "message", data: { timestamp: Date.now(), tail: { seq_num: 1 } } } }); // keepalive
   await send({ type: "AE_EVENT", evt: { kind: "sse", url: "https://arena.ai/ai-proxy/realtime/v1/sessions/01a01965/out", event: "message", data: { records: [{ seq_num: 0, timestamp: Date.now(), headers: [["", "trim"]], body: "\u0000\u0000binary" }] } } }); // binary record
   await send({ type: "AE_EVENT", evt: rec({ type: "start", messageId: "rec-asst-1" }) });
@@ -108,7 +113,7 @@ function check(name, cond) {
   console.log("Full-history export:");
   const full = await send({ type: "AE_EXPORT", mode: "full_history", snapshot: null });
   const fp = JSON.parse(full.json);
-  check("schema_version present", fp.schema_version === "2.0");
+  check("schema_version present", fp.schema_version === "2.1");
   check("real session UUID recorded", fp.session.session_id === "01a01965-4753-71e9-bd7d-7203b2bf4a1e");
   check("filename carries session id prefix", /_01a01965_/.test(full.filename));
   check("filename pattern", /^arena_battle_full_history_[A-Za-z0-9]+_\d{8}-\d{6}\.json$/.test(full.filename));
@@ -141,7 +146,7 @@ function check(name, cond) {
   check("summary rollup", fp.summary.tools_used.includes("web_search"));
   check("action rollup from create_file", fp.summary.actions_performed >= 1);
   check("turn_count = user messages", fp.session.turn_count === 5);
-  check("completeness full", fp.meta.completeness === "full");
+  check("uncaptured files and anonymous models are marked partial", fp.meta.completeness === "partial");
   check("battle reconstructed from evaluation stream", fp.battles.length === 1);
   check("battle prompt", fp.battles[0].prompt === "pick a color");
   check("battle contestants A/B text", fp.battles[0].contestants[0].response === "Red " && fp.battles[0].contestants[1].response === "Blue ");

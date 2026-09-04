@@ -3,7 +3,7 @@
  * service worker (via importScripts). Everything hangs off the global `AE`. */
 var AE = AE || {};
 
-AE.SCHEMA_VERSION = "2.0";
+AE.SCHEMA_VERSION = "2.1";
 
 /* postMessage bridge type between MAIN-world interceptor and ISOLATED content script */
 AE.MSG_NS = "__ARENA_EXPORTER_EVT__";
@@ -28,6 +28,6 @@ AE.BATTLE_VOTE_CHOICES = ["A", "B", "both_good", "neither_good"];
 AE.isPlaceholderModel = function (name) {
   var t = String(name == null ? "" : name).replace(/\s+/g, " ").trim();
   if (!t) return true;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return true;
   return /^(?:response|model|assistant|lane|player|option)\s*[ab]$/i.test(t);
 };
-

@@ -2,7 +2,7 @@
  *   #1 stream-resume rebuild must preserve tool/artifact blocks
  *   #2 migrateSession merges a non-empty source bucket instead of dropping it
  *   #3 sticky session routing (tabKeys beat the tab URL for capture events)
- *   #4 orchestrator model identified from wire hints (network_scan)
+ *   #4 incidental model hints never identify the Agent orchestrator (v1.17.0)
  *   #5 markdown "Models:" line reads contestants, not a nonexistent field
  * Usage: node tests/fixes.test.js */
 "use strict";
@@ -85,7 +85,7 @@ function makeWorker({ tabId, tabUrl }) {
   w2.evalJs("migrateSession(store.activeKey, 'c:newkey')");
   const merged = w2.evalJs("store.sessions['c:newkey']");
   check("destination exists after merge", !!merged);
-  check("source bucket removed", !w2.evalJs("store.sessions[store.activeKey] === undefined ? store.sessions['default'] : true") || w2.evalJs("!store.sessions.default"));
+  check("source tab bucket removed", w2.evalJs("!store.sessions['tab:2'] && canonicalSessionKey('tab:2') === 'c:newkey'"));
   check("messages survived the merge", merged.messages.some((m) => m.content.some((b) => b.text === "pre-hint prompt")));
   check("activeKey repointed", w2.evalJs("store.activeKey") === "c:newkey");
 
@@ -99,11 +99,11 @@ function makeWorker({ tabId, tabUrl }) {
   const sKey = "s:3f2504e0-4f89-11d3-9a0c-0305e82c3301";
   // A plain capture event must land in the hinted bucket, not back in c:abc.
   await w3.send({ type: "AE_EVENT", evt: { kind: "json", url: "https://arena.ai/api/chat/x", data: { role: "user", content: "sticky routing probe" } } });
-  check("event routed to the hinted session bucket", w3.evalJs(`(store.sessions[${JSON.stringify(sKey)}].messages||[]).some(m=>m.content.some(b=>b.text==="sticky routing probe"))`));
-  check("c:<id> bucket did not receive it", !w3.evalJs(`(store.sessions["c:abc"].messages||[]).some(m=>m.content.some(b=>b.text==="sticky routing probe"))`));
+  check("hint resolves to the page conversation", w3.evalJs(`canonicalSessionKey(${JSON.stringify(sKey)})`) === "c:abc");
+  check("capture is present under the page key used by the popup", w3.evalJs(`(store.sessions["c:abc"].messages||[]).some(m=>m.content.some(b=>b.text==="sticky routing probe"))`));
 
   /* ---------- #4 orchestrator model scan ---------- */
-  console.log("#4 Model hints identify the agent-mode orchestrator:");
+  console.log("#4 Model hints remain unverified:");
   const w4 = makeWorker({ tabId: 4, tabUrl: "https://arena.ai/" });
   await w4.send({ type: "AE_EVENT", evt: { kind: "session_hint", sessionId: "agent-scan", url: "" } });
   await w4.send({ type: "AE_EVENT", evt: { kind: "json", url: "https://arena.ai/api/chat/agent-scan/x", data: { role: "user", content: "hi" } } });
@@ -113,10 +113,10 @@ function makeWorker({ tabId, tabUrl }) {
   await w4.send({ type: "AE_EVENT", evt: { kind: "json", url: "https://arena.ai/api/chat/agent-scan/session", data: { config: { model_name: "claude-opus-4-6-agent" } } } });
   const ex4 = await w4.send({ type: "AE_EXPORT", mode: "full_history", snapshot: null });
   const p4 = JSON.parse(ex4.json);
-  check("orchestrator_model filled from network evidence", p4.session.orchestrator_model === "claude-opus-4-6-agent");
-  check("model_source is network_scan", p4.session.orchestrator_model_source === "network_scan");
+  check("orchestrator_model remains unknown", p4.session.orchestrator_model === null);
+  check("model_source is not_revealed", p4.session.orchestrator_model_source === "not_revealed");
   const sample4 = (p4.attribution_samples || []).find((s) => s.mode.indexOf("agent") === 0);
-  check("attribution sample labeled from the scan", !!sample4 && sample4.model === "claude-opus-4-6-agent" && sample4.model_source === "network_scan");
+  check("attribution sample stays unlabeled", !!sample4 && sample4.model === null && sample4.model_source === "not_revealed");
   // Ambiguous evidence must NOT claim identity.
   await w4.send({ type: "AE_EVENT", evt: { kind: "json", url: "https://arena.ai/api/chat/agent-scan/other", data: { model: "gpt-5.2-agent" } } });
   const ex4b = await w4.send({ type: "AE_EXPORT", mode: "full_history", snapshot: null });

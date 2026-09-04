@@ -1,116 +1,108 @@
 # Arena Agent Exporter
 
-Chrome / Firefox MV3 extension that captures arena.ai **Agent** and **Battle** chats into structured JSON (schema 2.0) and an on-disk archive under the browser's Downloads folder.
+Version **1.17.0** is a Manifest V3 extension for exporting arena.ai **Agent**, **Battle**, **Direct**, and **Side-by-Side** conversations as structured JSON and readable Markdown. It records streamed text, reasoning, tools, files, transport outcomes, and model label provenance.
 
-## Load the extension
+## Install
 
 ### Chrome
 
-1. Chrome → `chrome://extensions` → Developer mode → Load unpacked
-2. Select this folder (`arena-exporter`), or unzip `arena-agent-exporter-ff.zip` and select that folder (it has `manifest.json` at the root)
-3. Reload after pulls.
+1. Open `chrome://extensions` and enable Developer mode.
+2. Choose **Load unpacked** and select the repository root, or unzip `dist/Arena-Agent-Exporter-1.17.0-chrome.zip` and select that folder.
+3. Reload the Arena tab. After updating the source, also press **Reload** on the extension card.
 
-### Firefox (temporary add-on)
+The manifest keeps the same public key across releases to preserve the unpacked extension ID.
 
-Firefox 121+ (MV3 service workers). Temporary add-ons **die when Firefox quits** — load again after restart.
+### Firefox
 
-1. Firefox → `about:debugging#/runtime/this-firefox` → **This Firefox**
-2. **Load Temporary Add-on…**
-3. Select `manifest.json` in this folder (or in the unzipped zip root — do not pick a nested folder whose name contains spaces if the file picker fights you)
-4. Reload the Arena tab after loading.
+Firefox uses its own complete build under `firefox/`, with an ordered `background.scripts` manifest. Use this build when loading the add-on in Firefox.
 
-`downloads.ui` silent-shelf suppression is **Chrome-only**. Firefox always shows the download UI; archive files still land under Downloads/`arena-archive/`.
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Choose **Load Temporary Add-on** and select `firefox/manifest.json`, or select the manifest in the extracted `dist/Arena-Agent-Exporter-1.17.0-firefox.zip`.
+3. Reload the Arena tab.
 
-## Capture
+The Firefox build requires Firefox 140 or later. A temporary add-on must be loaded again after Firefox restarts. Its download UI is not suppressed.
 
-Open an arena.ai Agent or Battle tab. The interceptor runs at `document_start`. Use the popup:
+## Capture and export
 
-- **Write to archive now** — write the current tab's session to `Downloads/arena-archive/`
-- **Export full history (JSON)** — download JSON (always available)
-- Vote override if the ballot click is missed
+The interceptor starts at `document_start`. Open an Arena conversation and use the popup:
 
-Turns also archive automatically when a stream ends or a vote lands.
+- **Write to archive now** writes the active tab's current conversation.
+- **Export full chat** downloads its JSON.
+- **Export last message** includes the triggering user prompt for context.
+- **Copy JSON** copies the structured export.
+- The vote override is available when a Battle ballot event was missed.
 
-Battle outcomes default to `pending`. Idle “A is better / B is better” styling is not a vote. `Response A` / `Response B` are not treated as model names.
-Preview-tab navigation is explicitly excluded from vote capture, and modern
-code-battle cards backfill a lane when its agent stream was missed. **Write to
-archive now** can also reconstruct a reopened battle from the rendered page
-after the extension reloads or its older in-memory capture session is evicted.
-Popup actions are pinned to the active tab's full conversation key, so two open
-Arena tabs cannot mix one page's DOM with another tab's capture session. A
-reopened anonymous battle can also be reconstructed from its two rendered lanes
-before Arena reveals either model name.
+A logical stream finish or `turn-complete` control record schedules an automatic archive write. Request attempts remain separate across CAPTCHA challenges, selection rejections, network failures, and successful retries. A failed request never creates a synthetic assistant answer.
 
-`attribution_samples[]` is one model output per lane/turn. Vote/winner/opponent text stay off the sample. After a decisive A/B vote the losing lane's next turn is marked `context_source: "cross_lane"` — that model is continuing the other lane's text.
+The extension correlates each request and stream by request ID and keeps each browser tab in a separate session. Late responses remain attached to the conversation that initiated them after tab navigation. Replayed realtime batches are deduplicated without relying solely on a small rolling window.
 
-## Where the archive lives
+### Model identity
 
-`chrome.downloads` can only write beneath the browser's download directory, and it refuses to follow a directory symlinked *out* of it — it shows a Save As dialog and then reports `complete` while silently writing to the Downloads root instead. It does create the target directory during path reservation before refusing, so seeing the folder appear proves nothing.
+Model IDs, page catalog labels, message/node IDs, and transport/session IDs are distinct fields.
 
-So the real directory lives under Downloads and is surfaced where you want it:
+- Battle model names are verified only after Arena reveals them.
+- Direct and Side-by-Side selections can be joined to the page's public model catalog. These labels use `model_source: "request_catalog"` and `model_identity_verified: false` because a selection label does not prove the serving backend.
+- Agent orchestrator identity remains `null` with source `not_revealed` unless Arena explicitly reveals it. Tool arguments, network hints, selector flags, leaderboard statistics, and UUID-shaped identifiers never become the Agent model name.
+
+See [docs/export-schema.md](docs/export-schema.md) for the additive schema 2.1 fields and their interpretation.
+
+### Privacy
+
+Before an event is stored or exported, the extension filters authorization headers, cookies, CAPTCHA values, API keys, credentials, access/refresh/session tokens, private keys, JSON nested inside strings, common JWTs, and raw Bearer or Basic credentials. Only the diagnostic response headers `x-session-settled`, `x-stream-version`, and `x-arena-chat-id` are retained.
+
+DOM debug dumps redact all non-empty page text, text-bearing attributes, URL query strings, and comments. They preserve bounded structure and selected state attributes. Exports still contain conversation content and files; credential filtering is not general anonymization.
+
+## Archive
+
+Without the optional native app, `chrome.downloads` writes below `Downloads/arena-archive/`. The first successful write pins a conversation to one folder. The index tracks content hashes separately for Downloads and for every native archive root, so changing destinations writes a complete copy and switching back preserves the other destination's cache.
+
+```text
+agent/<slug>/
+  conversation.json
+  conversation.md
+  files/
+direct/<subtype>/<slug>/
+side-by-side/<subtype>/<slug>/
+battle/<subtype>/<slug>/
+  conversation.json
+  conversation.md
+  battle-01/A/
+  battle-01/B/
+```
+
+Subtypes are `text`, `code`, `web-search`, `image`, or `video`. Folder names contain the complete Arena conversation ID to avoid collisions. Direct has one contestant lane, Side-by-Side has two, and Battle retains its vote outcome. Agent workspace ZIP capture is requested only for Agent conversations; files on unsupported preview hosts remain URL references with a capture warning.
+
+To expose the default archive elsewhere on macOS or Linux, link from the target location to the real Downloads directory:
 
 ```bash
 mkdir -p ~/Downloads/arena-archive
 ln -s ~/Downloads/arena-archive ~/Documents/arena-archive
 ```
 
-Reads, Finder and git all follow that link; only Chrome's download-target logic objects, and it never sees it. Nested real subdirectories under Downloads work fine, so the full `battle/<subtype>/<slug>/` tree writes normally.
+The browser still writes to the real directory below Downloads; readers and Git can use the link.
 
-The File System Access API was evaluated and rejected: the handle survives in IndexedDB, but the readwrite grant drops back to `prompt` on every browser restart, and a service worker cannot re-request without a user gesture.
+### Arena Archive native app
 
-Tree:
+If the Arena Archive desktop app is installed, automatic and manual archive writes use the native host `com.arenaarchive.host` and its selected root. Missing host, failed handshake, or no selected folder falls back to Downloads. JSON export and copy remain available independently.
 
-```
-agent/<slug>/
-  files/                  # agent artifacts when bytes were captured
-battle/text|code|web-search|image|video/<slug>/
-  conversation.json
-  conversation.md
-  battle-01/A/  battle-01/B/
-```
-
-Capture health: if the page shows a finished battle (two replies) or a substantial Agent thread but the interceptor saw no evaluation / realtime stream, the popup warnings card shows a critical alert — reload the Arena tab before the next turn. Quiet “0 endpoints” is not enough.
-
-Code and Agent files are written into `battle-01/A|B/` and `agent/<slug>/files/` when bytes are available (inline content or a same-origin `arena.ai` / `lmarena.ai` / `blob:` URL). Preview hosts such as `*.arena.site` stay as URL + a capture-health warning.
-
-The first battle round locks the parent subtype. Folders are never renamed.
-Folder suffixes contain the complete Arena conversation UUID so chats created
-close together cannot overwrite one another. If an older index contains two
-conversation keys pinned to the same truncated folder, each chat is moved to
-its full-UUID folder the next time that chat syncs.
-
-Open the extension's options page to self-test a write and to optionally suppress Chrome's download bubble. That suppression is **off by default** because it is global to the browser, not just this extension. Firefox does not implement `chrome.downloads.setUiOptions`, so the toggle is disabled there.
-
-## Arena Archive native app
-
-If the **Arena Archive** desktop app is installed, auto-archive and **Write to archive now** send files through `chrome.runtime.connectNative` to the host `com.arenaarchive.host` (stdio JSON; the app writes under the folder you pick there). The extension only writes — choosing the root is the app's job.
-
-If the host is missing, hello fails, or no folder is chosen, the extension **falls back** to `chrome.downloads` under `Downloads/arena-archive/` — same load-unpacked Chrome/Firefox behaviour as before. JSON export (download / copy) is unchanged. Native host manifests live with the app installers, not in this extension.
-
-## Optional macOS reader
-
-A SwiftUI app that reads the archive (it does not write):
+The optional macOS reader is under `macos/ArenaArchive`:
 
 ```bash
 cd macos/ArenaArchive
 swift build --product ArenaArchive
-swift run ArenaArchive          # sidebar + markdown reader
-swift test                      # ArchiveKit path-safety / pinning
+swift run ArenaArchive
+swift test
 ```
 
-Default archive root: `~/Downloads/arena-archive/` (the same folder the extension writes). If you created the symlink above, `~/Documents/arena-archive` is the same tree.
+## Build and test
 
-## Tests
+The release builder regenerates the full Firefox tree, complete unpacked Chrome and Firefox folders, and reproducible ZIP files:
 
 ```bash
-bash tools/run-tests.sh
+node tools/build-release.mjs
+node tools/run-tests.mjs
 ```
 
-## Deploy
+`bash tools/run-tests.sh` runs the same JavaScript build and test gate, followed by the optional Swift checks when the local toolchain supports them. `bash tools/deploy.sh` builds and copies the Chrome package to `../arena-exporter-dist`; pass `--force` to remove stale files there.
 
-```bash
-bash tools/deploy.sh            # copies to ../arena-exporter-dist
-bash tools/deploy.sh --force    # also --delete
-```
-
-Refuses to rsync onto itself.
+The tests cover stream framing, arbitrary part IDs, retries and rejection outcomes, credential filtering, Flight metadata, Direct capture, Agent completion, session isolation, archive concurrency, destination switching, and both browser manifests. Browser APIs are simulated in the JavaScript suites; they do not replace a live Arena acceptance check.

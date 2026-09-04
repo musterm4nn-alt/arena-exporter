@@ -36,9 +36,11 @@ const state = {
 };
 const ctx = vm.createContext({
   console, setTimeout, clearTimeout, Promise, Date, JSON, Object, Array, String, Map, Blob, URL,
+  setInterval: () => 1,
   document: {
     getElementById: (id) => elements[id] || (elements[id] = element(id)),
-    createElement: (tag) => element(tag)
+    createElement: (tag) => element(tag),
+    createTextNode: (text) => ({ textContent: text })
   },
   navigator: { clipboard: { writeText: async () => {} } },
   AE: {},

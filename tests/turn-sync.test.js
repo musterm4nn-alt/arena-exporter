@@ -132,7 +132,7 @@ function check(name, cond) {
   await send({ type: "AE_EVENT", evt: { kind: "page_context", url: tabDom.tab.url, conversationKey: "c:DOMONLY" } }, tabDom);
   snapshotRequests.length = 0;
   const domSync = await send({ type: "AE_SYNC", tabId: 11, sessionKey: "c:DOMONLY" });
-  const domWrite = archiveWrites.filter((w) => /chat--DOMONLY\/conversation\.json$/.test(w.filename)).slice(-1)[0];
+  const domWrite = archiveWrites.filter((w) => /--DOMONLY\/conversation\.json$/.test(w.filename)).slice(-1)[0];
   const domPayload = domWrite ? JSON.parse(decodeWrite(domWrite)) : null;
   check("empty capture session still requests the current page DOM",
     snapshotRequests.length === 1 && snapshotRequests[0] === 11);
