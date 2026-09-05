@@ -1,17 +1,25 @@
-# Arena Agent Exporter
+# Arena Exporter
 
-Version **1.18.0** is a Manifest V3 extension for exporting arena.ai **Agent**, **Battle**, **Direct**, and **Side-by-Side** conversations as structured JSON and readable Markdown. It records streamed text, reasoning, tools, files, transport outcomes, and model label provenance.
+Version **2.1.0** is a Manifest V3 extension for exporting arena.ai **Agent**, **Battle**, **Direct**, and **Side-by-Side** conversations as structured JSON and readable Markdown. It records streamed text, reasoning, tools, files, transport outcomes, and model label provenance.
+
+## The 2.1 overhaul
+
+A new Departure Mono popup puts the current conversation, export scope, format, local save and backup status together. The full-page workspace adds a searchable archive library with mode filters, sorting, pagination and direct Arena/folder actions, plus dedicated GitHub backup, preferences and diagnostics views.
+
+The runtime retains the tested 1.18.0 capture, history, native archive and GitHub queue components, with separated capture/export/router files, explicit export sessions, serialized persistence, a working evaluation parse cache and event-driven UI updates. It replaces the experimental 2.0.0 implementation. Storage keys, the Chrome extension identity, Firefox ID and export schema 2.1 remain compatible with v1.
+
+See the [implementation plan](docs/overhaul-plan.md), [release notes](CHANGELOG.md) and [verification scope](docs/verification.md). Live rendering and installed-browser smoke tests remain unverified because no browser-control connection was available during implementation.
 
 ## GitHub backups and conversation folders
 
-Use **Settings → GitHub backups** to connect a private repository. New archive writes upload automatically, with a persistent retry queue, visible status and existing-folder import. Use **Open conversation folder** to reveal the selected Arena chat in your file manager. See [setup, permissions and restore instructions](docs/github-backup.md).
+Use **Open archive library → GitHub backup** to connect a private repository. New archive writes upload automatically, with a persistent retry queue, visible status and existing-folder import. Use **Open folder** to reveal the selected Arena chat in your file manager. See [setup, permissions and restore instructions](docs/github-backup.md).
 
 ## Install
 
 ### Chrome
 
 1. Open `chrome://extensions` and enable Developer mode.
-2. Choose **Load unpacked** and select the repository root, or unzip `dist/Arena-Agent-Exporter-1.18.0-chrome.zip` and select that folder.
+2. Choose **Load unpacked** and select the repository root, or unzip `dist/Arena-Agent-Exporter-2.1.0-chrome.zip` and select that folder.
 3. Reload the Arena tab. After updating the source, also press **Reload** on the extension card.
 
 The manifest keeps the same public key across releases to preserve the unpacked extension ID.
@@ -21,7 +29,7 @@ The manifest keeps the same public key across releases to preserve the unpacked 
 Firefox uses its own complete build under `firefox/`, with an ordered `background.scripts` manifest. Use this build when loading the add-on in Firefox.
 
 1. Open `about:debugging#/runtime/this-firefox`.
-2. Choose **Load Temporary Add-on** and select `firefox/manifest.json`, or select the manifest in the extracted `dist/Arena-Agent-Exporter-1.18.0-firefox.zip`.
+2. Choose **Load Temporary Add-on** and select `firefox/manifest.json`, or select the manifest in the extracted `dist/Arena-Agent-Exporter-2.1.0-firefox.zip`.
 3. Reload the Arena tab.
 
 The Firefox build requires Firefox 140 or later. A temporary add-on must be loaded again after Firefox restarts. Its download UI is not suppressed.
@@ -30,11 +38,12 @@ The Firefox build requires Firefox 140 or later. A temporary add-on must be load
 
 The interceptor starts at `document_start`. Open an Arena conversation and use the popup:
 
-- **Write to archive now** writes the active tab's current conversation.
-- **Export full chat** downloads its JSON.
-- **Export last message** includes the triggering user prompt for context.
-- **Copy JSON** copies the structured export.
-- The vote override is available when a Battle ballot event was missed.
+- **Save now** writes the active tab's current conversation.
+- Choose **Full conversation** or **Last answer**, then JSON or Markdown, and export.
+- **Last answer** includes the triggering user prompt for context and excludes older raw transport samples.
+- **Copy** copies the selected scope and format.
+- **Conversation tools** contains Battle vote correction, redacted page diagnostics and capture reset.
+- **Open archive library** opens search, history import, backup, preferences and diagnostics.
 
 A logical stream finish or `turn-complete` control record schedules an automatic archive write. Request attempts remain separate across CAPTCHA challenges, selection rejections, network failures, and successful retries. A failed request never creates a synthetic assistant answer.
 

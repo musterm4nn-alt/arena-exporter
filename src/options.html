@@ -1,76 +1,69 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Arena Exporter</title>
-  <link rel="stylesheet" href="popup.css" />
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Arena Exporter · Library</title><link rel="stylesheet" href="popup.css"></head>
 <body class="options-page">
-  <h1>Arena Archive</h1>
-
-  <section class="card" id="github-backups">
-    <h2>GitHub backups</h2>
-    <p class="muted small">Automatically back up conversations and attachments to your private GitHub repository after they are archived. Keep the browser open for uploads; offline changes wait here until GitHub is available.</p>
-    <form id="github-form" class="settings-form">
-      <label for="github-repo">Private repository (owner/name)</label>
-      <input id="github-repo" placeholder="yourname/arena-archive" required autocomplete="off" spellcheck="false" />
-      <label for="github-branch">Branch (blank uses the default branch)</label>
-      <input id="github-branch" placeholder="main" autocomplete="off" spellcheck="false" />
-      <label for="github-folder">Folder in repository</label>
-      <input id="github-folder" value="arena-archive" required autocomplete="off" spellcheck="false" />
-      <label for="github-token">GitHub token</label>
-      <input id="github-token" type="password" placeholder="Leave blank to keep the saved token" autocomplete="off" spellcheck="false" />
-      <p class="muted small">Create a <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">fine-grained personal access token</a> for only your archive repository, with <strong>Contents: read and write</strong>. The token is saved in this browser profile, never in your archive.</p>
-      <div class="row"><button type="submit" id="github-connect" class="primary">Connect and enable backups</button></div>
-    </form>
-    <div class="row" style="margin-top:8px">
-      <button id="github-now">Back up now</button>
-      <button id="github-pause">Pause</button>
-      <button id="github-disconnect">Disconnect</button>
-    </div>
-    <p id="github-status" class="muted small" role="status" aria-live="polite">Checking backup status…</p>
-    <p class="muted small">To back up an existing archive, select its <code>arena-archive</code> folder below. Only conversation folders are imported. New archive writes are backed up automatically after connecting. Paused-period writes can be included by importing again.</p>
-    <label for="github-import">Back up an existing archive folder</label>
-    <input id="github-import" type="file" webkitdirectory multiple />
-    <p id="github-import-status" class="muted small" role="status" aria-live="polite"></p>
-  </section>
-
-  <section class="card">
-    <h2 style="font-size:13px;margin:0 0 6px">Archive location</h2>
-    <p class="muted small">
-      Conversations are written to <code id="archive-path">Downloads/arena-archive/</code>.
-      Chrome can only write beneath its own download directory, so to see the
-      archive elsewhere, link it:
-    </p>
-    <pre class="muted small" style="white-space:pre-wrap"><code>ln -s ~/Downloads/arena-archive ~/Documents/arena-archive</code></pre>
-    <div class="row">
-      <button id="btn-selftest" class="primary">Test archive write</button>
-    </div>
-    <p class="muted small" id="native-status" style="margin-top:8px">Checking Arena Archive host…</p>
-    <p class="muted small" id="selftest-result" style="margin-top:8px"></p>
-  </section>
-
-  <section class="card">
-    <h2 style="font-size:13px;margin:0 0 6px">Silent writes</h2>
-    <p class="muted small">
-      Suppresses the download bubble so archiving does not interrupt you. History
-      entries are erased after each write either way. This setting affects the
-      browser's download UI globally while enabled, so it stays off until you
-      turn it on. Chrome-only (<code>downloads.ui</code> / <code>setUiOptions</code>);
-      Firefox always shows the download UI.
-    </p>
-    <label class="muted small"><input type="checkbox" id="chk-silent" /> Suppress the download bubble</label>
-    <p class="muted small" id="silent-note" style="margin-top:8px"></p>
-  </section>
-
-  <section class="card">
-    <h2 style="font-size:13px;margin:0 0 6px">Archived conversations</h2>
-    <p class="muted small" id="index-summary">Loading…</p>
-    <ol id="index-list" class="muted small"></ol>
-  </section>
-
-  <script src="lib/schema.js"></script>
-  <script src="archive-layout.js"></script>
-  <script src="options.js"></script>
-</body>
-</html>
+<div class="workspace">
+  <aside class="sidebar">
+    <a class="brand" href="#library"><span class="brand-mark" aria-hidden="true">✳</span><span>ARENA<span class="brand-sub">EXPORTER</span></span></a>
+    <p class="nav-label">YOUR WORKSPACE</p>
+    <nav class="navigation" aria-label="Workspace">
+      <button class="nav-button" data-view="library" aria-current="page"><span aria-hidden="true">▤</span> Library <span id="nav-count" class="nav-count">—</span></button>
+      <button class="nav-button" data-view="backup"><span aria-hidden="true">↥</span> GitHub backup</button>
+      <button class="nav-button" data-view="preferences"><span aria-hidden="true">≡</span> Preferences</button>
+      <button class="nav-button" data-view="diagnostics"><span aria-hidden="true">⌁</span> Diagnostics</button>
+    </nav>
+    <div class="sidebar-foot"><p><i class="dot ok"></i> &nbsp; YOUR DATA. YOUR ARCHIVE.</p><p>Captured locally.<br>Backed up on your terms.</p><span id="version-badge" class="version">v2.1.0</span></div>
+  </aside>
+  <main class="workspace-main">
+    <section id="view-library" class="view" aria-labelledby="library-title">
+      <header class="page-header"><div><span class="eyebrow">THE CONVERSATION CONTINUES</span><h1 id="library-title">Conversations, kept.</h1><p>Every useful answer deserves a place to come back to.</p></div><div class="row"><button id="btn-refresh" class="secondary" title="Refresh library">↻ Refresh</button><button id="btn-open-arena" class="primary">Open Arena ↗</button></div></header>
+      <div class="summary-grid">
+        <div class="summary-card"><span class="eyebrow">CONVERSATIONS</span><strong id="total-chats" class="summary-value">—</strong><small>in your local archive</small></div>
+        <div class="summary-card"><span class="eyebrow">SAVED TURNS</span><strong id="total-turns" class="summary-value">—</strong><small>answers worth keeping</small></div>
+        <div class="summary-card accent-card"><span class="eyebrow">GITHUB BACKUP</span><strong id="backup-summary" class="summary-value">—</strong><small id="backup-summary-note">Checking your connection</small></div>
+      </div>
+      <div class="library-toolbar"><label class="search-wrap"><span aria-hidden="true">⌕</span><span class="sr-only">Search conversations, models or folders</span><input id="library-search" type="search" placeholder="Search conversations, models or folders…" autocomplete="off"></label><label class="sr-only" for="library-sort">Sort conversations</label><select id="library-sort"><option value="recent">Recently saved</option><option value="title">Title A → Z</option><option value="turns">Most turns</option></select></div>
+      <div class="filter-row"><div class="filter-buttons" role="group" aria-label="Conversation mode"><button data-mode="all" aria-pressed="true">All conversations</button><button data-mode="agent" aria-pressed="false">Agent</button><button data-mode="battle" aria-pressed="false">Battle</button><button data-mode="direct" aria-pressed="false">Direct</button><button data-mode="side-by-side" aria-pressed="false">Side-by-Side</button></div><span id="result-count" class="result-count" aria-live="polite">Loading…</span></div>
+      <div id="library-loading" class="loading-row">Reading your archive…</div>
+      <div id="library-table-wrap" class="library-table-wrap hidden"><table class="library-table"><thead><tr><th scope="col">CONVERSATION</th><th scope="col">MODELS</th><th scope="col">TURNS</th><th scope="col">SAVED</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="library-rows"></tbody></table></div>
+      <div id="library-empty" class="library-empty hidden"><span class="empty-symbol" aria-hidden="true">[ + ]</span><h2 id="empty-title">A home for your next great answer.</h2><p id="empty-description">Open an Arena conversation and choose Save now in the extension. Completed turns can also be saved automatically.</p><div class="row"><button id="empty-open-arena" class="primary">Start on Arena ↗</button><button id="empty-reset" class="secondary hidden">Clear filters</button></div></div>
+      <div class="library-bottom"><p>Files live in your archive folder. Open any row to return to Arena.</p><div class="pagination"><button id="page-prev" aria-label="Previous page">←</button><span id="page-label">Page 1 / 1</span><button id="page-next" aria-label="Next page">→</button></div></div>
+    </section>
+    <section id="view-backup" class="view hidden" aria-labelledby="backup-title">
+      <header class="page-header"><div><span class="eyebrow">ONE MORE PLACE TO KEEP IT</span><h1 id="backup-title">Your archive, backed up.</h1><p>Send saved conversations and attachments to your own private GitHub repository.</p></div></header>
+      <div class="content-grid"><div>
+        <section class="panel"><div class="panel-label">01 / CONNECTION</div><h2>A private home on GitHub</h2><p>After connecting, new archive writes enter a persistent upload queue. Keep your browser open while it works; failed uploads retry automatically.</p>
+          <form id="github-form" class="settings-form">
+            <label for="github-repo">Repository</label><input id="github-repo" placeholder="yourname/arena-archive" autocomplete="off" spellcheck="false" required><p class="help">Enter the owner and repository name. The repository must be private.</p>
+            <div class="form-grid"><div><label for="github-branch">Branch</label><input id="github-branch" placeholder="Default branch" autocomplete="off" spellcheck="false"></div><div><label for="github-folder">Folder in repository</label><input id="github-folder" value="arena-archive" autocomplete="off" spellcheck="false" required></div></div>
+            <label for="github-token">Access token</label><input id="github-token" type="password" placeholder="Leave blank to keep your saved token" autocomplete="off" spellcheck="false"><p class="help">Use a <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">fine-grained token</a> for this repository with Contents: read and write. It stays in this browser profile and is excluded from exports.</p>
+            <button id="github-connect" type="submit" class="primary">Connect &amp; enable backup ↗</button>
+          </form>
+        </section>
+        <section class="panel"><div class="panel-label">02 / EXISTING ARCHIVE</div><h2>Bring the earlier conversations, too.</h2><p>Select your entire arena-archive folder to queue existing conversations and their files. This also includes saves made while backup was paused.</p><label class="import-control" for="github-import">Choose an archive folder<input id="github-import" type="file" webkitdirectory multiple></label><p id="github-import-status" class="feedback" role="status" aria-live="polite"></p></section>
+      </div><div>
+        <section class="panel"><div class="backup-state"><i id="github-dot" class="dot idle"></i><h2 id="github-state-label">Checking connection</h2></div><p id="github-status" role="status" aria-live="polite">Reading backup status…</p><dl class="backup-details"><div><dt>Repository</dt><dd id="github-destination">Not connected</dd></div><div><dt>In queue</dt><dd id="github-pending">0 conversations</dd></div><div><dt>Last successful upload</dt><dd id="github-last">Not yet</dd></div></dl><div class="row"><button id="github-now" class="primary">Back up now</button><button id="github-pause">Pause</button><button id="github-disconnect" class="danger-quiet">Disconnect</button></div></section>
+        <section class="panel"><div class="panel-label">GOOD TO KNOW</div><h2>Local saves come first.</h2><p>A GitHub outage does not stop the local archive. The queue retries later. A green backup status means a successful upload, not just a connection.</p><p>Disconnecting removes the saved token from this profile. Your local files and existing GitHub commits remain available.</p></section>
+      </div></div>
+    </section>
+    <section id="view-preferences" class="view hidden" aria-labelledby="preferences-title">
+      <header class="page-header"><div><span class="eyebrow">MAKE IT YOURS</span><h1 id="preferences-title">A quieter kind of capture.</h1><p>Choose when to save and how your archive fits into your browser.</p></div></header>
+      <div class="content-grid"><div>
+        <section class="panel"><div class="panel-label">CAPTURE &amp; SAVING</div><div class="settings-row"><div><h3>Automatically archive completed turns</h3><p>Save new answers and their available files after the response finishes. You can always choose Save now from the popup.</p></div><label class="setting-switch"><span class="sr-only">Automatically archive completed turns</span><input id="auto-archive" class="switch" type="checkbox"></label></div><div class="settings-row"><div><h3>Quiet downloads</h3><p>Suppress Chrome's download bubble while enabled. This affects the browser's download UI globally. Firefox keeps its usual download UI.</p><p id="silent-note" class="small"></p></div><label class="setting-switch"><span class="sr-only">Suppress the download bubble</span><input id="chk-silent" class="switch" type="checkbox"></label></div></section>
+        <section class="panel"><div class="panel-label">HISTORY</div><h2>Recover earlier conversations</h2><p>Choose a signed-in Arena tab to fetch and archive your history. Already archived conversations are skipped. Leave that tab and this page open while the import runs.</p><div class="history-controls"><label class="sr-only" for="history-tab">Arena tab for history import</label><select id="history-tab"><option value="">Open an Arena tab first</option></select><button id="btn-history" class="secondary">Archive history</button></div><p id="history-status" class="feedback" role="status" aria-live="polite"></p></section>
+      </div><div>
+        <section class="panel"><div class="panel-label">ARCHIVE LOCATION</div><h2>Everything has its place.</h2><span id="archive-path" class="path-box">Downloads / arena-archive</span><p id="native-status">Checking the optional Arena Archive app…</p><button id="btn-selftest" class="secondary wide">Test an archive write</button><p id="selftest-result" class="feedback" role="status" aria-live="polite"></p></section>
+        <section class="panel"><div class="panel-label">TYPOGRAPHY</div><h2>Departure Mono. Always.</h2><p>The original pixel font is bundled with the extension. No remote fonts, no external trackers.</p><p class="muted small">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br>abcdefghijklmnopqrstuvwxyz<br>0123456789 → ↗ [ ] { }</p></section>
+      </div></div>
+    </section>
+    <section id="view-diagnostics" class="view hidden" aria-labelledby="diagnostics-title">
+      <header class="page-header"><div><span class="eyebrow">SEE WHAT'S HAPPENING</span><h1 id="diagnostics-title">A clear view under the hood.</h1><p>Check the current runtime without exposing the conversations themselves.</p></div><div class="row"><button id="btn-diagnostics-refresh" class="secondary">↻ Refresh</button><button id="btn-diagnostics" class="primary">Export diagnostics ↓</button></div></header>
+      <section class="panel"><div class="panel-label">RUNTIME REPORT</div><h2>Useful details. Private content excluded.</h2><p>This report contains the extension version, capture counts, archive setting and diagnostic codes. It excludes conversation text, titles, URLs and credentials.</p><label class="sr-only" for="diagnostic-output">Diagnostic report</label><textarea id="diagnostic-output" class="diagnostic-output" readonly rows="17" spellcheck="false">Loading…</textarea></section>
+      <section class="panel"><div class="panel-label">IF SOMETHING IS MISSING</div><h2>Start with the conversation.</h2><p>Reload the extension, then reload the Arena tab. Open the popup and review its capture notes. If a selector appears broken, use Conversation tools → Save page diagnostics to export a redacted page structure.</p></section>
+    </section>
+    <p id="progress-msg" class="page-feedback" role="status" aria-live="polite"></p>
+    <footer class="workspace-footer"><span>ARENA EXPORTER / YOUR CONVERSATIONS BELONG TO YOU.</span><span>CRAFTED IN DEPARTURE MONO.</span></footer>
+  </main>
+</div>
+<script src="ui-model.js"></script><script src="ui-common.js"></script><script src="archive-import.js"></script><script src="options.js"></script>
+</body></html>

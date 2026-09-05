@@ -92,7 +92,7 @@ var AE = AE || {};
           void chrome.runtime.lastError;
           var tab = (tabs && tabs[0]) || null;
           var url = (tab && tab.url) || "";
-          resolve(ARENA_TAB_RE.test(url));
+          resolve(ARENA_TAB_RE.test(url) ? tab : null);
         });
       } catch (e) {
         resolve(false);
@@ -100,14 +100,19 @@ var AE = AE || {};
     });
   }
 
-  var refreshing = false;
+  var refreshing = false, streamExpiry = null;
   AE.refreshStatusLed = function () {
     if (refreshing) return;
     refreshing = true;
     var go = function () {
-      var summary = (typeof getStateSummary === "function") ? getStateSummary() : {};
-      activeArenaTab().then(function (onArena) {
-        applyIcon(AE.statusLedKind({ summary: summary, onArena: onArena }));
+      activeArenaTab().then(function (tab) {
+        var key=tab && canonicalSessionKey(conversationKeyFromUrl(tab.url)||store.tabKeys[tab.id]);
+        var session=key && store.sessions[key];
+        var summary=session?{streaming:sessionIsStreaming(session),lastSync:session.lastSync,nativeSink:AE.nativeLastStatus(),
+          captureHealthCritical:(session.warnings||[]).some(function(w){return w===AE.CAPTURE_HEALTH_MSG.BATTLE_NO_EVAL||w===AE.CAPTURE_HEALTH_MSG.AGENT_NO_STREAM;})}:{};
+        applyIcon(AE.statusLedKind({ summary: summary, onArena: !!tab }));
+        clearTimeout(streamExpiry);
+        if(summary.streaming)streamExpiry=setTimeout(function(){AE.refreshStatusLed();},2700);
         refreshing = false;
       });
     };
@@ -126,9 +131,7 @@ var AE = AE || {};
         if (info.status === "complete" || info.url) AE.refreshStatusLed();
       });
     } catch (e) { /* tests */ }
-    try {
-      setInterval(function () { AE.refreshStatusLed(); }, 4000);
-    } catch (e2) { /* service workers may ignore intervals; events still update */ }
+
   }
 
   if (typeof chrome !== "undefined" && chrome.runtime) {

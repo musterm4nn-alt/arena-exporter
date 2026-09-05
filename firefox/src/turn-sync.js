@@ -54,7 +54,9 @@ function scheduleTurnSync(reason, key, tabId) {
   if (turnSyncTimers[key]) clearTimeout(turnSyncTimers[key]);
   turnSyncTimers[key] = setTimeout(function () {
     delete turnSyncTimers[key];
-    runTurnSync(reason || "turn", key, tabId);
+    Promise.resolve(AE.preferencesReady).then(function () { return runTurnSync(reason || "turn", key, tabId); }).catch(function () {
+      if (AE.recordIssue) AE.recordIssue("archive", "automatic_sync_failed");
+    });
   }, TURN_SYNC_MS);
 }
 
@@ -253,6 +255,7 @@ function scheduleLabelRetry(key, tabId, reason) {
 }
 
 function runTurnSync(reason, key, tabId) {
+  if (reason !== "manual" && !autoArchiveEnabled) return Promise.resolve({ ok: false, paused: true, error: "Automatic archiving is paused." });
   var syncKey = canonicalSessionKey(key || store.activeKey) || "default";
   var s = store.sessions[syncKey];
   /* Manual sync must also repair chats reopened after their capture session was
@@ -280,21 +283,8 @@ function runTurnSync(reason, key, tabId) {
     try {
       if (snapshot && snapshot.url) s.session.url = snapshot.url;
       if (snapshot && snapshot.title) s.session.title = snapshot.title;
-      /* buildExport reads the active session. Point it at ours for the
-       * synchronous build only — no awaits inside — then put it back, so a
-       * background sync never redirects what the popup is looking at. */
-      var prevActive = store.activeKey;
-      var out;
-      store.activeKey = syncKey;
-      try {
-        out = buildExport("full_history", snapshot);
-        /* s.archiveRel is only a session-lifetime cache; AE.writeArchive
-         * re-resolves against the persistent index, which is what pins the
-         * folder across browser restarts. */
-        if (AE.decorateArchivePaths) AE.decorateArchivePaths(out.payload, s.archiveRel);
-      } finally {
-        store.activeKey = prevActive;
-      }
+      var out = buildExport("full_history", snapshot, s);
+      if (AE.decorateArchivePaths) AE.decorateArchivePaths(out.payload, s.archiveRel);
       if (!((out.payload.messages || []).length || (out.payload.battles || []).length || (out.payload.meta.request_attempts || []).length)) {
         s.lastSync = { at: new Date().toISOString(), ok: false, error: "nothing to sync", reason: reason };
         return s.lastSync;
@@ -330,6 +320,8 @@ function runTurnSync(reason, key, tabId) {
           s.labelsPending = false;
         }
         scheduleSave();
+        if (AE.notifyUI) AE.notifyUI();
+        if (!s.lastSync.ok && AE.recordIssue) AE.recordIssue("archive", "write_failed");
         return s.lastSync;
       });
       });

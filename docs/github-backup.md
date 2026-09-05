@@ -1,6 +1,6 @@
 # GitHub backups
 
-Open the extension popup, then **Settings → GitHub backups**.
+Open the extension popup, then **Open archive library → GitHub backup**.
 
 1. Create a private repository for your conversations, separate from the extension's source code.
 2. Create a [fine-grained GitHub token](https://github.com/settings/personal-access-tokens/new). Select only that archive repository and grant **Contents: read and write**. Choose an expiration you can renew when needed.
@@ -28,7 +28,7 @@ Individual automatic-backup files are limited to 32 MiB. Folder import is limite
 
 ## Open the current conversation's folder
 
-With an Arena conversation selected, click **Open conversation folder** in the popup. If needed, the conversation is archived first. For Downloads archives, this opens the OS file manager at that conversation's folder. A small `_open-folder.txt` marker lets the browser reveal the folder even though normal archive download-history records have been erased.
+With an Arena conversation selected, click **Open folder** in the popup. If needed, the conversation is archived first. For Downloads archives, this opens the OS file manager at that conversation's folder. A small `_open-folder.txt` marker lets the browser reveal the folder even though normal archive download-history records have been erased.
 
 The button refuses a different or non-Arena selected tab. For archives written by an external Arena Archive native host, it displays the actual native folder path; that host currently has no folder-opening operation.
 

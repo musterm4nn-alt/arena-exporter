@@ -262,7 +262,7 @@ function buildBattles(s, domSnapshot) {
   urls.forEach(function (url, i) {
     var requestId = (s.evaluationRequests || {})[url];
     var init = requestId ? initsByRequest[requestId] : initsAlign ? reqInits[i] : i === urls.length - 1 ? reqInits[reqInits.length - 1] : null;
-    var parsed = AE.parseEvaluationStream ? AE.parseEvaluationStream(streams[url], init) : AE.parseBattleStream(streams[url]);
+    var parsed = AE.parseCachedEvaluation(s, url, streams[url], init);
     parsedByUrl[url] = parsed;
     var attempt = requestId && (s.requestAttempts || []).find(function (a) { return a.request_id === requestId; });
     if (parsed.error && attempt && !(attempt.status >= 400)) {

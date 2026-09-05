@@ -29,7 +29,7 @@ function zipEntries(file) {
 (async () => {
   const chrome = require("../manifest.json");
   const firefox = require("../firefox/manifest.json");
-  assert.equal(chrome.version, "1.18.0");
+  assert.equal(chrome.version, require("../package.json").version);
   assert.ok(chrome.permissions.includes("alarms"));
   assert.deepEqual(chrome.optional_host_permissions, ["https://api.github.com/*"]);
   assert.ok(firefox.browser_specific_settings.gecko.data_collection_permissions.optional.includes("personalCommunications"));

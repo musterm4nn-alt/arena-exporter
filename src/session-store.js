@@ -416,36 +416,26 @@ function pruneStore() {
   });
 }
 
+var saveChain = Promise.resolve();
+function flushSave() {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  if (typeof flushAllStreamMessages === "function") flushAllStreamMessages();
+  pruneStore();
+  var payload = JSON.parse(JSON.stringify({ sessions: store.sessions, tabKeys: store.tabKeys,
+    tabPages: store.tabPages, aliases: store.aliases, requestKeys: store.requestKeys, activeKey: store.activeKey }));
+  var task = saveChain.then(function () { return captureStorageArea().set({ [STATE_KEY]: payload }); });
+  saveChain = task.catch(function () {
+    var s = ensureState();
+    s.storageError = true;
+    addWarning(s, "Session persistence failed (storage full or unavailable). Capture continues in memory only.");
+    if (AE.recordIssue) AE.recordIssue("storage", "persistence_failed");
+    if (AE.notifyUI) AE.notifyUI();
+  });
+  return saveChain;
+}
 function scheduleSave() {
   if (saveTimer) return;
-  saveTimer = setTimeout(function () {
-    saveTimer = null;
-    try {
-      /* Deltas only mark their message stale; make it whole before persisting
-       * so an evicted service worker resumes with the text it had. */
-      if (typeof flushAllStreamMessages === "function") flushAllStreamMessages();
-      pruneStore();
-      var payload = {
-        sessions: store.sessions,
-        tabKeys: store.tabKeys,
-        tabPages: store.tabPages,
-        aliases: store.aliases,
-        requestKeys: store.requestKeys,
-        activeKey: store.activeKey
-      };
-      var saveResult = captureStorageArea().set({ [STATE_KEY]: payload });
-      if (saveResult && typeof saveResult.catch === "function") {
-        saveResult.catch(function () {
-          var s = ensureState();
-          s.storageError = true;
-          addWarning(s, "Session persistence failed (storage full or unavailable). Capture continues in memory only.");
-        });
-      }
-    } catch (e) {
-      var s = ensureState();
-      s.storageError = true;
-    }
-  }, 500);
+  saveTimer = setTimeout(function () { saveTimer = null; flushSave(); }, 500);
 }
 
 function finishStateLoad(r) {

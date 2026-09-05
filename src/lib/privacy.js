@@ -10,8 +10,9 @@ var AE = AE || {};
   var QUERY_SECRET = new RegExp("([?&]" + FIELD + "=)[^&#\\s]*", "gi");
   AE.redactSecretText = function (text) {
     return String(text || "")
-      .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*)?/g, "[REDACTED JWT]")
-      .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+\/-]+=*/gi, "[REDACTED AUTH]")
+      .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*)?/g, "[REDACTED_JWT]")
+      .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+\/_-]+=*/gi, "[REDACTED_AUTH]")
+      .replace(/\bsk-[A-Za-z0-9_-]{16,}/g, "[REDACTED_KEY]")
       .replace(/^((?:proxy-)?authorization|cookie|set-cookie)(\s*:\s*)[^\r\n]*/gim, "$1$2[REDACTED]")
       .replace(QUERY_SECRET, "$1[REDACTED]")
       .replace(FIELD_VALUE, '$1"[REDACTED]"');

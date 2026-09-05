@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Arena Agent Exporter",
-  "version": "1.18.0",
+  "name": "Arena Exporter",
+  "version": "2.1.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArhQpGxV1Ter6QjTSEm27ZiKNjdxpTf4P0uHH20qxzVRHexkuXD3DDUqiqgVDOEfMVMrc9/CuU6YbsrsNvawFNIhZRXugBtsfvu673zyKJjkpZQYZR5v9hzCKxIMQBNJ2u+KE1M5V4zPe/tlq6NSLol1EU+LEeqN481kpcEGoLfvAygGVm33w8TGo99OHcRHdixTmmRzH/OHKZbdRzVydVzOYwQKUFrbspC563YRfyZ+FiNQFbsd6xTJHskrmpVPe+RiJLhBne9JY8CroYtQc0NwyKyHY2Cad/UVSADnDi0DZ3lWeoIriThMzCEcq9Ah3kHzrS+OWwkoHV5qIhWu08wIDAQAB",
-  "description": "Export Arena Agent, Battle, Direct and Side-by-Side chats with messages, tools, files and explicit model provenance.",
+  "description": "Your Arena conversations, kept. Capture, export and archive every turn, with optional private GitHub backup.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -86,7 +86,7 @@
   ],
   "action": {
     "default_popup": "src/popup.html",
-    "default_title": "Arena Agent Exporter",
+    "default_title": "Arena Exporter",
     "default_icon": {
       "16": "icons/led/16-idle.png",
       "32": "icons/led/32-idle.png",

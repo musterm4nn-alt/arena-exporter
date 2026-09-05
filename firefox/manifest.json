@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Arena Agent Exporter",
-  "version": "1.18.0",
-  "description": "Export Arena Agent, Battle, Direct and Side-by-Side chats with messages, tools, files and explicit model provenance.",
+  "name": "Arena Exporter",
+  "version": "2.1.0",
+  "description": "Your Arena conversations, kept. Capture, export and archive every turn, with optional private GitHub backup.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -64,6 +64,12 @@
       "src/archive-folder.js",
       "src/history-backfill.js",
       "src/status-led.js",
+      "src/runtime-services.js",
+      "src/capture.js",
+      "src/export-builder.js",
+      "src/ui-state.js",
+      "src/export-download.js",
+      "src/message-router.js",
       "src/background.js"
     ]
   },
@@ -104,7 +110,7 @@
   ],
   "action": {
     "default_popup": "src/popup.html",
-    "default_title": "Arena Agent Exporter",
+    "default_title": "Arena Exporter",
     "default_icon": {
       "16": "icons/led/16-idle.png",
       "32": "icons/led/32-idle.png",

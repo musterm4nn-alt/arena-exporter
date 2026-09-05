@@ -363,7 +363,7 @@ var AE = AE || {};
             models: models,
             models_pending: !models.length,
             updated_at: new Date().toISOString(),
-            turns: (payload.battles || []).length,
+            turns: (payload.battles || []).length || (payload.messages || []).filter(function (m) { return m.role === "assistant"; }).length,
             hashes: keep,
             destinations: destinations,
             completeness: detail ? detail.status : (payload.meta && payload.meta.completeness) || null,

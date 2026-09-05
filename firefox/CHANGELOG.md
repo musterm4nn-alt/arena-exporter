@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.1.0 — 2026-09-05
+
+- Rebuilt the popup and full-page workspace around locally bundled Departure Mono, ink surfaces, warm white text and cyan accents. Added keyboard focus, responsive layouts, explicit empty/error states and reduced-motion support.
+- Added a searchable archive library with mode filters, sorting, pagination, Arena links and per-conversation folder actions. Split GitHub backup, preferences and diagnostics into dedicated views.
+- Added full-conversation and last-answer JSON/Markdown export and clipboard actions, persistent automatic-archive controls, backup pause/resume and a diagnostics report that excludes conversation content.
+- Replaced the experimental 2.0.0 engine with the verified 1.18.0 capture, archive, history, native-host and GitHub-backup components. Preserved v1 storage keys, extension identity, archive layout and schema 2.1 compatibility.
+- Separated capture, export assembly, UI state, export downloads and message routing. Background exports use explicit sessions. Added serialized persistence and a working per-session evaluation parse cache.
+- Last-answer exports also scope request metadata and exclude earlier raw transport samples. Added underscore-bearing Bearer and sk-key redaction with stable redaction markers.
+- Replaced idle popup polling and recurring toolbar native probes with event updates. Added runtime issue codes and truthful save/backup outcomes.
+- Built dedicated Chrome and Firefox distributions from the same source. Expanded regression coverage for popup/workspace actions, preferences, restart, caching, persistence and data isolation.
+- Validation: automated suites and generated Firefox background loading pass. Browser-control access was unavailable for live rendering and installed-extension tests; those checks are not claimed. See docs/verification.md.
+
 ## 1.18.0 — 2026-09-04
 
 - Added optional automatic backups to a private GitHub repository, with repository-scoped token setup, status, pause/disconnect, manual upload and existing-folder import.

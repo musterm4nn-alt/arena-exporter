@@ -1,77 +1,58 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <link rel="stylesheet" href="popup.css" />
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arena Exporter</title><link rel="stylesheet" href="popup.css">
 </head>
-<body>
-  <header>
-    <h1>ARENA EXPORTER <span id="version-badge" class="version-badge">v?</span></h1>
-    <span id="status-dot" class="dot idle" title="Capture status"></span>
+<body class="popup-page">
+  <header class="topbar">
+    <a class="brand" href="options.html" target="_blank" title="Open archive library"><span class="brand-mark" aria-hidden="true">✳</span><span>ARENA<span class="brand-sub">EXPORTER</span></span></a>
+    <div class="header-actions"><span id="version-badge" class="version">2.1.0</span><button id="btn-settings" class="icon-button" title="Open preferences" aria-label="Open preferences"><span aria-hidden="true">⚙</span></button></div>
   </header>
-
-  <section id="context" class="card">
-    <div id="context-msg" class="muted">Checking page context…</div>
-    <div id="sink-status" class="muted small"></div>
-    <div id="backup-status" class="muted small">GitHub backups: checking…</div>
-    <div class="row" style="margin-top:8px">
-      <button id="btn-folder" disabled>Open conversation folder</button>
-      <button id="btn-settings">Settings</button>
+  <main class="popup-main">
+    <section class="conversation" aria-labelledby="conversation-title">
+      <div class="eyebrow-line"><span class="eyebrow">CURRENT CONVERSATION</span><span id="capture-label" class="status-label"><i id="status-dot" class="dot idle"></i><span id="capture-text">Checking</span></span></div>
+      <h1 id="conversation-title">Finding your conversation…</h1>
+      <p id="context-msg" class="muted context-note">Select an Arena tab to capture and export.</p>
+      <div id="conversation-meta" class="metadata hidden"><span id="mode-tag" class="tag">AGENT</span><span id="conversation-id" class="muted small"></span></div>
+    </section>
+    <section id="empty-state" class="empty-popup hidden">
+      <div class="empty-symbol" aria-hidden="true">[ ↗ ]</div><h2>Your next conversation starts here.</h2>
+      <p>Open an Arena chat. Your answers, reasoning and files will appear as they are captured.</p>
+      <button id="btn-arena" class="primary wide">Open Arena <span aria-hidden="true">↗</span></button>
+      <button id="btn-library-empty" class="text-button">Browse saved conversations</button>
+    </section>
+    <div id="active-content" class="hidden">
+      <section id="stats" class="metrics" aria-label="Captured content">
+        <div><strong id="stat-messages">0</strong><span>Messages</span></div><div><strong id="stat-thinking">0</strong><span>Reasoning</span></div>
+        <div><strong id="stat-tools">0</strong><span>Tool calls</span></div><div><strong id="stat-artifacts">0</strong><span>Files</span></div>
+      </section>
+      <section id="actions" class="export-panel">
+        <div class="section-heading"><h2><span class="section-number">01</span> Export</h2><span class="muted small">YOURS TO KEEP</span></div>
+        <fieldset class="scope-control"><legend class="sr-only">Export scope</legend>
+          <label><input type="radio" name="scope" value="full_history" checked><span>Full conversation</span></label>
+          <label><input type="radio" name="scope" value="last_message"><span>Last answer</span></label>
+        </fieldset>
+        <div class="export-controls"><label class="format-label" for="export-format">Format</label><select id="export-format"><option value="json">JSON · structured</option><option value="markdown">Markdown · readable</option></select></div>
+        <div class="export-button-row"><button id="btn-full" class="primary grow"><span aria-hidden="true">↓</span> <span id="export-label">Export JSON</span></button><button id="btn-copy" class="secondary" title="Copy the selected export to clipboard">Copy</button></div>
+        <p id="scope-hint" class="small muted hint">Includes messages, reasoning, tools and files.</p>
+      </section>
+      <section class="archive-panel">
+        <div class="section-heading"><h2><span class="section-number">02</span> Archive</h2><label class="switch-label small">Auto <input id="auto-archive" type="checkbox" class="switch" aria-label="Automatically archive completed turns"></label></div>
+        <div class="archive-buttons"><button id="btn-sync" class="secondary grow">Save now</button><button id="btn-folder" class="secondary grow">Open folder <span aria-hidden="true">↗</span></button></div>
+        <div class="storage-line"><i id="archive-dot" class="dot idle"></i><span id="sink-status">Downloads / arena-archive</span></div>
+        <div class="storage-line"><i id="backup-dot" class="dot idle"></i><button id="backup-status" class="inline-link">Checking GitHub backup…</button></div>
+      </section>
+      <details id="warnings" class="notice warning hidden"><summary id="warnings-summary">Capture notes</summary><ul id="warning-list"></ul></details>
+      <details class="advanced"><summary>Conversation tools <span aria-hidden="true">+</span></summary><div class="advanced-body">
+        <div id="vote-tools"><p class="small muted">Correct a missed Battle vote</p><div class="vote-grid"><button id="vote-a">A wins</button><button id="vote-b">B wins</button><button id="vote-tie">Both good</button><button id="vote-bad">Both bad</button><button id="vote-clear">Clear</button></div></div>
+        <div class="row"><button id="btn-domdebug">Save page diagnostics</button><button id="btn-clear" class="danger-quiet">Reset capture</button></div>
+        <div id="reset-confirm" class="notice warning hidden"><p>Clear this conversation's captured data? Saved archive files stay available.</p><div class="row"><button id="confirm-clear" class="danger">Clear capture</button><button id="cancel-clear">Cancel</button></div></div>
+      </div></details>
     </div>
-  </section>
-
-  <section id="progress" class="card">
-    <h2>Status</h2>
-    <div id="progress-msg">Idle</div>
-  </section>
-
-  <section id="stats" class="card hidden">
-    <div class="stat-row"><span>Messages</span><b id="stat-messages">0</b></div>
-    <div class="stat-row"><span>Thinking blocks</span><b id="stat-thinking">0</b></div>
-    <div class="stat-row"><span>Tool calls</span><b id="stat-tools">0</b></div>
-    <div class="stat-row"><span>Commands</span><b id="stat-commands">0</b></div>
-    <div class="stat-row"><span>Actions</span><b id="stat-actions">0</b></div>
-    <div class="stat-row"><span>Artifacts</span><b id="stat-artifacts">0</b></div>
-    <div class="stat-row"><span>Endpoints seen</span><b id="stat-endpoints">0</b></div>
-    <div class="stat-row"><span>Last battle vote</span><b id="stat-vote">—</b></div>
-    <div class="stat-row hidden" id="row-streamchunks"><span>Raw stream chunks</span><b id="stat-streamchunks">0</b></div>
-  </section>
-
-  <section id="warnings" class="card warn hidden">
-    <ul id="warning-list"></ul>
-  </section>
-
-  <section id="actions" class="card hidden">
-    <div class="btn-col">
-      <button id="btn-sync" class="primary">Write to archive now</button>
-      <button id="btn-full" class="primary secondary">Export full chat</button>
-      <button id="btn-last" class="primary secondary">Export last message (JSON)</button>
-      <div class="row">
-        <button id="btn-copy">Copy JSON</button>
-        <button id="btn-clear" class="danger">Reset capture</button>
-      </div>
-      <button id="btn-domdebug">Save DOM debug dump</button>
-      <button id="btn-history" class="primary secondary">Archive all history</button>
-      <div class="vote-label muted">Vote override</div>
-      <div class="vote-grid">
-        <button id="vote-a" class="vote-btn">A</button>
-        <button id="vote-b" class="vote-btn">B</button>
-        <button id="vote-tie" class="vote-btn">TIE</button>
-        <button id="vote-bad" class="vote-btn">BAD</button>
-        <button id="vote-clear" class="vote-btn danger">CLR</button>
-      </div>
-    </div>
-    <div class="muted small note">“Last message” includes the triggering user prompt for context.</div>
-  </section>
-
-  <details id="endpoints" class="card hidden">
-    <summary>Endpoints</summary>
-    <ol id="endpoint-list"></ol>
-  </details>
-
-  <script src="lib/schema.js"></script>
-  <script src="lib/privacy.js"></script>
-  <script src="lib/normalize.js"></script>
-  <script src="popup.js"></script>
+    <p id="progress-msg" class="feedback" role="status" aria-live="polite"></p>
+  </main>
+  <footer class="popup-footer"><button id="btn-library" class="inline-link">Open archive library <span aria-hidden="true">↗</span></button><span class="muted small">LOCAL FIRST.</span></footer>
+  <script src="ui-model.js"></script><script src="ui-common.js"></script><script src="popup.js"></script>
 </body>
 </html>
