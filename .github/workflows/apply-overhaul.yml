@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 20
       - name: Apply audited overhaul
-        run: node tools/apply-overhaul.mjs
+        run: node tools/apply-overhaul.mjs && node tools/overhaul-fixes.mjs
       - name: Validate extension and site
         id: validate
         continue-on-error: true
@@ -42,7 +42,7 @@ jobs:
       - name: Commit validated result
         if: steps.validate.outcome == 'success'
         run: |
-          rm tools/apply-overhaul.mjs .github/workflows/apply-overhaul.yml
+          rm -f tools/apply-overhaul.mjs tools/overhaul-fixes.mjs .github/workflows/apply-overhaul.yml validation.log
           git config user.name "arena-exporter-overhaul"
           git config user.email "actions@users.noreply.github.com"
           git add -A
