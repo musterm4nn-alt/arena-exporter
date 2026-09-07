@@ -24,6 +24,7 @@ function getStateSummary(s, snapshot) {
     title: s.session.title || "",
     mode: latestRound && latestRound.mode || observedMode(s, snapshot) || "agent",
     messageCount: viewMessages.length || rounds.reduce(function(n,b){return n+(b.prompt?1:0)+(b.contestants||[]).filter(function(c){return c.response||c.reasoning||(c.files||[]).length;}).length;},0),
+    turnCount: Math.max(viewMessages.filter(function(m){ return m && m.role === "user"; }).length, rounds.length),
     blockCounts: counts,
     endpointCount: s.endpoints.length,
     endpoints: s.endpoints.slice(0, 50).map(function (e) { return { url: e.url, tier: e.tier }; }),
