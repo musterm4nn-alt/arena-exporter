@@ -1,0 +1,21 @@
+name: Package validated repository ZIP
+on:
+  push:
+    branches: [artifact/repo-zip-2.2]
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create repository ZIP from validated commit
+        run: git archive --format=zip --prefix=arena-exporter-2.2.0/ daa605c5eba3ff5877ebeff78d525cc7126c715c -o arena-exporter-2.2.0-production-overhaul.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arena-exporter-2.2.0-production-overhaul
+          path: arena-exporter-2.2.0-production-overhaul.zip
+          if-no-files-found: error
+          retention-days: 1
