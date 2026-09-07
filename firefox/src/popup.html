@@ -7,7 +7,7 @@
 <body class="popup-page">
   <header class="topbar">
     <a class="brand" href="options.html" target="_blank" title="Open archive library"><span class="brand-mark" aria-hidden="true">✳</span><span>ARENA<span class="brand-sub">EXPORTER</span></span></a>
-    <div class="header-actions"><span id="version-badge" class="version">2.1.0</span><button id="btn-settings" class="icon-button" title="Open preferences" aria-label="Open preferences"><span aria-hidden="true">⚙</span></button></div>
+    <div class="header-actions"><span id="version-badge" class="version">2.2.0</span><button id="btn-settings" class="icon-button" title="Open preferences" aria-label="Open preferences"><span aria-hidden="true">⚙</span></button></div>
   </header>
   <main class="popup-main">
     <section class="conversation" aria-labelledby="conversation-title">
@@ -15,6 +15,14 @@
       <h1 id="conversation-title">Finding your conversation…</h1>
       <p id="context-msg" class="muted context-note">Select an Arena tab to capture and export.</p>
       <div id="conversation-meta" class="metadata hidden"><span id="mode-tag" class="tag">AGENT</span><span id="conversation-id" class="muted small"></span></div>
+      <div id="capture-overview" class="capture-overview hidden" aria-label="Conversation capture status">
+        <div class="signal-cell"><span>CAPTURE</span><strong id="health-capture">Checking</strong></div>
+        <div class="signal-cell"><span>MODE</span><strong id="health-mode">—</strong></div>
+        <div class="signal-cell"><span>TURNS</span><strong id="health-turns">0</strong></div>
+        <div class="signal-cell"><span>REQUEST</span><strong id="health-request">Waiting</strong></div>
+        <div class="signal-cell"><span>ARCHIVE</span><strong id="health-archive">Not saved</strong></div>
+        <div class="signal-cell"><span>BACKUP</span><strong id="health-backup">Checking</strong></div>
+      </div>
     </section>
     <section id="empty-state" class="empty-popup hidden">
       <div class="empty-symbol" aria-hidden="true">[ ↗ ]</div><h2>Your next conversation starts here.</h2>

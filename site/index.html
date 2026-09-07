@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Arena Exporter is a local-first Chrome and Firefox extension for preserving Arena Agent, Battle, Direct and Side-by-Side conversations.">
+  <title>Arena Exporter — keep the whole conversation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="wordmark" href="#top" aria-label="Arena Exporter home"><span class="mark" aria-hidden="true">✳</span><span>ARENA<small>EXPORTER</small></span></a>
+    <button class="menu" type="button" data-menu aria-controls="site-nav" aria-expanded="false">Menu</button>
+    <nav id="site-nav" data-nav aria-label="Primary">
+      <a href="#features">Features</a><a href="#modes">Modes</a><a href="#privacy">Privacy</a><a href="#install">Install</a>
+      <a class="nav-cta" href="https://github.com/musterm4nn-alt/arena-exporter">GitHub ↗</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow">BROWSER EXTENSION / LOCAL FIRST</p>
+        <h1>Keep the <em>whole</em> Arena conversation.</h1>
+        <p class="lede">Arena Exporter captures conversations from the moment the page starts, then turns streamed answers, reasoning, tools, files, request outcomes and Battle data into archives you control.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#install">Install locally</a>
+          <a class="button secondary" href="https://github.com/musterm4nn-alt/arena-exporter">View source on GitHub ↗</a>
+        </div>
+        <ul class="support-line" aria-label="Platform support"><li>Chrome / Chromium</li><li>Firefox</li><li>Manifest V3</li><li>Schema 2.1 compatible</li></ul>
+      </div>
+
+      <div class="extension-preview" aria-label="Representation of the Arena Exporter popup">
+        <div class="preview-titlebar"><span class="preview-brand">✳ ARENA <b>EXPORTER</b></span><span>v2.2.0</span></div>
+        <div class="preview-body">
+          <div class="preview-kicker"><span>CURRENT CONVERSATION</span><span class="live"><i></i> CAPTURED</span></div>
+          <h2>Research launch risks and produce a decision memo</h2>
+          <p class="preview-meta"><span>AGENT</span> 01a01965-4753</p>
+          <div class="signal-grid">
+            <div><small>CAPTURE</small><strong>Healthy</strong></div><div><small>TURNS</small><strong>4 kept</strong></div><div><small>REQUEST</small><strong>Completed</strong></div>
+            <div><small>MODE</small><strong>Agent</strong></div><div><small>ARCHIVE</small><strong>Saved</strong></div><div><small>BACKUP</small><strong>Queued</strong></div>
+          </div>
+          <div class="preview-metrics"><span><b>8</b> Messages</span><span><b>3</b> Reasoning</span><span><b>11</b> Tools</span><span><b>2</b> Files</span></div>
+          <div class="preview-panel">
+            <div class="panel-head"><span>01 / EXPORT</span><span>YOURS TO KEEP</span></div>
+            <div class="segmented"><span class="selected">Full conversation</span><span>Last answer</span></div>
+            <div class="mock-row"><span>JSON · structured</span><b>Export JSON ↓</b></div>
+          </div>
+          <div class="preview-panel compact">
+            <div class="panel-head"><span>02 / ARCHIVE</span><span>AUTO ON</span></div>
+            <div class="mock-row"><span>Downloads / arena-archive</span><b>Save now</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="reason">
+      <p class="eyebrow">WHY IT EXISTS</p>
+      <div><h2>Arena is where the answer happens. Your archive is where it lasts.</h2><p>Exports are useful only when they preserve the turns, provenance and failures that made the conversation what it was. Arena Exporter is built around capture correctness first, with readable Markdown and structured JSON on top.</p></div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="section-heading"><p class="eyebrow">CAPTURE → PRESERVE → EXPORT</p><h2>Built for the parts ordinary “copy chat” tools miss.</h2></div>
+      <div class="feature-grid">
+        <article><span class="feature-no">01</span><h3>Capture at document_start</h3><p>Observes Arena transport from page startup without consuming the page’s own response streams.</p></article>
+        <article><span class="feature-no">02</span><h3>Every turn stays a turn</h3><p>Multi-turn sessions, streamed text, reasoning, tool activity, artifacts and request attempts retain their boundaries.</p></article>
+        <article><span class="feature-no">03</span><h3>JSON + Markdown</h3><p>Export a full conversation or the last answer with its triggering prompt. Copy the same selected scope directly.</p></article>
+        <article><span class="feature-no">04</span><h3>Local conversation archive</h3><p>Save organized conversation folders through Downloads or the optional native archive integration, with destination-aware indexing.</p></article>
+        <article><span class="feature-no">05</span><h3>Private GitHub backup</h3><p>Optionally queue archive snapshots to your own private repository. Failed uploads remain in a persistent retry queue.</p></article>
+        <article><span class="feature-no">06</span><h3>Diagnostics without credentials</h3><p>Transport metadata is bounded and filtered; DOM diagnostics redact page text and credential-bearing data before storage.</p></article>
+      </div>
+    </section>
+
+    <section class="section modes" id="modes">
+      <div class="section-heading"><p class="eyebrow">SUPPORTED ARENA MODES</p><h2>One capture model, four conversation shapes.</h2></div>
+      <div class="mode-grid">
+        <article><div class="mode-tag">AGENT</div><h3>Agent</h3><p>Preserves multi-turn agent messages, streamed reasoning, tool calls/results, actions and workspace artifacts. Orchestrator identity stays unknown unless Arena reveals it.</p></article>
+        <article><div class="mode-tag">BATTLE</div><h3>Battle</h3><p>Keeps A/B lanes separate across rounds, records vote/result data and only treats revealed model labels as verified identity.</p></article>
+        <article><div class="mode-tag">DIRECT</div><h3>Direct</h3><p>Captures the selected single lane and public catalog selection metadata without turning a selection identifier into hidden model proof.</p></article>
+        <article><div class="mode-tag">SIDE-BY-SIDE</div><h3>Side-by-Side</h3><p>Preserves both selected lanes over multiple turns, including per-lane files, tools and unverified selection provenance.</p></article>
+      </div>
+    </section>
+
+    <section class="workflow section">
+      <div class="section-heading"><p class="eyebrow">ARCHIVE WORKFLOW</p><h2>Useful online. Still useful offline.</h2></div>
+      <ol class="steps">
+        <li><span>1</span><div><h3>Talk on Arena</h3><p>The extension listens from page startup and keeps tabs and initiating requests isolated.</p></div></li>
+        <li><span>2</span><div><h3>Save locally</h3><p>Automatic completed-turn saves or Save now write the conversation and available files to the configured archive destination.</p></div></li>
+        <li><span>3</span><div><h3>Export when you need it</h3><p>Choose JSON for structured data or Markdown for a readable record; use full conversation or last answer scope.</p></div></li>
+        <li><span>4</span><div><h3>Back up on your terms</h3><p>Connect a private GitHub repository only if you want remote backup. Local saving remains independent.</p></div></li>
+      </ol>
+    </section>
+
+    <section class="privacy section" id="privacy">
+      <div class="privacy-copy">
+        <p class="eyebrow">PRIVACY MODEL</p><h2>Conversation content is valuable. Credentials are not archive content.</h2>
+        <p>Arena Exporter is local-first. It structurally filters authorization data, cookies, CAPTCHA values, token/key fields, credential-bearing URLs, nested JSON secrets and private-key material before diagnostics or transport metadata are persisted or exported.</p>
+        <p>Exports still contain the conversation and files you asked to preserve; privacy filtering is not general anonymization.</p>
+      </div>
+      <div class="privacy-card">
+        <p class="eyebrow">DEFAULT DATA FLOW</p>
+        <div class="flow"><span>Arena tab</span><b>→</b><span>Extension capture</span><b>→</b><span>Local archive</span></div>
+        <hr>
+        <p><strong>Optional path</strong><br>Local archive → private GitHub repository</p>
+        <p><strong>Never required</strong><br>No Arena Exporter server, database or hosted account.</p>
+      </div>
+    </section>
+
+    <section class="section architecture">
+      <div class="section-heading"><p class="eyebrow">ENGINEERING SHAPE</p><h2>Transport details stay separate from conversation truth.</h2></div>
+      <div class="arch-row"><span>Interception</span><i>→</i><span>Parsing</span><i>→</i><span>Session correlation</span><i>→</i><span>Reconstruction</span><i>→</i><span>Export / archive</span></div>
+      <p>Request attempts, model provenance, privacy filtering, persistence, archive sinks, backup and UI state have separate modules so a visual change does not redefine captured data.</p>
+    </section>
+
+    <section class="section install" id="install">
+      <div class="section-heading"><p class="eyebrow">GET STARTED</p><h2>Load the real extension from the repository.</h2></div>
+      <div class="install-grid">
+        <article><span class="platform">CHROME / CHROMIUM</span><ol><li>Run the release build or use the repository root.</li><li>Open chrome://extensions and enable Developer mode.</li><li>Choose Load unpacked and select the Chrome package folder.</li><li>Reload the Arena tab.</li></ol></article>
+        <article><span class="platform">FIREFOX</span><ol><li>Run the release build to regenerate the Firefox package.</li><li>Open about:debugging#/runtime/this-firefox.</li><li>Choose Load Temporary Add-on and select firefox/manifest.json.</li><li>Reload the Arena tab.</li></ol></article>
+      </div>
+      <div class="code-card"><span>BUILD + VERIFY</span><code>npm test<br>npm run build<br>npm run site:check</code></div>
+      <a class="button primary final-cta" href="https://github.com/musterm4nn-alt/arena-exporter">Open the Arena Exporter repository ↗</a>
+    </section>
+  </main>
+
+  <footer><span>ARENA EXPORTER / OPEN SOURCE</span><span>LOCAL FIRST · <span data-year></span></span></footer>
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,14 +1,26 @@
 # Arena Exporter
 
-Version **2.1.2** is a Manifest V3 extension for exporting arena.ai **Agent**, **Battle**, **Direct**, and **Side-by-Side** conversations as structured JSON and readable Markdown. It records streamed text, reasoning, tools, files, transport outcomes, and model label provenance.
+Version **2.2.0** is a Manifest V3 extension for exporting arena.ai **Agent**, **Battle**, **Direct**, and **Side-by-Side** conversations as structured JSON and readable Markdown. It records streamed text, reasoning, tools, files, transport outcomes, and model label provenance.
 
-## The 2.1 overhaul
+## The 2.2 production overhaul
 
-A new Departure Mono popup puts the current conversation, export scope, format, local save and backup status together. The full-page workspace adds a searchable archive library with mode filters, sorting, pagination and direct Arena/folder actions, plus dedicated GitHub backup, preferences and diagnostics views.
+The popup now leads with an operational capture surface: capture health, mode, preserved turn count, latest request outcome, archive state and backup state are visible before export actions. The full-page workspace remains a searchable archive library with mode filters, sorting, pagination, direct Arena/folder actions, GitHub backup, preferences and diagnostics. The capture engine is still the primary product and the new `site/` presentation page is completely separate from extension runtime.
 
-The runtime retains the tested 1.18.0 capture, history, native archive and GitHub queue components, with separated capture/export/router files, explicit export sessions, serialized persistence, a working evaluation parse cache and event-driven UI updates. It replaces the experimental 2.0.0 implementation. Storage keys, the Chrome extension identity, Firefox ID and export schema 2.1 remain compatible with v1.
+The runtime keeps the proven capture/history/native/GitHub foundation and its explicit session/request correlation. Version 2.2 scopes semantic block replay suppression to a single message so legitimate repeated artifacts/actions in later turns cannot be lost, and strengthens structural secret filtering for credential-bearing URLs, nested JSON, GitHub tokens and private-key material. Storage keys, the Chrome extension identity/public key, Firefox ID, archive folders and export schema 2.1 remain compatible.
 
-See the [implementation plan](docs/overhaul-plan.md), [release notes](CHANGELOG.md) and [verification scope](docs/verification.md). Chrome live checks exercised the popup, Battle capture, native archive saving and JSON/Markdown downloads. See the verification notes for remaining capture limitations.
+See the [architecture](docs/architecture.md), [security model](docs/security.md), [release notes](CHANGELOG.md) and [verification scope](docs/verification.md). Chrome live checks exercised the popup, Battle capture, native archive saving and JSON/Markdown downloads. See the verification notes for remaining capture limitations.
+
+## Presentation website
+
+The repository includes a lightweight static project page under `site/`. It has no server, database, framework or remote runtime assets and is not packaged into the extension.
+
+Open `site/index.html` directly in a browser, serve the folder with any static file server, or validate it with:
+
+```bash
+npm run site:check
+```
+
+The extension preview on the page mirrors the operational states and controls implemented in the real popup; it is not a substitute runtime or simulated extension.
 
 ## GitHub backups and conversation folders
 
@@ -19,7 +31,7 @@ Use **Open archive library → GitHub backup** to connect a private repository. 
 ### Chrome
 
 1. Open `chrome://extensions` and enable Developer mode.
-2. Choose **Load unpacked** and select the repository root, or unzip `dist/Arena-Agent-Exporter-2.1.2-chrome.zip` and select that folder.
+2. Choose **Load unpacked** and select the repository root, or unzip `dist/Arena-Agent-Exporter-2.2.0-chrome.zip` and select that folder.
 3. Reload the Arena tab. After updating the source, also press **Reload** on the extension card.
 
 The manifest keeps the same public key across releases to preserve the unpacked extension ID.
@@ -29,7 +41,7 @@ The manifest keeps the same public key across releases to preserve the unpacked 
 Firefox uses its own complete build under `firefox/`, with an ordered `background.scripts` manifest. Use this build when loading the add-on in Firefox.
 
 1. Open `about:debugging#/runtime/this-firefox`.
-2. Choose **Load Temporary Add-on** and select `firefox/manifest.json`, or select the manifest in the extracted `dist/Arena-Agent-Exporter-2.1.2-firefox.zip`.
+2. Choose **Load Temporary Add-on** and select `firefox/manifest.json`, or select the manifest in the extracted `dist/Arena-Agent-Exporter-2.2.0-firefox.zip`.
 3. Reload the Arena tab.
 
 The Firefox build requires Firefox 140 or later. A temporary add-on must be loaded again after Firefox restarts. Its download UI is not suppressed.
@@ -114,8 +126,9 @@ The release builder regenerates the full Firefox tree, complete unpacked Chrome 
 ```bash
 node tools/build-release.mjs
 node tools/run-tests.mjs
+npm run site:check
 ```
 
 `bash tools/run-tests.sh` runs the same JavaScript build and test gate, followed by the optional Swift checks when the local toolchain supports them. `bash tools/deploy.sh` builds and copies the Chrome package to `../arena-exporter-dist`; pass `--force` to remove stale files there.
 
-The tests cover stream framing, arbitrary part IDs, retries and rejection outcomes, credential filtering, Flight metadata, Direct capture, Agent completion, session isolation, archive concurrency, destination switching, and both browser manifests. Browser APIs are simulated in the JavaScript suites; they do not replace a live Arena acceptance check.
+The tests cover stream framing, arbitrary part IDs, retries and rejection outcomes, nested credential filtering, Flight metadata, explicit multi-turn Agent/Battle/Direct/Side-by-Side reconstruction, session isolation, late responses, archive concurrency, destination switching, GitHub retry behavior, identity/schema compatibility, and both browser manifests. Browser APIs are simulated in the JavaScript suites; they do not replace a live Arena acceptance check.

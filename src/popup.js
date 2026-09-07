@@ -21,7 +21,7 @@
     U.show("active-content",ready);U.show("empty-state",!ready);
     $("conversation-title").textContent=st.title || (ready ? "Untitled conversation" : "Ready when you are.");
     $("context-msg").textContent=ready ? "" : "Open a conversation to start capturing.";
-    U.show("context-msg",!ready); U.show("conversation-meta",ready);
+    U.show("context-msg",!ready); U.show("conversation-meta",ready); U.show("capture-overview",ready);
     var mode=st.mode || (/battle|direct|side-by-side/.exec(tab.url)||[])[0] || "agent";
     $("mode-tag").textContent=AEView.modeLabel(mode).toUpperCase();
     $("conversation-id").textContent=(st.conversationKey || "").replace(/^[cs]:/,"").slice(0,16);
@@ -29,6 +29,13 @@
     var kind=failed || st.captureHealthCritical ? "error" : st.streaming ? "stream" : st.messageCount ? "ok" : "idle";
     $("status-dot").className="dot "+kind;
     $("capture-text").textContent=failed ? "Save failed" : st.captureHealthCritical ? "Check capture" : st.streaming ? "Capturing" : st.messageCount ? "Captured" : "Listening";
+    $("health-capture").textContent=failed ? "Save error" : st.captureHealthCritical ? "Needs review" : st.streaming ? "Live" : st.messageCount ? "Healthy" : "Listening";
+    $("health-capture").dataset.state=failed || st.captureHealthCritical ? "error" : st.streaming ? "stream" : st.messageCount ? "ok" : "idle";
+    $("health-mode").textContent=AEView.modeLabel(mode);
+    $("health-turns").textContent=String(st.turnCount || 0)+" kept";
+    var request=st.requestOutcome || null, requestLabel=request && request.outcome ? String(request.outcome).replace(/_/g," ") : "Waiting";
+    $("health-request").textContent=requestLabel.charAt(0).toUpperCase()+requestLabel.slice(1);
+    $("health-request").dataset.state=request && /error|rejected|aborted/.test(request.outcome || "") ? "error" : request && request.outcome === "completed" ? "ok" : "idle";
     var counts=st.blockCounts || {};
     $("stat-messages").textContent=st.messageCount || 0;$("stat-thinking").textContent=counts.thinking || 0;
     $("stat-tools").textContent=counts.tool_call || 0;$("stat-artifacts").textContent=counts.artifact || 0;
@@ -37,6 +44,8 @@
     $("sink-status").textContent=failed ? "Save failed · "+(st.lastSync.error || "Try again") : st.lastSync && st.lastSync.ok ?
       "Saved "+U.date(st.lastSync.at,true) : st.nativeSink && st.nativeSink.state === "ok" ? "Archive app connected" : "Downloads / arena-archive";
     $("archive-dot").className="dot "+(failed ? "error" : st.lastSync && st.lastSync.ok ? "ok" : "idle");
+    $("health-archive").textContent=failed ? "Save error" : st.lastSync && st.lastSync.ok ? "Saved" : "Not saved";
+    $("health-archive").dataset.state=failed ? "error" : st.lastSync && st.lastSync.ok ? "ok" : "idle";
     var warnings=st.warnings || [];
     $("warning-list").replaceChildren();warnings.forEach(function(w){$("warning-list").appendChild(U.element("li","",w));});
     $("warnings-summary").textContent=warnings.length+" capture note"+(warnings.length===1?"":"s");
@@ -49,7 +58,7 @@
     try {
       var tab=await U.activeTab();
       if(!tab || !AEView.arenaUrl(tab.url)) {
-        U.show("active-content",false);U.show("empty-state",true);U.show("conversation-meta",false);
+        U.show("active-content",false);U.show("empty-state",true);U.show("conversation-meta",false);U.show("capture-overview",false);
         $("conversation-title").textContent="Ready when you are.";$("context-msg").textContent="Your archive stays with you.";
         $("capture-text").textContent="Standby";$("status-dot").className="dot idle";
       } else {
@@ -59,6 +68,10 @@
       var results=await Promise.all([U.send({type:"AE_GITHUB_STATUS"}),U.send({type:"AE_PREFERENCES"})]);
       var backup=results[0];$("backup-status").textContent=AEView.backupLabel(backup);
       $("backup-dot").className="dot "+(backup.error ? "warn" : backup.enabled ? "ok" : "idle");
+      if($("health-backup")){
+        $("health-backup").textContent=backup.error ? "Needs review" : backup.running ? "Uploading" : backup.enabled ? (backup.pending ? String(backup.pending)+" queued" : "Ready") : "Off";
+        $("health-backup").dataset.state=backup.error ? "error" : backup.enabled ? "ok" : "idle";
+      }
       if(results[1].ok)$("auto-archive").checked=results[1].preferences.autoArchive;
     } catch(error){$("capture-text").textContent="Check capture";$("status-dot").className="dot error";$("conversation-title").textContent="Unable to load conversation.";U.feedback(error.message,"error");}finally{refreshing=false;}
   }

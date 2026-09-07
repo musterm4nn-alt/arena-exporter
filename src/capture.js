@@ -20,12 +20,43 @@ function currentAssistantMessage() {
   return addMessage("assistant");
 }
 
+function semanticReplayFingerprint(block) {
+  if (!block || typeof block !== "object") return "";
+  var value = {
+    type: block.type || null,
+    call_id: block.call_id || null,
+    id: block.id || null,
+    tool_name: block.tool_name || null,
+    action: block.action || null,
+    command: block.command == null ? null : block.command,
+    arguments: block.arguments == null ? null : block.arguments,
+    output: block.output == null ? null : block.output,
+    status: block.status || null,
+    target: block.target || null,
+    title: block.title || null,
+    artifact_type: block.artifact_type || null,
+    content_or_url: block.content_or_url || null,
+    attachment: block.attachment || null
+  };
+  try { return JSON.stringify(value); } catch (_) { return String(block.type || "unknown"); }
+}
+
+function messageHasSemanticReplay(msg, block) {
+  var wanted = semanticReplayFingerprint(block);
+  return (msg && Array.isArray(msg.content) ? msg.content : []).some(function (existing) {
+    return semanticReplayFingerprint(existing) === wanted;
+  });
+}
+
 function appendBlock(msg, b) {
   var s = ensureState();
   var clean = Object.assign({}, b);
   delete clean.partial;
 
-  if (!b.partial && b.type !== "thinking" && b.type !== "text" && isDuplicateOn(s, clean)) return;
+  /* Transport record IDs/sequences deduplicate true frame replays earlier in
+   * the pipeline. Semantic blocks are only deduplicated inside this message:
+   * an identical artifact/action in a later turn is legitimate data. */
+  if (!b.partial && b.type !== "thinking" && b.type !== "text" && messageHasSemanticReplay(msg, clean)) return;
 
   var last = msg.content[msg.content.length - 1];
   if (b.partial && last && last.type === clean.type && (clean.type === "thinking" || clean.type === "text")) {
