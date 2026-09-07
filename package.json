@@ -1,6 +1,6 @@
 {
   "name": "arena-exporter",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "private": true,
   "description": "Your Arena conversations, kept. Capture, export and archive every turn, with optional private GitHub backup.",
   "scripts": {
