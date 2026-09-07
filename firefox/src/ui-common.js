@@ -13,16 +13,26 @@
       }); } catch (error) { resolve({ ok: false, error: error.message }); }
     });
   };
-  ui.tabMessage = function (id, message) {
+  ui.tabMessage = function (id, message, timeoutMs) {
     return new Promise(function (resolve) {
-      try { chrome.tabs.sendMessage(id, message, function (result) { void chrome.runtime.lastError; resolve(result || null); }); }
-      catch (_) { resolve(null); }
+      var done = false;
+      var timer = setTimeout(function () { finish({ error: "Arena did not answer. Let the current response finish, then reload the Arena tab." }); }, timeoutMs == null ? 8000 : timeoutMs);
+      function finish(result) { if (done) return; done = true; clearTimeout(timer); resolve(result); }
+      try { chrome.tabs.sendMessage(id, message, function (result) { void chrome.runtime.lastError; finish(result || { error: "Reload the Arena tab to connect page capture." }); }); }
+      catch (_) { finish({ error: "Reload the Arena tab to connect page capture." }); }
     });
   };
   ui.activeTab = async function () { var tabs = await chrome.tabs.query({ active: true, currentWindow: true }); return tabs[0] || null; };
   ui.openWorkspace = function (view) { return chrome.tabs.create({ url: chrome.runtime.getURL("src/options.html") + "#" + (view || "library") }); };
   ui.feedback = function (text, tone) { var el=ui.$("progress-msg"); el.textContent=text || ""; el.dataset.tone=tone || "success"; };
   ui.require = function (result) { if (!result || !result.ok) throw new Error(result && result.error || "The action could not finish."); return result; };
+  ui.folderResult = function (result) {
+    if (result && !result.ok && result.path) {
+      ui.feedback("Folder path — paste this into your file manager: " + result.path, "warning");
+      return;
+    }
+    ui.require(result); ui.feedback("Opened the conversation folder.");
+  };
   ui.run = async function (id, pending, action) {
     var button=ui.$(id); if (button.disabled) return;
     button.disabled=true; button.setAttribute("aria-busy","true"); ui.feedback(pending);

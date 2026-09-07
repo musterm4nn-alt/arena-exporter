@@ -705,7 +705,8 @@ AE.dom = {};
 
   function toolNameFromModernLabel(label) {
     if (/^(?:created|creating|wrote|write)\b/i.test(label)) return "create_file";
-    if (/^(?:edited|updated|patched)\b/i.test(label)) return "edit_file";
+    if (/^(?:edited|updated|patched|applied\s+patch)\b/i.test(label)) return "edit_file";
+    if (/^(?:ran|running)\b/i.test(label)) return "run_command";
     if (/^read\b/i.test(label)) return "read_file";
     if (/^search\b/i.test(label)) return "grep_files";
     if (/^deployed\b/i.test(label)) return "deploy_project";
@@ -884,7 +885,7 @@ AE.dom = {};
       if (tools.indexOf(toolName) === -1) tools.push(toolName);
       var path = modernPathFromLabel(label);
       var detail = modernDisclosureDetail(controls[i]);
-      var isEdit = /^(?:edited|updated|patched)\b/i.test(label);
+      var isEdit = toolName === "edit_file";
       var args = path ? { path: path } : null;
       var call = {
         toolCallId: null,

@@ -38,7 +38,7 @@ var AE = AE || {};
   function repoPath(config) { return "/repos/" + config.repo; }
   function refPath(config) { return config.branch.split("/").map(encodeURIComponent).join("/"); }
   async function api(config, path, method, body) {
-    if (typeof browser !== "undefined" && browser.permissions) {
+    if (typeof browser !== "undefined" && browser.runtime && typeof browser.runtime.getBrowserInfo === "function" && browser.permissions) {
       var permissions = await browser.permissions.getAll();
       var required = ["personalCommunications", "websiteContent", "authenticationInfo"];
       if (!permissions.data_collection || required.some(function (name) { return !permissions.data_collection.includes(name); })) {

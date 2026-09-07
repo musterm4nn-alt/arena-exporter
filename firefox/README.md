@@ -1,4 +1,4 @@
-# Arena Agent Exporter 2.1.0 (Firefox)
+# Arena Agent Exporter 2.1.2 (Firefox)
 
 Requires Firefox 140.0+.
 

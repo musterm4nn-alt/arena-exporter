@@ -56,10 +56,20 @@ var AE = AE || {};
     visualKind = visual;
     lastTitle = title;
     try {
-      if (chrome.action && chrome.action.setIcon) chrome.action.setIcon({ path: paths });
+      if (chrome.action && chrome.action.setIcon) {
+        var resolved = {};
+        Object.keys(paths).forEach(function (size) { resolved[size] = chrome.runtime.getURL(paths[size]); });
+        var iconRequest = chrome.action.setIcon({ path: resolved });
+        if (iconRequest && iconRequest.catch) iconRequest.catch(function () {
+          if (AE.recordIssue) AE.recordIssue("toolbar", "icon_failed");
+        });
+      }
     } catch (e) { /* ignore */ }
     try {
-      if (chrome.action && chrome.action.setTitle) chrome.action.setTitle({ title: title });
+      if (chrome.action && chrome.action.setTitle) {
+        var titleRequest = chrome.action.setTitle({ title: title });
+        if (titleRequest && titleRequest.catch) titleRequest.catch(function () {});
+      }
     } catch (e2) { /* ignore */ }
   }
 

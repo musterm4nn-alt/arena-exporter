@@ -151,7 +151,9 @@ async function enqueue(env, text = "latest turn") {
   assert.equal(git.calls.length, pausedCount);
   assert.ok(!JSON.stringify(env.local._data).includes(configuration.token), "disconnect removes saved credential, preserves outbox");
   await env.api.githubConfigure(configuration);
-  env.context.browser = { permissions: { getAll: async () => ({ data_collection: [] }) } };
+  env.context.browser = { permissions: { getAll: async () => { throw new Error('Chrome must not check Firefox-only data permissions'); } } };
+  await env.api.githubConfigure(configuration);
+  env.context.browser = { runtime: { getBrowserInfo: async () => ({ name: 'Firefox' }) }, permissions: { getAll: async () => ({ data_collection: [] }) } };
   const consentCount = git.calls.length;
   assert.match((await env.api.githubFlush(true)).error, /permissions/);
   assert.equal(git.calls.length, consentCount, "revoking Firefox data permission stops network calls");

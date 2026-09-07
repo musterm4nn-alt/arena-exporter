@@ -162,6 +162,9 @@ function buildExport(mode, domSnapshot, session) {
   }
 
   var battles = buildBattles(s, domSnapshot);
+  if (battles.some(function (b) { return b.dom_only; }) && captureSources.indexOf("dom") === -1) {
+    captureSources = messages.length ? captureSources.concat("dom") : ["dom"];
+  }
   if (mode === "last_message" && battles.length) battles = battles.slice(-1);
 
   if (!messages.length && !battles.length) {
@@ -202,7 +205,9 @@ function buildExport(mode, domSnapshot, session) {
       capture_sources: captureSources,
       completeness: deriveCompleteness(s, warnings),
       warnings: warnings,
-      stream_samples: s.streamSamples.slice(0, 20),
+      // History-list and banner responses can contain unrelated conversations.
+      // Keep diagnostic bodies only for the evaluation transport.
+      stream_samples: s.streamSamples.filter(function (r) { return EVAL_URL_RE.test(r.url || "") || /\/realtime\/v1\/sessions\/[^/?]+\//.test(r.url || ""); }).slice(0, 20),
       evaluation_streams: s.unparsedEvaluationStreams || {},
       request_attempts: s.requestAttempts || [],
       transport: s.transport,
@@ -210,7 +215,9 @@ function buildExport(mode, domSnapshot, session) {
       model_catalog: s.modelCatalog ? { source_url: s.modelCatalog.source_url, captured_at: s.modelCatalog.captured_at, row_count: s.modelCatalog.models.length } : null,
       model_hints: { verified: false, names: orchestrator.candidates || [] },
       battle_votes: s.battleVotes || [],
-      captured_requests: (s.capturedRequests || []).map(function (r) {
+      captured_requests: (s.capturedRequests || []).filter(function (r) {
+        return EVAL_URL_RE.test(r.url || "") || (s.requestAttempts || []).some(function (a) { return a.request_id && a.request_id === r.request_id; });
+      }).map(function (r) {
         var copy = { method: r.method, url: r.url, body: r.body };
         if (r.request_id) copy.request_id = r.request_id;
         if (r.turn_id) copy.turn_id = r.turn_id;

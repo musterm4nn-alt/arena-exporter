@@ -3,12 +3,16 @@
   "use strict";
   var U=AEUI, $=U.$, refreshing=false, scope="full_history", streamTimer=null;
   U.version();
-  async function context(snapshot) {
+  async function context(snapshot, toleratePageError) {
     var tab=await U.activeTab();
     if(!tab || !AEView.arenaUrl(tab.url)) throw new Error("Select an Arena conversation tab first.");
     var key=AEView.conversationKey(tab.url);
     var result={tabId:tab.id, sessionKey:key || "tab:"+tab.id};
     if(snapshot) result.snapshot=await U.tabMessage(tab.id,{type:"AE_DOM_SNAPSHOT"});
+    if(result.snapshot && result.snapshot.error) {
+      if(!toleratePageError)throw new Error(result.snapshot.error);
+      result.snapshotError=result.snapshot.error;delete result.snapshot;
+    }
     if(result.snapshot && AEView.conversationKey(result.snapshot.url) !== key) throw new Error("The conversation changed. Reopen the extension and try again.");
     return result;
   }
@@ -29,6 +33,7 @@
     $("stat-messages").textContent=st.messageCount || 0;$("stat-thinking").textContent=counts.thinking || 0;
     $("stat-tools").textContent=counts.tool_call || 0;$("stat-artifacts").textContent=counts.artifact || 0;
     $("btn-folder").disabled=!AEView.conversationKey(tab.url);
+    $("btn-folder").textContent=st.nativeSink && st.nativeSink.state === "ok" ? "Folder path" : "Open folder";
     $("sink-status").textContent=failed ? "Save failed · "+(st.lastSync.error || "Try again") : st.lastSync && st.lastSync.ok ?
       "Saved "+U.date(st.lastSync.at,true) : st.nativeSink && st.nativeSink.state === "ok" ? "Archive app connected" : "Downloads / arena-archive";
     $("archive-dot").className="dot "+(failed ? "error" : st.lastSync && st.lastSync.ok ? "ok" : "idle");
@@ -48,13 +53,14 @@
         $("conversation-title").textContent="Ready when you are.";$("context-msg").textContent="Your archive stays with you.";
         $("capture-text").textContent="Standby";$("status-dot").className="dot idle";
       } else {
-        var ctx=await context(snapshot === true), res=U.require(await U.send(Object.assign({type:"AE_GET_STATE"},ctx)));render(res.state,tab);
+        var ctx=await context(snapshot === true,true), res=U.require(await U.send(Object.assign({type:"AE_GET_STATE"},ctx)));render(res.state,tab);
+        if(ctx.snapshotError)U.feedback(ctx.snapshotError,"warning");
       }
       var results=await Promise.all([U.send({type:"AE_GITHUB_STATUS"}),U.send({type:"AE_PREFERENCES"})]);
       var backup=results[0];$("backup-status").textContent=AEView.backupLabel(backup);
       $("backup-dot").className="dot "+(backup.error ? "warn" : backup.enabled ? "ok" : "idle");
       if(results[1].ok)$("auto-archive").checked=results[1].preferences.autoArchive;
-    } catch(error){U.feedback(error.message,"error");}finally{refreshing=false;}
+    } catch(error){$("capture-text").textContent="Check capture";$("status-dot").className="dot error";$("conversation-title").textContent="Unable to load conversation.";U.feedback(error.message,"error");}finally{refreshing=false;}
   }
   function updateExportLabel(){
     $("export-label").textContent="Export "+($("export-format").value==="markdown"?"Markdown":"JSON");
@@ -75,7 +81,7 @@
     U.feedback(result.completeness==="partial" ? "Saved with capture gaps. Review the capture notes." : "Conversation saved to your archive.",result.completeness==="partial"?"warning":null);await refresh();
   });});
   U.on("btn-folder","click",function(){return U.run("btn-folder","Opening conversation folder…",async function(){
-    U.require(await U.send(Object.assign({type:"AE_OPEN_FOLDER"},await context(false))));U.feedback("Opened the conversation folder.");
+    U.folderResult(await U.send(Object.assign({type:"AE_OPEN_FOLDER"},await context(false))));
   });});
   U.on("auto-archive","change",async function(){var desired=$("auto-archive").checked;$("auto-archive").disabled=true;
     try{U.require(await U.send({type:"AE_SET_PREFERENCES",preferences:{autoArchive:desired}}));U.feedback(desired?"Completed turns will archive automatically.":"Automatic archiving paused. Save now still works.");}

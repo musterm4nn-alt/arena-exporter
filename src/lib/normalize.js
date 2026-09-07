@@ -613,7 +613,7 @@ var AE = AE || {};
     var t = String(name == null ? "" : name).replace(/\s+/g, " ").trim();
     if (!t) return true;
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return true;
-    return /^(?:response|model|assistant|lane|player|option)\s*[ab]$/i.test(t);
+    return /^(?:response|model|assistant|lane|player|option)\s*[ab](?:\s+[ab]\s+is\s+better)?$/i.test(t);
   };
 
   /* ---------- orchestrator model identification (agent mode) ----------

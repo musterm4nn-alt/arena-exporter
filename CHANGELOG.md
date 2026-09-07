@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.2 — 2026-09-07
+
+- Fixed GitHub connection and backup failures on Chrome versions that expose the `browser` namespace. Firefox-only data permissions now require Firefox's `runtime.getBrowserInfo` capability; the namespace alone is not a browser detector.
+- Handle permission-request exceptions inside the connection form's error boundary, and keep quiet-download controls available in Chrome.
+- Regression coverage now simulates Chrome's `browser` alias, Firefox consent denial, and synchronous permission failures. All 20 suites pass, including packaged capture-bridge and toolbar-icon tests.
+
+## 2.1.1 — 2026-09-07
+
+- Fixed Chrome page capture failing because shared script URLs were deduplicated between execution worlds. The build now produces separate, self-contained page and content entry points.
+- Fixed missing toolbar icons, unresolved popup loading, and snapshot error handling. A failed page check now returns a clear recovery message.
+- Excluded unrelated history-list and banner bodies from exports, corrected DOM-only capture provenance and anonymous ballot labels, and recognized current patch/command tool headings.
+- Native archives now show their actual folder path when the installed archive helper cannot reveal a folder.
+- All 20 automated suites pass. Chrome checks exercised Battle capture, native saving, Last answer JSON and full-conversation Markdown downloads. Retrospective capture and model attribution still have limitations; see docs/verification.md.
+
 ## 2.1.0 — 2026-09-05
 
 - Rebuilt the popup and full-page workspace around locally bundled Departure Mono, ink surfaces, warm white text and cyan accents. Added keyboard focus, responsive layouts, explicit empty/error states and reduced-motion support.

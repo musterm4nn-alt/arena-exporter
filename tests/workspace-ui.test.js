@@ -9,5 +9,14 @@ const entries=Array.from({length:25},(_,i)=>({key:'c:'+i,title:i===0?'Unique wea
   assert.equal(view.filterEntries(entries,'Alpha','agent','recent').length,0);assert.equal(view.filterEntries(entries,'Alpha','battle','recent').length,12);assert.equal(view.filterEntries(entries,'','all','turns')[0].turns,24);
   assert.equal(view.arenaUrl('https://arena.ai.attacker.test/c/a'),false);assert.equal(view.backupLabel({ok:true,connected:true,enabled:true,pending:0}),'GitHub backup ready');assert.equal(view.backupLabel({ok:true,connected:true,enabled:true,pending:0,lastSuccess:'today'}),'Backed up to GitHub');
   await f.fire('btn-diagnostics');assert.equal(f.last('AE_SAVE_TEXT').filename,'arena-exporter-diagnostics.json');
+  const permissionRequests=[];
+  const chromeAlias=await uiFixture('options',{setup:c=>{c.browser=c.chrome;c.chrome.permissions.request=(p,cb)=>{assert.ok(!('data_collection' in p),'Chrome must never receive Firefox permission fields');permissionRequests.push(p);cb(true);};}});
+  assert.equal(chromeAlias.document.getElementById('chk-silent').disabled,false,'The Chrome browser alias must not disable quiet downloads');
+  await chromeAlias.fire('github-form','submit');assert.ok(chromeAlias.last('AE_GITHUB_CONFIGURE'));assert.equal(permissionRequests.length,1);
+  const firefoxRequests=[];
+  const firefox=await uiFixture('options',{setup:c=>{c.browser={runtime:{getBrowserInfo:async()=>({name:'Firefox'})},permissions:{request:async p=>{firefoxRequests.push(p);return false;}}};}});
+  await firefox.fire('github-form','submit');assert.equal(firefoxRequests[0].data_collection.length,3);assert.equal(firefox.last('AE_GITHUB_CONFIGURE'),undefined);
+  const thrown=await uiFixture('options',{setup:c=>{c.chrome.permissions.request=()=>{throw new Error('Permission request failed');};}});
+  await thrown.fire('github-form','submit');assert.equal(thrown.document.getElementById('progress-msg').textContent,'Permission request failed');assert.equal(thrown.document.getElementById('github-connect').disabled,false);
   console.log('Library search, filtering, pagination, folder/Arena actions, empty states, backup labels and diagnostics passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});

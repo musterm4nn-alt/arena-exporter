@@ -1,24 +1,36 @@
-# 2.1.0 verification
+# 2.1.2 verification
 
-The overhaul uses the 1.18.0 transport/archive components, with one capture engine, a refactored runtime and a new interface. It does not package the experimental 2.0.0 engine alongside the repaired implementation.
+The September 7 permissions fix was verified with Chrome's `browser` namespace present, Firefox data-consent enforcement, and thrown permission requests. It preserves the 2.1.1 capture and icon fixes. Chrome's retained error list included the old standalone `src/content.js:184` implementation; 2.1.1 and later load `src/injected-content.js` instead. Old error entries alone do not establish a new failure.
+
+References: [Chrome browser namespace](https://developer.chrome.com/docs/extensions/develop/concepts/browser-namespace), [Firefox permissions.request](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/permissions/request).
 
 ## Automated checks
 
-Run `npm test` (or `node tools/run-tests.mjs`) with Node 20 or newer. This builds the two browser distributions before running every JavaScript suite.
+Run `npm test` or `node tools/run-tests.mjs` with Node 20 or newer. The runner builds both browser packages and runs all 20 JavaScript suites. All 20 passed on September 7, 2026.
 
-Coverage includes network response cloning/streaming, request and tab isolation, multiple turns, metadata and model provenance, DOM fallback, last-answer export, delayed Firefox Blob consumption, interrupted/cancelled downloads, archive paths and index handling, native fallback, GitHub retry/concurrency/privacy, generated Firefox background loading, preferences after restart, serialized persistence, parse-cache invalidation, and popup/library controller interactions.
+Coverage includes network streaming, tab/request isolation, multiple turns, DOM fallback, model provenance, scoped exports, cancelled downloads, archive writes, native fallback, GitHub retries/privacy, Firefox background loading, serialized persistence, popup/workspace controls and preferences. New injection regressions load each packaged execution-world bundle independently, including a browser-style shared-URL deduplication simulation, and verify capture bridging, redaction and snapshot error responses.
 
-The UI harness runs the production HTML's scripts with a lightweight document and browser-API fixture. It exercises search, pagination, filters, links, format/scope selection, copy, reset confirmation, action failures and disabled/empty states. It does not provide a rendering engine or claim full accessibility validation.
+The UI harness exercises production controllers with a lightweight document fixture. It does not provide a rendering engine or full accessibility validation.
 
-## Live-check limitation
+## Chrome checks, September 5–6
 
-No browser was connected to the available browser-control tool during this implementation. The in-app browser was unavailable and the browser inventory was empty. Consequently the new screens were not visually inspected in a live browser, and live Arena capture, an installed Firefox add-on, native macOS behavior and a real extension-initiated GitHub backup were not exercised during this release work.
+- Reproduced the 2.1.0 popup stuck on loading, missing toolbar icons and the broken page-to-extension bridge. Loaded 2.1.1 into the existing unpacked Chrome installation and verified that the popup opened and capture resumed.
+- Visually inspected the Departure Mono popup, scope controls, format menu and archive status.
+- Saved a three-round Battle through the native archive app and inspected its JSON and Markdown on disk. The archive contained three prompts, six replies, 165 tool-call records and file data. This does not establish complete capture: a stream-completeness warning was present.
+- Downloaded Last answer JSON and full-conversation Markdown through the actual popup. Chrome reported both downloads complete. The scoped JSON contained one Battle round, one request and no raw stream samples.
+- Found that the native host cannot reveal folders. The revised interface displays the actual native folder path instead of reporting an opened folder. Downloads-based folder reveal remains separately covered by tests.
 
-`npm run preview` serves the actual popup and workspace at `http://127.0.0.1:4178/src/popup.html` and `/src/options.html`, using explicitly labeled synthetic data. Add `?fixture=empty`, `?fixture=error`, or `?fixture=streaming` to inspect popup states. These fixtures are excluded from the extension ZIPs. No Arena/GitHub requests are made by the preview.
+## Remaining limitations
 
-Before relying on a newly installed build, check a short Agent conversation and a Battle, export the last answer, open the resulting folder, and verify a private-backup commit if backups are configured. This is the outstanding browser smoke check, not a claim that it has already passed.
+The Battle already running before the bridge repair was only partially recoverable from the page. Missing historical prompts, hidden reasoning and tool bodies cannot be assumed recovered. The newer archive contained no reasoning text.
+
+Model labels in the newer export did not match the model tabs visible in the current Arena preview. Attribution across rounds and the current page layout needs further investigation. Do not treat those labels as verified training-data attribution solely because a provenance field is present.
+
+The final auxiliary-data filtering, placeholder-label and native-folder-path adjustments passed automated checks but have not all been re-exercised after a browser reload. Installed Firefox behavior, macOS native behavior and a real extension-initiated GitHub backup were not exercised in these checks.
+
+`npm run preview` serves explicitly labeled synthetic fixtures. These fixtures are excluded from the packages and are not evidence of live capture.
 
 ## Browser API references
 
-- Firefox uses ordered background scripts; Chrome uses a service worker. [MDN background manifest](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background).
-- Export success waits for download completion, rather than the start callback. [Chrome downloads API](https://developer.chrome.com/docs/extensions/reference/api/downloads).
+- [MDN background manifest](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background)
+- [Chrome downloads API](https://developer.chrome.com/docs/extensions/reference/api/downloads)

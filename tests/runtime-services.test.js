@@ -12,6 +12,13 @@ const plain=x=>JSON.parse(JSON.stringify(x)),tick=()=>new Promise(r=>setImmediat
   w.context.AE.parseCachedEvaluation(s,'round',raw+'\n',null);assert.equal(parses,2);w.context.AE.parseCachedEvaluation(s,'round',raw+'\n',{mode:'direct'});assert.equal(parses,3);
   w.context.store.sessions['c:cache']=s;w.context.store.activeKey='default';s.messages=[{role:'user',content:[{type:'text',text:'Target only'}]}];
   const out=w.context.buildExport('full_history',null,s);assert.equal(out.payload.session.conversation_key,'c:cache');assert.equal(w.context.store.activeKey,'default');
+  s.streamSamples=[{url:'/api/history/unified?limit=20',sample:'Unrelated private conversation'},{url:'/nextjs-api/stream/create-evaluation',sample:'Current transport'}];
+  s.capturedRequests=[{url:'/nextjs-api/autoeval/release-banner',body:'Unrelated banner'}];
+  const scopedFull=w.context.buildExport('full_history',null,s).payload;
+  assert.equal(scopedFull.meta.stream_samples.length,1);assert.equal(scopedFull.meta.captured_requests.length,0);
+  assert.ok(!JSON.stringify(scopedFull).includes('Unrelated private'));
+  assert.equal(w.context.AE.isPlaceholderModel('Option A A is better'),true);
+  assert.equal(w.context.AE.isPlaceholderModel('Option B B is better'),true);
   s.messages=[['user','Old prompt'],['assistant','Old answer'],['user','Current prompt'],['assistant','Current answer']].map(([role,text])=>({role,content:[{type:'text',text}]}));
   s.streamSamples=[{sample:'Old prompt'}];s.capturedRequests=[{request_id:'old',body:'Old prompt'},{request_id:'new',body:'Current prompt'}];
   s.requestAttempts=[{request_id:'old',mode:'agent'},{request_id:'new',mode:'agent'}];

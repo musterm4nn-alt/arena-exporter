@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Arena Exporter",
-  "version": "2.1.0",
+  "version": "2.1.2",
   "description": "Your Arena conversations, kept. Capture, export and archive every turn, with optional private GitHub backup.",
   "icons": {
     "16": "icons/icon16.png",
@@ -82,10 +82,7 @@
         "https://*.lmarena.ai/*"
       ],
       "js": [
-        "src/lib/schema.js",
-        "src/lib/privacy.js",
-        "src/lib/page-data.js",
-        "src/interceptor.js"
+        "src/injected-main.js"
       ],
       "run_at": "document_start",
       "world": "MAIN"
@@ -98,12 +95,7 @@
         "https://*.lmarena.ai/*"
       ],
       "js": [
-        "src/lib/schema.js",
-        "src/lib/privacy.js",
-        "src/lib/page-data.js",
-        "src/lib/dom-extract.js",
-        "src/history-backfill.js",
-        "src/content.js"
+        "src/injected-content.js"
       ],
       "run_at": "document_start"
     }

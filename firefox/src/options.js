@@ -40,7 +40,7 @@
       var actions=U.element("td"),row=U.element("div","row-actions"),folder=U.element("button","","▱"),arena=U.element("button","","↗");
       folder.title="Open folder: "+e.title;folder.setAttribute("aria-label",folder.title);
       folder.addEventListener("click",async function(){folder.disabled=true;U.feedback("Opening conversation folder…");
-        try{U.require(await U.send({type:"AE_OPEN_ARCHIVED_FOLDER",key:e.key}));U.feedback("Opened the conversation folder.");}catch(error){U.feedback(error.message,"error");}finally{folder.disabled=false;}});
+        try{U.folderResult(await U.send({type:"AE_OPEN_ARCHIVED_FOLDER",key:e.key}));}catch(error){U.feedback(error.message,"error");}finally{folder.disabled=false;}});
       arena.title="Open on Arena: "+e.title;arena.setAttribute("aria-label",arena.title);arena.disabled=!AEView.arenaUrl(e.url);arena.addEventListener("click",function(){openConversation(e);});
       row.append(folder,arena);actions.appendChild(row);tr.appendChild(actions);$("library-rows").appendChild(tr);
     });
@@ -69,13 +69,15 @@
     $("backup-summary-note").textContent=st.lastSuccess&&!st.pending&&!st.error?"Last upload "+U.date(st.lastSuccess):st.enabled?"Your private repository":"Connect in GitHub backup";
   }
   function githubPermission(){
-    if(typeof browser!=="undefined")return browser.permissions.request({origins:["https://api.github.com/*"],data_collection:["personalCommunications","websiteContent","authenticationInfo"]});
+    // Chrome also exposes `browser`. Only Firefox provides getBrowserInfo.
+    if(typeof browser!=="undefined" && browser.runtime && typeof browser.runtime.getBrowserInfo==="function")return browser.permissions.request({origins:["https://api.github.com/*"],data_collection:["personalCommunications","websiteContent","authenticationInfo"]});
     return new Promise(function(resolve){chrome.permissions.request({origins:["https://api.github.com/*"]},function(granted){void chrome.runtime.lastError;resolve(granted);});});
   }
   U.reconcile=function(){if(backup)renderBackup(backup);};
-  U.on("github-form","submit",function(event){event.preventDefault();var permission=githubPermission();
+  U.on("github-form","submit",function(event){event.preventDefault();
     return U.run("github-connect","Connecting to your private repository…",async function(){
-      if(!await permission)throw new Error("Allow GitHub access to enable backup.");
+      // Start inside the error boundary, synchronously within the user gesture.
+      if(!await githubPermission())throw new Error("Allow GitHub access to enable backup.");
       var st=U.require(await U.send({type:"AE_GITHUB_CONFIGURE",config:{repo:$("github-repo").value,branch:$("github-branch").value,folder:$("github-folder").value,token:$("github-token").value}}));
       $("github-token").value="";renderBackup(st,true);U.feedback("Connected. New archive writes will be backed up automatically.");
     });
@@ -98,7 +100,7 @@
   U.on("auto-archive","change",async function(){var wanted=$("auto-archive").checked;$("auto-archive").disabled=true;
     try{U.require(await U.send({type:"AE_SET_PREFERENCES",preferences:{autoArchive:wanted}}));U.feedback(wanted?"Completed turns will archive automatically.":"Automatic archiving paused. Manual saves still work.");}
     catch(error){$("auto-archive").checked=!wanted;U.feedback(error.message,"error");}finally{$("auto-archive").disabled=false;}});
-  var silentSupported=!!(chrome.downloads&&chrome.downloads.setUiOptions)&&typeof browser==="undefined";
+  var silentSupported=!!(chrome.downloads&&chrome.downloads.setUiOptions);
   $("chk-silent").disabled=!silentSupported;if(!silentSupported)$("silent-note").textContent="Unavailable in this browser.";
   U.on("chk-silent","change",async function(){var wanted=$("chk-silent").checked;
     var permission=wanted?new Promise(function(resolve){chrome.permissions.request({permissions:["downloads.ui"]},function(granted){void chrome.runtime.lastError;resolve(granted);});}):Promise.resolve(true);

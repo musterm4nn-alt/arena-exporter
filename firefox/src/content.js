@@ -172,16 +172,14 @@
 
     if (msg.type === "AE_DOM_SNAPSHOT") {
       // Expand collapsed thinking/tool panels first, then scrape.
-      AE.dom.expandCollapsed().then(function () {
-        var snapshot;
-        try {
-          snapshot = AE.dom.extract();
-          snapshot.battle = AE.dom.battleInfo();
-          snapshot.pageData = readPageData();
-        } catch (e) {
-          snapshot = { source: "dom", url: location.href, messages: [], battle: null, error: String(e) };
-        }
-        sendResponse(AE.scrubSecrets(snapshot));
+      Promise.resolve().then(function () { return AE.dom.expandCollapsed(); }).then(function () {
+        var snapshot = AE.dom.extract();
+        snapshot.battle = AE.dom.battleInfo();
+        snapshot.pageData = readPageData();
+        return AE.scrubSecrets(snapshot);
+      }).then(sendResponse, function () {
+        // Always close the message channel; never return an unfiltered snapshot.
+        sendResponse({ error: "Page capture failed. Let the current response finish, then reload the Arena tab." });
       });
       return true; // async response
     }
