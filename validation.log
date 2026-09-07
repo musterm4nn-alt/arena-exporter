@@ -1,0 +1,195 @@
+
+> arena-exporter@2.2.0 test
+> node tools/run-tests.mjs
+
+Arena-Agent-Exporter-2.2.0-chrome: 73 files, unpacked folder and ZIP ready
+Arena-Agent-Exporter-2.2.0-firefox: 73 files, unpacked folder and ZIP ready
+PASS archive-folder.test.js
+PASS archive-sink.test.js
+PASS archive.test.js
+FAIL background.test.js
+Session hint from realtime endpoint:
+Ingest a user prompt (JSON envelope):
+Ingest streamed assistant turn (SSE deltas):
+Request body capture (/in/append user prompt):
+Second turn:
+Workspace manifest → artifacts:
+WebSocket fallback + unknown stream chunk:
+UIMessage snapshot semantics (growing /out snapshots):
+Realtime records envelope + data-stream chunks:
+Battle (evaluation) stream capture:
+Full-history export:
+  ✓ schema_version present
+  ✓ real session UUID recorded
+  ✓ filename carries session id prefix
+  ✓ filename pattern
+  ✓ workspace files became artifacts
+  ✓ websocket assistant text captured
+  ✓ raw stream chunk sampled in meta
+  ✓ sse_raw frame sampled in meta
+  ✓ user prompt recovered from request body
+  ✓ meta stats present
+  ✓ UIMessage echo deduped by id
+  ✓ growing snapshot replaced, not duplicated
+  ✓ final snapshot content wins
+  ✓ records envelope assembled into one message
+  ✓ reasoning deltas merged
+  ✓ tool input deltas reassembled into args
+  ✓ tool output linked
+  ✓ text deltas merged
+  ✓ thinking deltas merged
+  ✓ tool_call captured
+  ✓ tool_result linked to call_id
+  ✓ tool_call status updated by result
+  ✓ final text block present
+  ✓ summary rollup
+  ✓ action rollup from create_file
+  ✓ turn_count = user messages
+  ✓ uncaptured files and anonymous models are marked partial
+  ✓ battle reconstructed from evaluation stream
+  ✓ battle prompt
+  ✓ battle contestants A/B text
+  ✓ battle anonymous without DOM names
+  ✓ export source mode = battle
+  ✓ attribution samples present
+  ✓ battle samples split by lane
+  ✓ lane A sample has no opponent text
+  ✓ samples omit vote/winner fields
+  ✓ unlabeled before reveal
+Battle attribution + winner from DOM snapshot:
+  ✓ contestants named from DOM
+  ✓ winner lane mapped from green highlight
+Modern code-battle DOM backfills a missed lane:
+  ✓ empty network lane A response is backfilled from DOM
+  ✓ network lane B remains authoritative
+  ✓ DOM tool metadata backfills the missed lane
+  ✓ DOM-recovered code lane keeps the code subtype
+  ✓ DOM-only reopened battle preserves both responses
+  ✓ DOM-only reopened battle preserves tools and file paths
+  ✓ DOM-only reopened code battle is classified as code
+  ✓ anonymous DOM-only reopened battle is still exported
+  ✓ anonymous DOM-only battle keeps lane text and code metadata
+  ✓ anonymous DOM-only battle can retain a lane winner without inventing a model
+Pending default + manual override:
+  ✓ pending when ballot gone and no vote
+  ✓ manual override sets A
+Captured ballot outcomes:
+  ✓ A vote recorded
+  ✓ B vote recorded
+  ✓ both-good vote recorded
+  ✓ neither vote recorded
+Last-message export:
+  ✓ last_message = triggering user prompt + last assistant turn
+  ✓ export.mode recorded
+DOM-only backfill:
+  ✓ DOM messages used when network empty
+  ✓ backfill warning recorded
+DOM backfills missed prefix around a network anchor:
+  ✓ older DOM message merged
+  ✓ mixed capture source recorded
+Multiple evaluation responses remain separate:
+  ✓ two evaluation streams exported separately
+  ✓ latest-only model attribution avoids mislabeling old battle
+DOM-only battle (reloaded after vote, no stream):
+  ✓ dom-only battle built from headers
+  ✓ dom-only winner from green pane
+Empty UIMessage snapshot does not wipe existing content:
+  ✓ empty snapshot left prior text
+Session isolation across tabs:
+  ✓ tab A only has its prompt
+  ✓ tab B only has its prompt
+  ✓ popup state is selected by its active tab
+  ✓ mismatched tab and DOM snapshot is rejected
+Labeled sample after model reveal does not leak vote:
+  ✓ reveal labels model on same sample id
+  ✓ labeled sample has no vote field
+Live webdev dump replay:
+  ✓ live prompt recovered
+  ✓ live eval id recovered
+  ✓ idle ballot does not become both_good
+  ✓ placeholder names are anonymous
+  ✓ live samples unlabeled
+  ✓ recaptcha not in export
+  ✓ no empty-conversation warning on battle export
+  ✓ live files captured
+  ✓ click records A win
+  ✓ revealed models labeled
+  ✓ sample ids stable
+  ✓ raw eval stream omitted from export
+Battle rounds do not inherit each other's evaluation id:
+  ✓ both rounds exported
+  ✓ rounds kept their own lane text
+  ✓ older round did not inherit newer evaluation_id
+  ✓ older round did not inherit newer message_id
+  ✓ newest round still resolves its id from the request log
+Warnings are deduped and bounded:
+  ✓ repeated abort recorded once
+Idle sessions are evicted before storage fills:
+  ✓ session count capped
+  ✓ most recent conversation survived
+  ✓ oldest conversation evicted
+Multi-turn battle: reveal labels every turn, each turn keeps its prompt:
+  ✓ all four turns exported
+  ✓ every turn kept its own prompt
+  ✓ every turn labeled from the single reveal
+  ✓ lane A is grok across all turns
+  ✓ lane B is gemini across all turns
+  ✓ propagated labels are marked as such
+  ✓ only the voted turn carries the outcome
+  ✓ export records the extension version
+Context provenance: decisive vote cross-contaminates the losing lane:
+  ✓ three rounds exported
+  ✓ first turn marked first_turn
+  ✓ after an A win, A continues itself
+  ✓ after an A win, B is cross-contaminated
+  ✓ after both_good, each lane stays on its own thread
+  ✓ votes zipped onto their own rounds
+  ✓ samples carry context provenance
+Capture events from non-arena tabs are ignored:
+  ✓ non-arena sender dropped
+lmarena.ai (legacy host) senders are accepted:
+  ✓ lmarena.ai sender accepted
+
+110 passed, 2 failed
+  ✗ battle subtype web-search via citations
+  ✗ battle sources captured
+
+PASS capture-health.test.js
+PASS capture-metadata.test.js
+PASS dom-extract.test.js
+PASS export-download.test.js
+PASS fixes.test.js
+PASS github-backup.test.js
+PASS injection.test.js
+PASS interceptor.test.js
+PASS native-sink.test.js
+PASS normalize.test.js
+PASS packaging.test.js
+PASS popup-routing.test.js
+FAIL production-overhaul.test.js
+AssertionError [ERR_ASSERTION]: Values have same structure but are not reference-equal:
+
+[
+  'battle prompt 1',
+  'battle prompt 2'
+]
+
+    at /home/runner/work/arena-exporter/arena-exporter/tests/production-overhaul.test.js:67:12 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: [Array],
+  expected: [Array],
+  operator: 'deepStrictEqual'
+}
+
+PASS reliability.test.js
+PASS runtime-services.test.js
+PASS turn-sync.test.js
+PASS workspace-ui.test.js
+
+19/21 JavaScript suites passed
+
+> arena-exporter@2.2.0 site:check
+> node tools/check-site.mjs
+
+Static presentation site is self-contained and passed structural checks.
