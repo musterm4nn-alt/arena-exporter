@@ -18,8 +18,29 @@ jobs:
       - name: Apply audited overhaul
         run: node tools/apply-overhaul.mjs
       - name: Validate extension and site
-        run: npm test && npm run site:check
+        id: validate
+        continue-on-error: true
+        run: |
+          set +e
+          npm test > validation.log 2>&1
+          TEST_STATUS=$?
+          npm run site:check >> validation.log 2>&1
+          SITE_STATUS=$?
+          cat validation.log
+          if [ "$TEST_STATUS" -ne 0 ] || [ "$SITE_STATUS" -ne 0 ]; then exit 1; fi
+      - name: Publish validation failure
+        if: steps.validate.outcome == 'failure'
+        run: |
+          git config user.name "arena-exporter-overhaul"
+          git config user.email "actions@users.noreply.github.com"
+          git add validation.log
+          git commit -m "Record overhaul validation failure [overhaul applied]"
+          git push origin HEAD:overhaul/production-2.2
+      - name: Fail validation
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
       - name: Commit validated result
+        if: steps.validate.outcome == 'success'
         run: |
           rm tools/apply-overhaul.mjs .github/workflows/apply-overhaul.yml
           git config user.name "arena-exporter-overhaul"
