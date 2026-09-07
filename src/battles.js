@@ -1,2 +1,3 @@
-/* Temporary loader — real implementation in battles.impl.js (GitHub restore). */
-importScripts("src/battles.impl.js");
+/* Temporary split loader (GitHub restore). */
+importScripts("src/battles.p1.js");
+importScripts("src/battles.p2.js");
