@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Arena Exporter",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArhQpGxV1Ter6QjTSEm27ZiKNjdxpTf4P0uHH20qxzVRHexkuXD3DDUqiqgVDOEfMVMrc9/CuU6YbsrsNvawFNIhZRXugBtsfvu673zyKJjkpZQYZR5v9hzCKxIMQBNJ2u+KE1M5V4zPe/tlq6NSLol1EU+LEeqN481kpcEGoLfvAygGVm33w8TGo99OHcRHdixTmmRzH/OHKZbdRzVydVzOYwQKUFrbspC563YRfyZ+FiNQFbsd6xTJHskrmpVPe+RiJLhBne9JY8CroYtQc0NwyKyHY2Cad/UVSADnDi0DZ3lWeoIriThMzCEcq9Ah3kHzrS+OWwkoHV5qIhWu08wIDAQAB",
   "description": "Your Arena conversations, kept. Capture, export and archive every turn, with optional private GitHub backup.",
   "icons": {

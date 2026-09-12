@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.3 — 2026-09-12
+
+- Battle lanes now prefer Arena's visible tab labels over request-to-catalog joins. The public catalog remains a fallback for lanes the page has not named yet, so a catalog `publicName` that disagrees with the preview tabs no longer overrides what the page shows.
+- Repaired the released battle sources. The temporary split (`src/battles.p1.js` plus `src/battles.p2.js`, and the abandoned base64 chunks) is replaced by a single `src/battles.js`. The split loader called `importScripts` from inside a module, which resolved to `src/src/…` and could not load in either browser; `importScripts` is also not available to a Firefox MV3 background script.
+- Removed five unreferenced files: `battles.p2a.js`, `battles.p2a1.js`, `battles.p2a2.js`, `battles.p2b1.js` and `battles.p2b2.js`. One of them contained only the literal text `PLACEHOLDER_LOAD_FROM_FILE`.
+- Rebuilt the Firefox tree, which still carried the split loader and its two parts.
+- All 20 automated suites pass, including the previously failing packaged Firefox background load.
+
 ## 2.1.2 — 2026-09-07
 
 - Fixed GitHub connection and backup failures on Chrome versions that expose the `browser` namespace. Firefox-only data permissions now require Firefox's `runtime.getBrowserInfo` capability; the namespace alone is not a browser detector.
