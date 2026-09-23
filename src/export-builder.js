@@ -214,6 +214,7 @@ function buildExport(mode, domSnapshot, session) {
       transcript: s.transcriptMetadata || null,
       model_catalog: s.modelCatalog ? { source_url: s.modelCatalog.source_url, captured_at: s.modelCatalog.captured_at, row_count: s.modelCatalog.models.length } : null,
       model_hints: { verified: false, names: orchestrator.candidates || [] },
+      archive_limits: AE.archiveLimits || null,
       battle_votes: s.battleVotes || [],
       captured_requests: (s.capturedRequests || []).filter(function (r) {
         return EVAL_URL_RE.test(r.url || "") || (s.requestAttempts || []).some(function (a) { return a.request_id && a.request_id === r.request_id; });

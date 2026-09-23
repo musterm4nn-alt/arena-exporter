@@ -49,7 +49,10 @@ final class ArchiveViewModel: ObservableObject {
     }
 
     func loadMarkdown(rel: String) {
-        let url = store.root.appendingPathComponent(rel).appendingPathComponent("conversation.md")
+        guard let url = try? store.safeRelpath(rel + "/conversation.md") else {
+            markdown = "(archive path unavailable)\n\(rel)"
+            return
+        }
         if let text = try? String(contentsOf: url, encoding: .utf8) {
             markdown = text
         } else {

@@ -36,7 +36,7 @@
   window.addEventListener("message", function (ev) {
     if (ev.source !== window || !ev.data || ev.data.type !== AE.MSG_NS) return;
     if (ev.origin && ev.origin !== location.origin) return;
-    if (!ev.data.evt || !ALLOWED_EVT_KINDS[ev.data.evt.kind]) return;
+    if (!ev.data.evt || !Object.prototype.hasOwnProperty.call(ALLOWED_EVT_KINDS, ev.data.evt.kind)) return;
     try {
       chrome.runtime.sendMessage({ type: "AE_EVENT", evt: ev.data.evt }, function () {
         void chrome.runtime.lastError; // swallow "worker sleeping" races

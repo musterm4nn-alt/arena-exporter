@@ -35,9 +35,24 @@ final class ArchiveKitTests: XCTestCase {
         XCTAssertEqual(store.resolve("c:abc")?.subtype, "text")
     }
 
-    func testSlugStable() {
-        let a = ArchiveStore.slug(title: "Liquid glass LLM dashboard", key: "c:01a01b66-19b7")
-        XCTAssertTrue(a.contains("liquid-glass"))
-        XCTAssertTrue(a.contains("01a01b66"))
+    func testDirectAndSideBySideLayouts() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = ArchiveStore(root: dir)
+        let direct: [String: Any] = ["key": "c:direct-123", "mode": "direct", "subtype": "text", "title": "Direct", "models": [], "models_pending": false]
+        let directResult = try store.sync(chat: direct, files: [["path": "conversation.md", "content": "# direct"]])
+        XCTAssertTrue(directResult.rel.hasPrefix("direct/text/"))
+        let side: [String: Any] = ["key": "c:side-123", "mode": "side-by-side", "subtype": "code", "title": "Side", "models": [], "models_pending": false]
+        let sideResult = try store.sync(chat: side, files: [["path": "conversation.md", "content": "# side"]])
+        XCTAssertTrue(sideResult.rel.hasPrefix("side-by-side/code/"))
+    }
+
+    func testEncodedFileAndFullSlug() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = ArchiveStore(root: dir)
+        let chat: [String: Any] = ["key": "c:01a01b66-19b7", "mode": "agent", "title": "Full id", "models": [], "models_pending": false]
+        let result = try store.sync(chat: chat, files: [["path": "files/blob.bin", "encoding": "base64", "content": "aGVsbG8="]])
+        XCTAssertTrue(result.rel.contains("01a01b66-19b7"))
+        let data = try Data(contentsOf: store.safeRelpath(result.rel + "/files/blob.bin"))
+        XCTAssertEqual(String(data: data, encoding: .utf8), "hello")
     }
 }

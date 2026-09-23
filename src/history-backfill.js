@@ -19,6 +19,22 @@ var AE = AE || {};
   var PAGE_SIZE = 20;
   var PAGE_GUARD = 200;
   var ITEM_GAP_MS = 180;
+  var REQUEST_TIMEOUT_MS = 30000;
+
+  async function fetchWithTimeout(url, options) {
+    var controller = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = setTimeout(function () { if (controller) controller.abort(); }, REQUEST_TIMEOUT_MS);
+    var requestOptions = Object.assign({}, options || {});
+    if (controller) requestOptions.signal = controller.signal;
+    try {
+      return await fetch(url, requestOptions);
+    } catch (error) {
+      if (error && error.name === "AbortError") throw new Error("History request timed out after " + (REQUEST_TIMEOUT_MS / 1000) + " seconds.");
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   AE.historyUuid = function (text) {
     var m = UUID_RE.exec(String(text || ""));
@@ -53,7 +69,7 @@ var AE = AE || {};
   AE.historyNormalizeContent = asText;
 
   async function fetchJson(url) {
-    var res = await fetch(url, {
+    var res = await fetchWithTimeout(url, {
       method: "GET",
       credentials: "include",
       headers: { Accept: "application/json, text/plain, */*" }
@@ -85,7 +101,7 @@ var AE = AE || {};
   }
 
   async function fetchText(url) {
-    var res = await fetch(url, {
+    var res = await fetchWithTimeout(url, {
       method: "GET",
       credentials: "include",
       headers: { Accept: "text/html,application/xhtml+xml,application/json" }

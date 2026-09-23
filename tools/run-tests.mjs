@@ -21,5 +21,11 @@ for (const file of suites) {
     console.log("PASS " + file);
   }
 }
-console.log("\n" + (suites.length - failed) + "/" + suites.length + " JavaScript suites passed");
-process.exitCode = failed ? 1 : 0;
+const projectCheck = spawnSync(process.execPath, [path.join(root, "tools/check-project.mjs")], { cwd: root, stdio: "inherit", timeout: 30000 });
+if (projectCheck.error || projectCheck.status !== 0) {
+  console.error("FAIL project check");
+  process.exitCode = 1;
+} else {
+  console.log("\n" + (suites.length - failed) + "/" + suites.length + " JavaScript suites passed");
+  process.exitCode = failed ? 1 : 0;
+}

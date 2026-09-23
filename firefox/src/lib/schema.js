@@ -24,6 +24,11 @@ AE.ROLES = ["user", "assistant", "system", "tool"];
 /* Canonical battle-vote choices. A/B identify a single preferred lane;
  * both_good and neither_good preserve the two non-singular ballot outcomes. */
 AE.BATTLE_VOTE_CHOICES = ["A", "B", "both_good", "neither_good"];
+AE.BATTLE_OUTCOMES = ["pending", "a_wins", "b_wins", "both_good", "neither_good", "not_applicable"];
+
+AE.normalizeBattleOutcome = function (value) {
+  return value === "both_bad" ? "neither_good" : (AE.BATTLE_OUTCOMES.includes(value) ? value : "pending");
+};
 
 AE.isPlaceholderModel = function (name) {
   var t = String(name == null ? "" : name).replace(/\s+/g, " ").trim();

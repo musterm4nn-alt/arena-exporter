@@ -1,6 +1,6 @@
 # Export metadata in schema 2.1
 
-Schema 2.1 adds provenance and transport evidence without removing the schema 2.0 conversation structures. A consumer can continue to use `messages[]`, `battles[]`, and `attribution_samples[]` while adopting the fields below incrementally.
+Schema 2.1 remains the compatibility contract through the 2.2 extension release. It adds provenance and transport evidence without removing the schema 2.0 conversation structures. A consumer can continue to use `messages[]`, `battles[]`, and `attribution_samples[]` while adopting the fields below incrementally.
 
 ## Mode and shape
 
@@ -13,7 +13,7 @@ Schema 2.1 adds provenance and transport evidence without removing the schema 2.
 | `direct` / `direct-battle` | `battles[]` | A only | `not_applicable` |
 | `side-by-side` | `battles[]` | A and B | `not_applicable` |
 
-The existing `battles` name remains the compatibility container for selected-model evaluation turns. `mode` on each round identifies its actual semantics.
+The existing `battles` name remains the compatibility container for selected-model evaluation turns. `mode` on each round identifies its actual semantics. `neither_good` is the canonical outcome for a negative Battle ballot; older `both_bad` values are accepted as legacy input but are not emitted by 2.2.
 
 History API backfill can retain a single Direct answer as a user/assistant pair in `messages[]`; its observed mode and separately stored model ID are still preserved.
 

@@ -35,10 +35,10 @@
     if(m.type==='AE_TEST_ARCHIVE')return {ok:true,resolved:'Downloads/arena-archive/_selftest.txt'};
     if(m.type==='AE_SET_MANUAL_VOTE')return {ok:true,state};
     if(m.type==='AE_HISTORY_BACKFILL')return {ok:true,written:6,skipped:0,failed:0};
-    if(m.type==='AE_DIAGNOSTICS')return {ok:true,diagnostics:{version:'2.1.0',schema:'2.1',created_at:'2026-09-05T10:00:00Z',capture:{sessions:6,events:1824,storage_errors:0},auto_archive:data.ae_preferences.autoArchive,issues:[],privacy:'Synthetic preview. No conversation content, URLs or credentials.'}};
+    if(m.type==='AE_DIAGNOSTICS')return {ok:true,diagnostics:{version:'2.2.0',schema:'2.1',created_at:'2026-09-05T10:00:00Z',capture:{sessions:6,events:1824,storage_errors:0},auto_archive:data.ae_preferences.autoArchive,issues:[],privacy:'Synthetic preview. No conversation content, URLs or credentials.'}};
     return {ok:false,error:'Unsupported preview action: '+m.type};
   };
-  window.chrome={runtime:{id:'preview',lastError:null,getManifest:()=>({version:'2.1.0'}),getURL:file=>location.origin+'/'+file,onMessage:{addListener:fn=>listeners.push(fn)},sendMessage:(m,cb)=>respond(m).then(r=>cb&&cb(r))},
+  window.chrome={runtime:{id:'preview',lastError:null,getManifest:()=>({version:'2.2.0'}),getURL:file=>location.origin+'/'+file,onMessage:{addListener:fn=>listeners.push(fn)},sendMessage:(m,cb)=>respond(m).then(r=>cb&&cb(r))},
     storage:{local:{get:(keys,cb)=>{let r={};keys.forEach(k=>r[k]=data[k]);if(cb)cb(r);else return Promise.resolve(r);},set:async o=>Object.assign(data,o)},onChanged:{addListener:fn=>storageListeners.push(fn)}},
     permissions:{request:(_p,cb)=>cb(true)},downloads:{setUiOptions:()=>{}},tabs:{query:async()=>[tab],create:async o=>{if(o.url.startsWith(location.origin))location.href=o.url;return {id:8};},sendMessage:(_id,m,cb)=>cb(m.type==='AE_DOM_SNAPSHOT'?{url:tab.url,messages:[],pageData:null}:m.type==='AE_DOM_DEBUG'?{redacted:true}:{ok:true})}};
   document.addEventListener('DOMContentLoaded',()=>{const badge=document.createElement('div');badge.textContent='DESIGN PREVIEW · SYNTHETIC DATA';badge.style.cssText='font:9px monospace;position:fixed;bottom:3px;right:8px;color:#819790;z-index:99;pointer-events:none';document.body.appendChild(badge);});

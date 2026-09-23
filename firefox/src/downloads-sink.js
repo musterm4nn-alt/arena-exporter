@@ -20,6 +20,11 @@ var AE = AE || {};
    * service worker. Cap the *encoded* URL, not the raw string: encodeURIComponent
    * can triple the size, and Chrome refuses data: URLs around 2MB. */
   var MAX_DATA_URL_BYTES = 1.8 * 1024 * 1024;
+  AE.ARCHIVE_LIMITS = {
+    downloadsDataUrlBytes: MAX_DATA_URL_BYTES,
+    attachmentFetchBytes: 15 * 1024 * 1024,
+    nativeFileBytes: 32 * 1024 * 1024
+  };
   var uiSuppressed = false;
 
   function mimeFor(path) {
@@ -147,7 +152,7 @@ var AE = AE || {};
         return Promise.resolve({
           ok: false,
           path: safe,
-          error: "too large for a data: URL (" + text.length + " bytes encoded)"
+          error: "too large for the Downloads data URL (" + text.length + " encoded bytes; native archive supports larger files)"
         });
       }
       fitted = { text: text, url: text };
@@ -158,7 +163,7 @@ var AE = AE || {};
       return Promise.resolve({
         ok: false,
         path: safe,
-        error: "too large for a data: URL (" + fitted.url.length + " bytes encoded)"
+        error: "too large for the Downloads data URL (" + fitted.url.length + " encoded bytes; native archive supports larger files)"
       });
     }
     return new Promise(function (resolve) {
@@ -367,6 +372,7 @@ var AE = AE || {};
             hashes: keep,
             destinations: destinations,
             completeness: detail ? detail.status : (payload.meta && payload.meta.completeness) || null,
+            completeness_detail: detail || null,
             files_with_bytes: detail && detail.files ? detail.files.withBytes : null,
             files_expected: detail && detail.files ? detail.files.expected : null
           };

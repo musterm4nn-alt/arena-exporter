@@ -4,7 +4,6 @@
 
 var STATE_KEY = "ae_store_v2";
 var LEGACY_STATE_KEY = "ae_state_v1";
-var DEDUPE_CAP = 20000;
 var MAX_SESSIONS = 12;
 var EVAL_TOTAL_CAP = 4 * 1024 * 1024; // raw battle stream bytes retained per session
 var MAX_WARNINGS = 50;
@@ -23,7 +22,6 @@ var pendingEvents = [];
 var stateReadyResolve = null;
 var stateReadyPromise = new Promise(function (resolve) { stateReadyResolve = resolve; });
 var saveTimer = null;
-var seenByKey = {};
 
 function genId(prefix) {
   return prefix + "_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -110,7 +108,6 @@ function hydrateSession(raw, key) {
   s.labelsPending = !!raw.labelsPending;
   (s.messages || []).forEach(function (m, index) {
     if (m && m.id != null && s.messageIndex[m.id] == null) s.messageIndex[m.id] = index;
-    ((m && m.content) || []).forEach(function (b) { registerSeenOn(s, b); });
   });
   return s;
 }
@@ -124,57 +121,6 @@ function conversationKeyFromUrl(url) {
   m = /\/api\/chat\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i.exec(url);
   if (m) return "s:" + m[1];
   return null;
-}
-
-function seenSetFor(s) {
-  var k = (s && s.session && s.session.conversation_key) || store.activeKey || "default";
-  if (!seenByKey[k]) seenByKey[k] = new Set();
-  return seenByKey[k];
-}
-
-function blockHash(b) {
-  if (!b || !b.type) return "unknown";
-  if (b.call_id) return b.type + "|call|" + String(b.call_id);
-  if (b.type === "thinking" || b.type === "text") {
-    return b.type + "|t|" + String(b.text || "");
-  }
-  var core = b.command != null
-    ? { command: b.command, exit_code: b.exit_code == null ? null : b.exit_code }
-    : {
-        t: b.type,
-        id: b.id || null,
-        n: b.tool_name || b.action || null,
-        a: b.arguments,
-        o: b.output,
-        target: b.target || null,
-        title: b.title || null
-      };
-  return b.type + "|" + String(JSON.stringify(core));
-}
-
-function registerSeenOn(s, b) {
-  if (!b || !b.type) return;
-  var set = seenSetFor(s);
-  var h = blockHash(b);
-  if (set.has(h)) {
-    set.delete(h);
-    set.add(h);
-    return;
-  }
-  if (set.size >= DEDUPE_CAP) {
-    var first = set.values().next().value;
-    if (first != null) set.delete(first);
-  }
-  set.add(h);
-}
-
-function isDuplicateOn(s, b) {
-  if (b.partial) return false;
-  var h = blockHash(b);
-  var set = seenSetFor(s);
-  if (set.has(h)) return true;
-  registerSeenOn(s, b);
-  return false;
 }
 
 function ensureState() {
@@ -207,8 +153,6 @@ function migrateSession(fromKey, toKey) {
     if (toKey.indexOf("s:") === 0 || toKey.indexOf("c:") === 0) {
       src.session.session_id = stripKeyPrefix(toKey);
     }
-    seenByKey[toKey] = seenByKey[fromKey] || seenSetFor(src);
-    delete seenByKey[fromKey];
     delete store.sessions[fromKey];
   } else if (src) {
     /* Real destination already exists. The source bucket can still hold real
@@ -229,7 +173,6 @@ function migrateSession(fromKey, toKey) {
           ? old.content : m.content;
         dst.messages[existingIndex] = merged;
       }
-      ((m && m.content) || []).forEach(function (b) { registerSeenOn(dst, b); });
     });
     (src.warnings || []).forEach(function (w) { addWarning(dst, w); });
     (src.battleVotes || []).forEach(function (v) { dst.battleVotes.push(v); });
@@ -276,7 +219,6 @@ function migrateSession(fromKey, toKey) {
     if (!dst.session.realtime_session_id) dst.session.realtime_session_id = src.session.realtime_session_id || null;
     if (/^[cs]:/.test(toKey)) dst.session.session_id = stripKeyPrefix(toKey);
     delete store.sessions[fromKey];
-    delete seenByKey[fromKey];
   }
   store.aliases[fromKey] = toKey;
   Object.keys(store.requestKeys).forEach(function (id) {
@@ -403,7 +345,6 @@ function pruneStore() {
     .sort(function (a, b) { return lastActivity(store.sessions[a]) - lastActivity(store.sessions[b]); });
   removable.slice(0, keys.length - MAX_SESSIONS).forEach(function (k) {
     delete store.sessions[k];
-    delete seenByKey[k];
     Object.keys(store.tabKeys).forEach(function (tid) {
       if (store.tabKeys[tid] === k) delete store.tabKeys[tid];
     });
@@ -423,7 +364,7 @@ function flushSave() {
   pruneStore();
   var payload = JSON.parse(JSON.stringify({ sessions: store.sessions, tabKeys: store.tabKeys,
     tabPages: store.tabPages, aliases: store.aliases, requestKeys: store.requestKeys, activeKey: store.activeKey }));
-  var task = saveChain.then(function () { return captureStorageArea().set({ [STATE_KEY]: payload }); });
+  var task = saveChain.then(function () { return storageSet(captureStorageArea(), { [STATE_KEY]: payload }); });
   saveChain = task.catch(function () {
     var s = ensureState();
     s.storageError = true;
@@ -475,7 +416,6 @@ function finishStateLoad(r) {
 function clearActiveSession() {
   var k = store.activeKey || "default";
   store.sessions[k] = freshState(k);
-  seenByKey[k] = new Set();
   scheduleSave();
 }
 
@@ -507,15 +447,64 @@ function captureStorageArea() {
   return chrome.storage.local;
 }
 
-function startStoreLoad() {
-  try {
-    var loadResult = captureStorageArea().get([STATE_KEY, LEGACY_STATE_KEY]);
-    if (loadResult && typeof loadResult.then === "function") {
-      loadResult.then(finishStateLoad).catch(function () { finishStateLoad({}); });
-    } else {
-      finishStateLoad(loadResult || {});
+function storageSet(area, value) {
+  return new Promise(function (resolve, reject) {
+    var settled = false;
+    function finish(error) {
+      if (settled) return;
+      settled = true;
+      if (error) reject(error instanceof Error ? error : new Error(String(error)));
+      else resolve();
     }
-  } catch (e) {
-    finishStateLoad({});
+    try {
+      var request = area.set(value, function () {
+        var runtimeError = chrome.runtime && chrome.runtime.lastError;
+        finish(runtimeError ? new Error(runtimeError.message || "storage write failed") : null);
+      });
+      if (request && typeof request.then === "function") request.then(function () { finish(); }, function (error) { finish(error); });
+    } catch (error) { finish(error); }
+  });
+}
+
+function storageGet(area, keys) {
+  return new Promise(function (resolve, reject) {
+    var settled = false;
+    function finish(value, error) {
+      if (settled) return;
+      settled = true;
+      if (error) reject(error instanceof Error ? error : new Error(String(error)));
+      else resolve(value || {});
+    }
+    try {
+      var request = area.get(keys, function (value) {
+        var runtimeError = chrome.runtime && chrome.runtime.lastError;
+        finish(value, runtimeError ? new Error(runtimeError.message || "storage read failed") : null);
+      });
+      if (request && typeof request.then === "function") request.then(function (value) { finish(value); }, function (error) { finish(null, error); });
+    } catch (error) { finish(null, error); }
+  });
+}
+
+function startStoreLoad() {
+  var area = captureStorageArea(), keys = [STATE_KEY, LEGACY_STATE_KEY], request;
+  function loadWithCallback() {
+    try {
+      area.get(keys, function (value) {
+        var runtimeError = chrome.runtime && chrome.runtime.lastError;
+        finishStateLoad(runtimeError ? {} : (value || {}));
+      });
+    } catch (error) { finishStateLoad({}); }
+  }
+  try {
+    request = area.get(keys);
+    if (request && typeof request.then === "function") {
+      request.then(finishStateLoad, function () { finishStateLoad({}); });
+    } else if (request !== undefined) {
+      finishStateLoad(request || {});
+    } else {
+      loadWithCallback();
+    }
+  } catch (error) {
+    loadWithCallback();
   }
 }

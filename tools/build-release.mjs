@@ -6,7 +6,9 @@ import { deflateRawSync } from "node:zlib";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error("Expected a three-part release version");
+if (packageJson.version !== manifest.version) throw new Error(`package version ${packageJson.version} does not match manifest ${manifest.version}`);
 
 function sourceFiles(relative) {
   return fs.readdirSync(path.join(root, relative), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).flatMap(entry => {
@@ -29,6 +31,10 @@ function write(relative, content) {
   }
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, content);
+}
+
+for (const required of ["src/background.js", "src/injected-main.js", "src/injected-content.js", "src/popup.html", "src/options.html", "src/fonts/DepartureMono-Regular.woff2"]) {
+  if (!fs.existsSync(path.join(root, required))) throw new Error("Missing required release input: " + required);
 }
 
 // Chrome can deduplicate a shared content-script URL across MAIN and ISOLATED
@@ -55,7 +61,7 @@ firefox.optional_permissions = (firefox.optional_permissions || []).filter(permi
 if (!firefox.optional_permissions.length) delete firefox.optional_permissions;
 firefox.background = { scripts };
 
-const shared = new Map([...sourceFiles("src"), ...sourceFiles("icons"), ...sourceFiles("docs"), "CHANGELOG.md"].map(file => [file, fs.readFileSync(path.join(root, file))]));
+const shared = new Map([...sourceFiles("src"), ...sourceFiles("icons"), ...sourceFiles("docs"), "CHANGELOG.md", "SECURITY.md"].map(file => [file, fs.readFileSync(path.join(root, file))]));
 
 function readme(browser) {
   const install = browser === "chrome"
@@ -64,7 +70,7 @@ function readme(browser) {
   return "# Arena Agent Exporter " + manifest.version + " (" + (browser === "chrome" ? "Chrome" : "Firefox") + ")\n\n" + install +
     "\nCaptures Agent, Battle, Direct and Side-by-Side chats. Use **Save now** or **Export JSON** in the popup. Turns also archive automatically.\n\n" +
     "Files go to `Downloads/arena-archive/`, or to the folder selected in the optional Arena Archive native app. Agent model identities remain unset when Arena does not reveal them.\n\n" +
-    "Use **Open folder** for the selected Arena chat. Connect a private repository in **Open archive library → GitHub backup** for automatic backups and existing-archive import. See [GitHub backup setup](docs/github-backup.md).\n\n" +
+    "Use **Open folder** for the selected Arena chat. Connect a private repository in **Open archive workspace → GitHub backup** for automatic backups and existing-archive import. See [GitHub backup setup](docs/github-backup.md).\n\n" +
     "See [release notes](CHANGELOG.md), [export metadata](docs/export-schema.md), and the [repository README](https://github.com/musterm4nn-alt/arena-exporter#readme).\n\n" +
     "Generated with `node tools/build-release.mjs`; edit the shared source in the repository root.\n";
 }

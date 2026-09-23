@@ -248,7 +248,7 @@ function check(name, cond) {
 
   await send({ type: "AE_EVENT", evt: { kind: "battle_vote", choice: "Neither", label: "Neither", source: "dom_click", url: namedBattleSnapshot.url, capturedAt: new Date().toISOString() } });
   voteExport = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: namedBattleSnapshot })).json);
-  check("neither vote recorded", voteExport.battles[0].vote_choice === "neither_good" && voteExport.battles[0].winner === "neither" && voteExport.battles[0].winner_models.length === 0 && voteExport.battles[0].outcome === "both_bad");
+  check("neither vote recorded", voteExport.battles[0].vote_choice === "neither_good" && voteExport.battles[0].winner === "neither" && voteExport.battles[0].winner_models.length === 0 && voteExport.battles[0].outcome === "neither_good");
 
   console.log("Last-message export:");
   const last = await send({ type: "AE_EXPORT", mode: "last_message", snapshot: null });

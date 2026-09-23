@@ -130,7 +130,7 @@ function battleResult(vote, winnerModel, domModels, greenLanes, negativeLanes) {
     outcome = "both_good";
   } else if (choice === "neither_good") {
     winner = "neither";
-    outcome = "both_bad";
+    outcome = "neither_good";
   } else if (Array.isArray(greenLanes) && greenLanes.length) {
     var lanes = greenLanes.filter(function (x, i, a) { return (x === "A" || x === "B") && a.indexOf(x) === i; });
     if (lanes.length >= 2) {
@@ -147,7 +147,7 @@ function battleResult(vote, winnerModel, domModels, greenLanes, negativeLanes) {
     }
   } else if (Array.isArray(negativeLanes) && negativeLanes.length >= 2) {
     winner = "neither";
-    outcome = "both_bad";
+    outcome = "neither_good";
     source = "dom_negative";
   } else if (winnerModel) {
     var inferredLane = winnerLane(winnerModel, domModels);
@@ -162,7 +162,7 @@ function battleResult(vote, winnerModel, domModels, greenLanes, negativeLanes) {
   return {
     vote: v,
     vote_choice: choice,
-    outcome: outcome,
+    outcome: AE.normalizeBattleOutcome ? AE.normalizeBattleOutcome(outcome) : outcome,
     winner: winner,
     winner_model: winnerModels.length === 1 ? winnerModels[0] : null,
     winner_models: winnerModels,
