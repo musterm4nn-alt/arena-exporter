@@ -1,12 +1,14 @@
 # Changelog
 
-## Unreleased (fork: code-quality refactor)
+## 2.2.1 — 2026-09-24
+
+Fork code-quality release: shared vote/stamp modules, lint gate, and dedupe regression tests. No behavior, schema, storage, or UI changes.
 
 - Extracted the duplicated ballot-label parser into `src/lib/vote.js`, shared by background battle reconstruction and the DOM extractor.
 - Extracted the duplicated export filename timestamp into `src/lib/format.js` (`AE.buildStamp`).
 - Added a dependency-free `tools/lint.mjs` gate (`npm run lint`, wired into `npm run verify`): no `eval`, no work markers, no debug logging or raw HTML sinks in extension source.
 - Added `tests/code-quality.test.js` covering the shared modules and guarding against re-duplication.
-- No behavior, schema, storage, or UI changes; version remains 2.2.0.
+- Bumped to 2.2.1 with no behavior, schema, storage, or UI changes.
 
 ## 2.2.0 — 2026-09-23
 

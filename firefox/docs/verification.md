@@ -1,4 +1,4 @@
-# 2.2.0 verification
+# 2.2.1 verification
 
 The local 2.2 overhaul is verified with the repository's deterministic JavaScript harness and project checks. The harness uses synthetic browser APIs; it is not evidence of live Arena capture.
 
@@ -16,7 +16,7 @@ This command:
 2. runs every `tests/*.test.js` suite;
 3. validates manifest versions, local asset references, keyboard focus treatment, reduced-motion treatment, and required generated entry points.
 
-The current local run passes **26 JavaScript suites** plus the project check and schema check. Coverage includes:
+The current local run passes **27 JavaScript suites** plus the project check, schema check, and lint gate. Coverage includes:
 
 - Agent, Battle, Direct, and Side-by-Side multi-turn reconstruction;
 - failed retry → successful retry metadata;
