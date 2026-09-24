@@ -58,6 +58,36 @@ for (const file of [...sourceFiles("src").filter(file => file.endsWith(".js")), 
   if (check.status !== 0) failures.push(`syntax error in ${file}: ${(check.stderr || "").trim()}`);
 }
 
+// UI control inventory: element ids are the controller contract (AEUI.$,
+// ui-harness fire()). Pin tag#id per page so markup churn that orphans a
+// controller fails here instead of silently dead-clicking in the browser.
+const inventoryFiles = ["src/popup.html", "src/options.html"];
+const inventory = {};
+for (const file of inventoryFiles) {
+  const html = fs.readFileSync(path.join(root, file), "utf8");
+  const ids = [...html.matchAll(/<([a-z][\w-]*)\b[^>]*\bid="([^"]+)"/gi)].map(m => m[1].toLowerCase() + "#" + m[2]);
+  const seen = new Set(), dupes = new Set();
+  ids.forEach(id => { if (seen.has(id)) dupes.add(id); seen.add(id); });
+  if (dupes.size) failures.push(`${file} has duplicate ids: ${[...dupes].join(", ")}`);
+  inventory[file] = ids.sort();
+}
+const baselinePath = path.join(root, "tests/fixtures/ui-inventory.json");
+if (process.argv.includes("--update-snapshot")) {
+  fs.writeFileSync(baselinePath, JSON.stringify(inventory, null, 2) + "\n");
+  console.log("UI inventory snapshot updated.");
+} else if (!fs.existsSync(baselinePath)) {
+  failures.push("tests/fixtures/ui-inventory.json is missing (run with --update-snapshot to create it)");
+} else {
+  const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
+  for (const file of inventoryFiles) {
+    const want = baseline[file] || [], got = inventory[file];
+    const added = got.filter(id => !want.includes(id)), removed = want.filter(id => !got.includes(id));
+    if (added.length || removed.length) {
+      failures.push(`${file} control inventory changed (added: ${added.join(", ") || "none"}; removed: ${removed.join(", ") || "none"}). Review, then run with --update-snapshot.`);
+    }
+  }
+}
+
 if (failures.length) {
   console.error("Project check failed:\n- " + failures.join("\n- "));
   process.exit(1);
