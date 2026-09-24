@@ -6,7 +6,7 @@ The local release command never pushes, publishes, or contacts GitHub.
 npm run release:local
 ```
 
-It runs the JavaScript gate, regenerates both browser packages, writes SHA-256 checksums, and creates `dist/release-manifest.json` with the source commit, branch, dirty state, runtime, and artifact hashes.
+It runs the JavaScript gate, regenerates both browser packages, writes SHA-256 checksums, and creates `dist/release-manifest.json` with the source commit, branch, dirty state, runtime, and artifact hashes. A plain `npm test`/`npm run build` intentionally removes old release metadata rather than leaving it beside rebuilt ZIPs; rerun `npm run release:local` for a coherent artifact set.
 
 Useful options:
 

@@ -10,6 +10,14 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), 
 if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) throw new Error("Expected a three-part release version");
 if (packageJson.version !== manifest.version) throw new Error(`package version ${packageJson.version} does not match manifest ${manifest.version}`);
 
+// A normal test/build must never leave an old checksum or manifest beside
+// newly rebuilt ZIPs. The local release pipeline writes fresh metadata after
+// this build completes.
+for (const metadata of ["release-manifest.json", `Arena-Agent-Exporter-${manifest.version}-SHA256SUMS.txt`]) {
+  const target = path.join(root, "dist", metadata);
+  if (fs.existsSync(target)) fs.unlinkSync(target);
+}
+
 function sourceFiles(relative) {
   return fs.readdirSync(path.join(root, relative), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).flatMap(entry => {
     const name = path.posix.join(relative, entry.name);
