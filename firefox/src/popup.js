@@ -1,14 +1,15 @@
 /* Popup controller: resolve the selected Arena tab before every action. */
 (function () {
   "use strict";
-  var U = AEUI, $ = U.$, refreshing = false, scope = "full_history", streamTimer = null;
+  const U = AEUI, $ = U.$;
+  let refreshing = false, scope = "full_history", streamTimer = null;
   U.version();
 
   async function context(snapshot, toleratePageError) {
-    var tab = await U.activeTab();
+    const tab = await U.activeTab();
     if (!tab || !AEView.arenaUrl(tab.url)) throw new Error("Select an Arena conversation tab first.");
-    var key = AEView.conversationKey(tab.url);
-    var result = { tabId: tab.id, sessionKey: key || "tab:" + tab.id };
+    const key = AEView.conversationKey(tab.url);
+    const result = { tabId: tab.id, sessionKey: key || "tab:" + tab.id };
     if (snapshot) result.snapshot = await U.tabMessage(tab.id, { type: "AE_DOM_SNAPSHOT" });
     if (result.snapshot && result.snapshot.error) {
       if (!toleratePageError) throw new Error(result.snapshot.error);
@@ -23,7 +24,7 @@
 
   function render(st, tab) {
     st = st || {};
-    var ready = !!AEView.conversationKey(tab.url) || !!st.messageCount;
+    const ready = !!AEView.conversationKey(tab.url) || !!st.messageCount;
     U.show("active-content", ready);
     U.show("empty-state", !ready);
     U.show("context-msg", !ready);
@@ -31,19 +32,19 @@
     U.setText("conversation-title", st.title || (ready ? "Untitled conversation" : "Ready when you are."));
     U.setText("context-msg", ready ? "" : "Open a conversation to start capturing.");
 
-    var mode = st.mode || (/battle|direct|side-by-side/.exec(tab.url) || [])[0] || "agent";
+    const mode = st.mode || (/battle|direct|side-by-side/.exec(tab.url) || [])[0] || "agent";
     U.setText("mode-tag", AEView.modeLabel(mode).toUpperCase());
     U.setText("conversation-id", String(st.conversationKey || "").replace(/^[cs]:/, "").slice(0, 20));
     U.show("conversation-signals", ready);
-    var outcome = st.requestOutcome || {};
+    const outcome = st.requestOutcome || {};
     U.setText("request-state", outcome.outcome ? String(outcome.outcome).replace(/_/g, " ") : "No request yet");
     U.setText("capture-detail", st.streaming ? "Streaming now" : st.messageCount ? st.messageCount + " messages" : "Listening");
-    var failed = st.lastSync && st.lastSync.ok === false;
-    var kind = failed || st.captureHealthCritical ? "error" : st.streaming ? "stream" : st.messageCount ? "ok" : "idle";
+    const failed = st.lastSync && st.lastSync.ok === false;
+    const kind = failed || st.captureHealthCritical ? "error" : st.streaming ? "stream" : st.messageCount ? "ok" : "idle";
     $("status-dot").className = "dot " + kind;
     U.setText("capture-text", failed ? "Save failed" : st.captureHealthCritical ? "Check capture" : st.streaming ? "Capturing" : st.messageCount ? "Captured" : "Listening");
 
-    var counts = st.blockCounts || {};
+    const counts = st.blockCounts || {};
     U.setText("stat-messages", U.number(st.messageCount));
     U.setText("stat-thinking", U.number(counts.thinking));
     U.setText("stat-tools", U.number(counts.tool_call));
@@ -53,7 +54,7 @@
     U.setText("sink-status", failed ? "Save failed · " + (st.lastSync.error || "Try again") : st.archiveEncryption && st.archiveEncryption.enabled && !st.archiveEncryption.unlocked ? "Archive locked · unlock in Preferences" : st.lastSync && st.lastSync.ok ? "Saved " + U.date(st.lastSync.at, true) : st.nativeSink && st.nativeSink.state === "ok" ? "Archive app connected" : "Downloads / arena-archive");
     $("archive-dot").className = "dot " + (failed ? "error" : st.lastSync && st.lastSync.ok ? "ok" : "idle");
 
-    var warnings = st.warnings || [];
+    const warnings = st.warnings || [];
     $("warning-list").replaceChildren();
     warnings.forEach(function (warning) { $("warning-list").appendChild(U.element("li", "", warning)); });
     U.setText("warnings-summary", warnings.length + " capture note" + (warnings.length === 1 ? "" : "s"));
@@ -67,7 +68,7 @@
     if (refreshing) return;
     refreshing = true;
     try {
-      var tab = await U.activeTab();
+      const tab = await U.activeTab();
       if (!tab || !AEView.arenaUrl(tab.url)) {
         U.show("active-content", false);
         U.show("empty-state", true);
@@ -78,13 +79,13 @@
         U.setText("capture-text", "Standby");
         $("status-dot").className = "dot idle";
       } else {
-        var ctx = await context(snapshot === true, true);
-        var result = U.require(await U.send(Object.assign({ type: "AE_GET_STATE" }, ctx)));
+        const ctx = await context(snapshot === true, true);
+        const result = U.require(await U.send(Object.assign({ type: "AE_GET_STATE" }, ctx)));
         render(result.state, tab);
         if (ctx.snapshotError) U.feedback(ctx.snapshotError, "warning");
       }
-      var results = await Promise.all([U.send({ type: "AE_GITHUB_STATUS" }), U.send({ type: "AE_PREFERENCES" })]);
-      var backup = results[0];
+      const results = await Promise.all([U.send({ type: "AE_GITHUB_STATUS" }), U.send({ type: "AE_PREFERENCES" })]);
+      const backup = results[0];
       U.setText("backup-status", AEView.backupLabel(backup));
       $("backup-dot").className = "dot " + (backup && backup.error ? "warn" : backup && backup.enabled ? "ok" : "idle");
       if (results[1] && results[1].ok) $("auto-archive").checked = results[1].preferences.autoArchive;
@@ -99,7 +100,7 @@
   }
 
   function updateExportLabel() {
-    var format = $("export-format").value;
+    const format = $("export-format").value;
     U.setText("export-label", "Export " + (format === "markdown" ? "Markdown" : format === "jsonl" ? "JSONL" : "JSON"));
     U.setText("scope-hint", scope === "last_message" ? "The last answer, with its triggering prompt." : format === "jsonl" ? "Newline-delimited records for large conversations and streaming tools." : "Includes messages, reasoning, tools and available files.");
   }
@@ -111,21 +112,21 @@
   updateExportLabel();
   U.on("btn-full", "click", function () {
     return U.run("btn-full", "Preparing export…", async function () {
-      var request = Object.assign({ type: "AE_EXPORT", mode: scope, format: $("export-format").value, save: true }, await context(true));
-      var result = U.require(await U.send(request));
+      const request = Object.assign({ type: "AE_EXPORT", mode: scope, format: $("export-format").value, save: true }, await context(true));
+      const result = U.require(await U.send(request));
       U.feedback("Saved " + result.filename + (result.savedCount ? " + " + result.savedCount + " files" : ""));
     });
   });
   U.on("btn-copy", "click", function () {
     return U.run("btn-copy", "Preparing clipboard…", async function () {
-      var result = U.require(await U.send(Object.assign({ type: "AE_EXPORT", mode: scope, format: $("export-format").value }, await context(true))));
+      const result = U.require(await U.send(Object.assign({ type: "AE_EXPORT", mode: scope, format: $("export-format").value }, await context(true))));
       await navigator.clipboard.writeText(result.text || result.json);
       U.feedback("Copied to clipboard.");
     });
   });
   U.on("btn-sync", "click", function () {
     return U.run("btn-sync", "Saving conversation and files…", async function () {
-      var result = U.require(await U.send(Object.assign({ type: "AE_SYNC" }, await context(true))));
+      const result = U.require(await U.send(Object.assign({ type: "AE_SYNC" }, await context(true))));
       U.feedback(result.completeness === "partial" ? "Saved with capture gaps. Review the capture notes." : "Conversation saved to your archive.", result.completeness === "partial" ? "warning" : null);
       await refresh();
     });
@@ -136,7 +137,7 @@
     });
   });
   U.on("auto-archive", "change", async function () {
-    var desired = $("auto-archive").checked;
+    const desired = $("auto-archive").checked;
     $("auto-archive").disabled = true;
     try {
       U.require(await U.send({ type: "AE_SET_PREFERENCES", preferences: { autoArchive: desired } }));
@@ -169,7 +170,7 @@
   });
   U.on("btn-domdebug", "click", function () {
     return U.run("btn-domdebug", "Collecting page diagnostics…", async function () {
-      var ctx = await context(false), result = await U.tabMessage(ctx.tabId, { type: "AE_DOM_DEBUG" });
+      const ctx = await context(false), result = await U.tabMessage(ctx.tabId, { type: "AE_DOM_DEBUG" });
       if (!result) throw new Error("Reload the Arena tab to enable page diagnostics.");
       U.require(await U.send({ type: "AE_SAVE_TEXT", filename: "arena-page-diagnostics.json", text: JSON.stringify(result, null, 2), mime: "application/json" }));
       U.feedback("Page diagnostics saved.");

@@ -37,7 +37,9 @@ const MODERN_FILES = new Set([
   "src/streaming-export.js", "src/markdown.js", "src/attribution.js",
   "src/capture-health.js", "src/backup-store.js", "src/archive-folder.js",
   "src/export-download.js", "src/turn-sync.js", "src/request-capture.js",
-  "src/ui-state.js", "src/ui-model.js", "src/status-led.js"
+  "src/ui-state.js", "src/ui-model.js", "src/status-led.js", "src/popup.js",
+  "src/content.js", "src/options.js", "src/encrypted-archive.js",
+  "src/export-builder.js"
 ]);
 
 for (const file of [...sourceFiles("src").filter(f => !GENERATED.has(f)), ...sourceFiles("tools")]) {

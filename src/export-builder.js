@@ -1,10 +1,10 @@
 /* Export assembly. Explicit session input keeps background writes isolated.
  * Filename timestamps come from src/lib/format.js (AE.buildStamp). */
 function buildSummary(messages) {
-  var tools = {};
-  var commands = 0;
-  var actions = 0;
-  var thinkingChars = 0;
+  const tools = {};
+  let commands = 0;
+  let actions = 0;
+  let thinkingChars = 0;
   messages.forEach(function (m) {
     if (!m) return;
     (m.content || []).forEach(function (b) {
@@ -32,15 +32,15 @@ function extensionVersion() {
 
 function messageTextFingerprint(msg) {
   if (!msg || !Array.isArray(msg.content)) return "";
-  var pieces = msg.content.filter(function (b) {
+  const pieces = msg.content.filter(function (b) {
     return b && b.type === "text" && typeof b.text === "string" && b.text.trim();
   }).map(function (b) { return b.text; });
   return pieces.join("\n").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 1000);
 }
 
 function messagesMatchForBackfill(a, b) {
-  var af = messageTextFingerprint(a);
-  var bf = messageTextFingerprint(b);
+  const af = messageTextFingerprint(a);
+  const bf = messageTextFingerprint(b);
   if (!af || !bf) return false;
   if (af === bf) return true;
   return Math.min(af.length, bf.length) >= 32 && (af.indexOf(bf) !== -1 || bf.indexOf(af) !== -1);
@@ -50,17 +50,17 @@ function mergeDomBackfill(networkMessages, domMessages) {
   if (!Array.isArray(networkMessages) || !Array.isArray(domMessages) || !domMessages.length) {
     return { messages: networkMessages, added: 0 };
   }
-  var networkIndex = [];
-  for (var ni = 0; ni < networkMessages.length; ni++) {
+  const networkIndex = [];
+  for (let ni = 0; ni < networkMessages.length; ni++) {
     if (messageTextFingerprint(networkMessages[ni])) networkIndex.push(ni);
   }
   if (!networkIndex.length) return { messages: networkMessages, added: 0 };
 
-  var domAnchors = [];
-  for (var di = 0; di < domMessages.length; di++) {
-    var matched = -1;
-    for (var xi = 0; xi < networkIndex.length; xi++) {
-      var candidateIndex = networkIndex[xi];
+  const domAnchors = [];
+  for (let di = 0; di < domMessages.length; di++) {
+    let matched = -1;
+    for (let xi = 0; xi < networkIndex.length; xi++) {
+      const candidateIndex = networkIndex[xi];
       if (messagesMatchForBackfill(domMessages[di], networkMessages[candidateIndex])) {
         matched = candidateIndex;
         break;
@@ -70,17 +70,17 @@ function mergeDomBackfill(networkMessages, domMessages) {
   }
   if (domAnchors.every(function (x) { return x < 0; })) return { messages: networkMessages, added: 0 };
 
-  var inserts = {};
-  var added = 0;
-  for (var mi = 0; mi < domMessages.length; mi++) {
+  const inserts = {};
+  let added = 0;
+  for (let mi = 0; mi < domMessages.length; mi++) {
     if (domAnchors[mi] >= 0) continue;
-    var before = null;
-    for (var next = mi + 1; next < domMessages.length; next++) {
+    let before = null;
+    for (let next = mi + 1; next < domMessages.length; next++) {
       if (domAnchors[next] >= 0) { before = domAnchors[next]; break; }
     }
     if (before == null) {
-      var after = null;
-      for (var prev = mi - 1; prev >= 0; prev--) {
+      let after = null;
+      for (let prev = mi - 1; prev >= 0; prev--) {
         if (domAnchors[prev] >= 0) { after = domAnchors[prev] + 1; break; }
       }
       before = after == null ? networkMessages.length : after;
@@ -91,8 +91,8 @@ function mergeDomBackfill(networkMessages, domMessages) {
   }
 
   if (!added) return { messages: networkMessages, added: 0 };
-  var merged = [];
-  for (var outi = 0; outi <= networkMessages.length; outi++) {
+  const merged = [];
+  for (let outi = 0; outi <= networkMessages.length; outi++) {
     if (inserts[outi]) merged.push.apply(merged, inserts[outi]);
     if (outi < networkMessages.length) merged.push(networkMessages[outi]);
   }
@@ -107,7 +107,7 @@ function deriveCompleteness(s, warnings) {
 }
 
 function sessionIsStreaming(s) {
-  var at = s && s.stats ? (s.stats.lastStreamAt || 0) : 0;
+  const at = s && s.stats ? (s.stats.lastStreamAt || 0) : 0;
   return !!(at && (Date.now() - at) < STREAMING_WINDOW_MS);
 }
 
@@ -115,27 +115,27 @@ function applyCaptureHealth(s, snapshot, extra) {
   if (!s || !AE.captureHealth || !AE.healthInputFromSession) return { warnings: [], critical: false };
   extra = extra || {};
   extra.streaming = extra.streaming != null ? extra.streaming : sessionIsStreaming(s);
-  var health = AE.captureHealth(AE.healthInputFromSession(s, snapshot, extra));
+  const health = AE.captureHealth(AE.healthInputFromSession(s, snapshot, extra));
   s.warnings = AE.mergeHealthWarnings(s.warnings || [], health);
   return health;
 }
 
 function buildExport(mode, domSnapshot, session) {
-  var s = session || ensureState();
+  const s = session || ensureState();
   flushStreamMessage(s);
   if (domSnapshot && domSnapshot.pageData) recordPageData(s, domSnapshot.pageData, domSnapshot.url);
   applyCaptureHealth(s, domSnapshot);
-  var warnings = (s.warnings || []).slice();
-  var captureSources = ["network"];
-  var messages = s.messages.map(function (m) { return JSON.parse(JSON.stringify(m)); });
+  let warnings = (s.warnings || []).slice();
+  let captureSources = ["network"];
+  let messages = s.messages.map(function (m) { return JSON.parse(JSON.stringify(m)); });
 
-  var domMsgs = (domSnapshot && domSnapshot.messages) || [];
+  const domMsgs = (domSnapshot && domSnapshot.messages) || [];
   if (!messages.length && domMsgs.length) {
     messages = JSON.parse(JSON.stringify(domMsgs));
     captureSources = ["dom"];
     warnings.push("Export reconstructed from DOM: network capture was not active when this conversation started. Roles may rely on positional heuristics.");
   } else if (messages.length && domMsgs.length) {
-    var backfill = mergeDomBackfill(messages, domMsgs);
+    const backfill = mergeDomBackfill(messages, domMsgs);
     if (backfill.added) {
       messages = backfill.messages;
       captureSources = ["network", "dom"];
@@ -144,19 +144,19 @@ function buildExport(mode, domSnapshot, session) {
       warnings.push("DOM shows " + domMsgs.length + " message containers vs " + messages.length + " captured via network; capture may have started mid-session.");
     }
   }
-  var exported = messages;
+  let exported = messages;
   if (mode === "last_message" && messages.length) {
-    var idx = -1;
-    for (var i = messages.length - 1; i >= 0; i--) {
+    let idx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "assistant") { idx = i; break; }
     }
     if (idx === -1) idx = messages.length - 1;
-    var start = idx;
+    let start = idx;
     if (start > 0 && messages[start - 1].role === "user") start--;
     exported = messages.slice(start);
   }
 
-  var battles = buildBattles(s, domSnapshot);
+  let battles = buildBattles(s, domSnapshot);
   if (battles.some(function (b) { return b.dom_only; }) && captureSources.indexOf("dom") === -1) {
     captureSources = messages.length ? captureSources.concat("dom") : ["dom"];
   }
@@ -166,14 +166,14 @@ function buildExport(mode, domSnapshot, session) {
     warnings.push("No conversation data captured. Open an Agent Mode or Battle chat, interact with it, then export again.");
   }
 
-  var orchestrator = resolveOrchestratorModel(s);
-  var sourceMode = battles.length ? battles[battles.length - 1].mode : observedMode(s, domSnapshot) || "agent";
+  const orchestrator = resolveOrchestratorModel(s);
+  const sourceMode = battles.length ? battles[battles.length - 1].mode : observedMode(s, domSnapshot) || "agent";
   if (s.transcriptMetadata) captureSources.push("page_transcript");
   if (s.transcriptMetadata && s.transcriptMetadata.pagination && s.transcriptMetadata.pagination.hasMore) {
     warnings.push("The page transcript is paginated; earlier messages may be missing from this export.");
   }
 
-  var payload = {
+  const payload = {
     schema_version: AE.SCHEMA_VERSION,
     export: {
       mode: mode,
@@ -214,7 +214,7 @@ function buildExport(mode, domSnapshot, session) {
       captured_requests: (s.capturedRequests || []).filter(function (r) {
         return EVAL_URL_RE.test(r.url || "") || (s.requestAttempts || []).some(function (a) { return a.request_id && a.request_id === r.request_id; });
       }).map(function (r) {
-        var copy = { method: r.method, url: r.url, body: r.body };
+        const copy = { method: r.method, url: r.url, body: r.body };
         if (r.request_id) copy.request_id = r.request_id;
         if (r.turn_id) copy.turn_id = r.turn_id;
         if (AE.scrubSecrets) copy.body = AE.scrubSecrets(copy.body);
@@ -231,8 +231,8 @@ function buildExport(mode, domSnapshot, session) {
   };
   if (mode === "last_message") {
     // Scope diagnostic bodies too: full transport samples contain older prompts.
-    var ids = battles.map(function (b) { return b.request_id; }).filter(Boolean);
-    var latest = latestRequestOutcome(s);
+    const ids = battles.map(function (b) { return b.request_id; }).filter(Boolean);
+    const latest = latestRequestOutcome(s);
     if (!ids.length && latest && latest.request_id) ids.push(latest.request_id);
     payload.meta.request_attempts = (s.requestAttempts || []).filter(function (r) { return ids.includes(r.request_id); });
     payload.meta.captured_requests = payload.meta.captured_requests.filter(function (r) { return ids.includes(r.request_id); });
@@ -243,9 +243,9 @@ function buildExport(mode, domSnapshot, session) {
   payload.attribution_samples = buildAttributionSamples(s, payload);
   if (AE.decorateArchivePaths) AE.decorateArchivePaths(payload, s.archiveRel);
   if (AE.listUrlOnlyFiles) {
-    var urlOnly = AE.listUrlOnlyFiles(payload);
+    const urlOnly = AE.listUrlOnlyFiles(payload);
     applyCaptureHealth(s, domSnapshot, { urlOnlyFiles: urlOnly, payload: payload });
-    var healthOnly = (s.warnings || []).filter(function (w) {
+    const healthOnly = (s.warnings || []).filter(function (w) {
       return AE.isCaptureHealthWarning && AE.isCaptureHealthWarning(w);
     });
     warnings = AE.mergeHealthWarnings(warnings, { warnings: healthOnly });
@@ -254,8 +254,8 @@ function buildExport(mode, domSnapshot, session) {
     payload.meta.completeness = deriveCompleteness(s, warnings);
   }
 
-  var sid = String(s.session.session_id || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
-  var filenamePrefix = sourceMode === "agent" ? "arena_agent" : /^direct/.test(sourceMode) ? "arena_direct" : "arena_battle";
-  var filename = filenamePrefix + "_" + mode + (sid ? "_" + sid : "") + "_" + AE.buildStamp() + ".json";
+  const sid = String(s.session.session_id || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
+  const filenamePrefix = sourceMode === "agent" ? "arena_agent" : /^direct/.test(sourceMode) ? "arena_direct" : "arena_battle";
+  const filename = filenamePrefix + "_" + mode + (sid ? "_" + sid : "") + "_" + AE.buildStamp() + ".json";
   return { payload: AE.scrubSecrets(payload), filename: filename };
 }

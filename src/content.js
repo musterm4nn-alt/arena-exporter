@@ -13,7 +13,7 @@
    * Same-origin page scripts can also postMessage this namespace, so we still
    * require a known event kind and the page origin; the worker then refuses
    * anything not coming from an arena.ai tab. */
-  var ALLOWED_EVT_KINDS = {
+  const ALLOWED_EVT_KINDS = {
     interceptor_ready: 1,
     page_context: 1,
     session_hint: 1,
@@ -48,10 +48,10 @@
    * The vote mutation is client-side and may not produce a network request.
    * Capture the semantic choice at the point of user interaction, before
    * React removes/re-renders the ballot controls. */
-  var lastVoteClick = { key: "", at: 0 };
+  let lastVoteClick = { key: "", at: 0 };
 
   function conversationKeyFromHref(href) {
-    var m = /\/(?:c|agent)\/([A-Za-z0-9_-]+)/.exec(String(href || ""));
+    const m = /\/(?:c|agent)\/([A-Za-z0-9_-]+)/.exec(String(href || ""));
     return m ? "c:" + m[1] : null;
   }
 
@@ -71,14 +71,14 @@
   }
 
   emitPageContext();
-  var pageDataTimer = null;
-  var lastPageData = "";
+  let pageDataTimer = null;
+  let lastPageData = "";
   function readPageData() {
     if (!AE.parsePageData) return null;
-    var scripts = document.querySelectorAll("script");
-    var text = "";
-    for (var i = 0; i < scripts.length && text.length < 8 * 1024 * 1024; i++) {
-      var script = scripts[i].textContent || "";
+    const scripts = document.querySelectorAll("script");
+    let text = "";
+    for (let i = 0; i < scripts.length && text.length < 8 * 1024 * 1024; i++) {
+      const script = scripts[i].textContent || "";
       if (script.indexOf("__next_f") !== -1) text += script + "\n";
     }
     return AE.parsePageData(text, location.href);
@@ -86,10 +86,10 @@
   function emitPageData() {
     pageDataTimer = null;
     try {
-      var data = readPageData();
+      let data = readPageData();
       if (!data || (!data.catalog && !data.transcript)) return;
       data = AE.scrubSecrets(data);
-      var key = location.href + JSON.stringify({ models: data.catalog && data.catalog.models, transcript: data.transcript });
+      const key = location.href + JSON.stringify({ models: data.catalog && data.catalog.models, transcript: data.transcript });
       if (key === lastPageData) return;
       lastPageData = key;
       chrome.runtime.sendMessage({ type: "AE_EVENT", evt: { kind: "page_data", pageUrl: location.href, url: location.href, data: data } }, function () { void chrome.runtime.lastError; });
@@ -109,7 +109,7 @@
       })) schedulePageData();
     }).observe(document, { childList: true, subtree: true });
   }
-  var lastHref = location.href;
+  let lastHref = location.href;
   setInterval(function () {
     if (location.href !== lastHref) {
       lastHref = location.href;
@@ -119,17 +119,17 @@
   }, 1500);
 
   function voteControlFromEvent(ev) {
-    var path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
+    const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
     if (!path.length) {
-      var n = ev.target;
+      let n = ev.target;
       while (n) { path.push(n); n = n.parentElement; }
     }
     return AE.dom && AE.dom.voteFromPath ? AE.dom.voteFromPath(path) : null;
   }
 
   function emitVote(found) {
-    var now = Date.now();
-    var key = found.choice + "|" + found.label;
+    const now = Date.now();
+    const key = found.choice + "|" + found.label;
     if (key === lastVoteClick.key && now - lastVoteClick.at < 750) return;
     lastVoteClick = { key: key, at: now };
     chrome.runtime.sendMessage({
@@ -152,7 +152,7 @@
   function onVoteGesture(ev) {
     try {
       if (!ev.isTrusted) return;
-      var found = voteControlFromEvent(ev);
+      const found = voteControlFromEvent(ev);
       if (!found) return;
       emitVote(found);
     } catch (e) { /* never interfere with the host page */ }
@@ -173,7 +173,7 @@
     if (msg.type === "AE_DOM_SNAPSHOT") {
       // Expand collapsed thinking/tool panels first, then scrape.
       Promise.resolve().then(function () { return AE.dom.expandCollapsed(); }).then(function () {
-        var snapshot = AE.dom.extract();
+        const snapshot = AE.dom.extract();
         snapshot.battle = AE.dom.battleInfo();
         snapshot.pageData = readPageData();
         return AE.scrubSecrets(snapshot);
@@ -187,11 +187,11 @@
     if (msg.type === "AE_FETCH_ATTACHMENTS") {
       // Fetch artifact bytes (workspace/preview-token URLs) same-origin and
       // return data URLs so the popup can save them beside the export JSON.
-      var urls = (msg.urls || []).slice(0, 50).filter(function (u) {
+      const urls = (msg.urls || []).slice(0, 50).filter(function (u) {
         return !AE.dom.isAllowedAttachmentUrl || AE.dom.isAllowedAttachmentUrl(u);
       });
-      var results = [];
-      var chain = Promise.resolve();
+      const results = [];
+      let chain = Promise.resolve();
       urls.forEach(function (url, i) {
         chain = chain.then(function () {
           return AE.dom.fetchAttachment(url).then(function (r) { results[i] = r; });
@@ -209,7 +209,7 @@
       }).then(function (list) {
         sendResponse({ ok: true, list: list });
       }).catch(function (err) {
-        var text = String(err && err.message ? err.message : err);
+        let text = String(err && err.message ? err.message : err);
         if (/HTTP 401|HTTP 403/.test(text)) text = "Not signed in on this tab — log into arena.ai, then try again.";
         sendResponse({ ok: false, error: text });
       });
@@ -217,7 +217,7 @@
     }
 
     if (msg.type === "AE_HISTORY_FETCH") {
-      var item = msg.item || {};
+      const item = msg.item || {};
       AE.historyFetchRecord(item).then(function (rec) {
         rec._historyMeta = item;
         sendResponse({ ok: true, record: rec });
@@ -230,7 +230,7 @@
     if (msg.type === "AE_DOM_DEBUG") {
       // Selector recon dump: what the extractor found + raw container HTML.
       AE.dom.expandCollapsed().then(function () {
-        var out;
+        let out;
         try {
           /* Redacted: this dump is meant to be shared for selector tuning, so
            * it carries DOM shape rather than the conversation itself. */

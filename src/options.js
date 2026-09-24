@@ -1,7 +1,8 @@
 /* Archive workspace controller: library, backup, preferences, and diagnostics. */
 (function () {
   "use strict";
-  var U = AEUI, $ = U.$, entries = [], mode = "all", page = 0, pageSize = 20, backup = null, diagnostic = null, encryption = null, importing = false;
+  const U = AEUI, $ = U.$, pageSize = 20;
+  let entries = [], mode = "all", page = 0, backup = null, diagnostic = null, encryption = null, importing = false;
   U.version();
 
   function navigate(view) {
@@ -28,8 +29,8 @@
   }
 
   function renderLibrary() {
-    var filtered = AEView.filterEntries(entries, $("library-search").value, mode, $("library-sort").value);
-    var pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const filtered = AEView.filterEntries(entries, $("library-search").value, mode, $("library-sort").value);
+    const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
     page = Math.min(page, pages - 1);
     $("library-rows").replaceChildren();
     U.setText("total-chats", U.number(entries.length));
@@ -45,32 +46,32 @@
     U.show("empty-open-arena", entries.length === 0);
 
     filtered.slice(page * pageSize, (page + 1) * pageSize).forEach(function (entry) {
-      var tr = U.element("tr");
-      var titleCell = U.element("td");
-      var title = U.element("button", "conversation-link", entry.title || "Untitled conversation");
+      const tr = U.element("tr");
+      const titleCell = U.element("td");
+      const title = U.element("button", "conversation-link", entry.title || "Untitled conversation");
       title.title = entry.rel || entry.title;
       title.addEventListener("click", function () { openConversation(entry); });
       titleCell.appendChild(title);
-      var secondary = U.element("div", "conversation-secondary");
+      const secondary = U.element("div", "conversation-secondary");
       secondary.appendChild(U.element("span", "mode-chip " + AEView.mode(entry.mode), AEView.modeLabel(entry.mode).toUpperCase()));
-      var completeness = AEView.completeness(entry.completeness || (entry.completeness_detail && entry.completeness_detail.status));
-      var completenessText = completeness.label;
+      const completeness = AEView.completeness(entry.completeness || (entry.completeness_detail && entry.completeness_detail.status));
+      let completenessText = completeness.label;
       if (entry.subtype && entry.subtype !== "text") completenessText = entry.subtype + " · " + completenessText;
       secondary.appendChild(U.element("span", "completeness-label " + completeness.tone, completenessText));
       if (entry.encrypted) secondary.appendChild(U.element("span", "mode-chip", "Encrypted"));
       titleCell.appendChild(secondary);
       tr.appendChild(titleCell);
 
-      var models = U.element("td");
+      const models = U.element("td");
       (entry.models && entry.models.length ? entry.models : [entry.models_pending ? "Awaiting reveal" : "Not revealed"]).forEach(function (name) { models.appendChild(U.element("span", "model-name", name)); });
       tr.appendChild(models);
       tr.appendChild(U.element("td", "", U.number(entry.turns)));
-      var date = U.element("td", "date-cell", U.date(entry.updated_at));
+      const date = U.element("td", "date-cell", U.date(entry.updated_at));
       date.title = entry.updated_at || "";
       tr.appendChild(date);
 
-      var actions = U.element("td"), row = U.element("div", "row-actions");
-      var folder = U.element("button", "", "▱"), arena = U.element("button", "", "↗");
+      const actions = U.element("td"), row = U.element("div", "row-actions");
+      const folder = U.element("button", "", "▱"), arena = U.element("button", "", "↗");
       folder.title = "Open folder: " + entry.title;
       folder.setAttribute("aria-label", folder.title);
       folder.addEventListener("click", async function () {
@@ -95,7 +96,7 @@
   }
 
   async function loadLibrary() {
-    var result = U.require(await U.send({ type: "AE_LIBRARY" }));
+    const result = U.require(await U.send({ type: "AE_LIBRARY" }));
     entries = result.entries || [];
     renderLibrary();
   }
@@ -150,8 +151,8 @@
 
   function renderEncryption(status, preferences) {
     encryption = status || null;
-    var enabled = !!(encryption && encryption.enabled);
-    var unlocked = !!(encryption && encryption.unlocked);
+    const enabled = !!(encryption && encryption.enabled);
+    const unlocked = !!(encryption && encryption.unlocked);
     $("archive-encryption").checked = enabled;
     U.show("encryption-settings", enabled);
     U.setText("btn-encryption-save", enabled ? (unlocked ? "Password active" : "Unlock archive") : "Enable encryption");
@@ -183,7 +184,7 @@
     event.preventDefault();
     return U.run("github-connect", "Connecting to your private repository…", async function () {
       if (!await githubPermission()) throw new Error("Allow GitHub access to enable backup.");
-      var status = U.require(await U.send({ type: "AE_GITHUB_CONFIGURE", config: { repo: $("github-repo").value, branch: $("github-branch").value, folder: $("github-folder").value, token: $("github-token").value } }));
+      const status = U.require(await U.send({ type: "AE_GITHUB_CONFIGURE", config: { repo: $("github-repo").value, branch: $("github-branch").value, folder: $("github-folder").value, token: $("github-token").value } }));
       $("github-token").value = "";
       renderBackup(status, true);
       U.feedback("Connected. New archive writes will be backed up automatically.");
@@ -191,7 +192,7 @@
   });
   U.on("github-now", "click", function () {
     return U.run("github-now", "Uploading queued conversations…", async function () {
-      var status;
+      let status;
       do {
         status = U.require(await U.send({ type: "AE_GITHUB_FLUSH" }));
         renderBackup(status);
@@ -203,8 +204,8 @@
   });
   U.on("github-pause", "click", function () {
     return U.run("github-pause", backup && backup.enabled ? "Pausing backup…" : "Resuming backup…", async function () {
-      var current = backup || {};
-      var status = U.require(await U.send(current.enabled ? { type: "AE_GITHUB_PAUSE" } : { type: "AE_GITHUB_CONFIGURE", config: { repo: current.repo, branch: current.branch, folder: current.folder, token: "" } }));
+      const current = backup || {};
+      const status = U.require(await U.send(current.enabled ? { type: "AE_GITHUB_PAUSE" } : { type: "AE_GITHUB_CONFIGURE", config: { repo: current.repo, branch: current.branch, folder: current.folder, token: "" } }));
       renderBackup(status);
       U.feedback(status.enabled ? "Automatic backup resumed." : "Backup paused. Local archiving continues.");
     });
@@ -226,7 +227,7 @@
   });
 
   U.on("auto-archive", "change", async function () {
-    var wanted = $("auto-archive").checked;
+    const wanted = $("auto-archive").checked;
     $("auto-archive").disabled = true;
     try {
       U.require(await U.send({ type: "AE_SET_PREFERENCES", preferences: { autoArchive: wanted } }));
@@ -237,7 +238,7 @@
     } finally { $("auto-archive").disabled = false; }
   });
   U.on("archive-encryption", "change", function () {
-    var enabled = $("archive-encryption").checked;
+    const enabled = $("archive-encryption").checked;
     U.show("encryption-settings", enabled);
     if (!enabled) {
       $("btn-encryption-save").disabled = false;
@@ -246,38 +247,38 @@
   });
   U.on("btn-encryption-save", "click", function () {
     return U.run("btn-encryption-save", "Configuring archive encryption…", async function () {
-      var enabled = $("archive-encryption").checked;
-      var password = $("encryption-password").value;
-      var confirm = $("encryption-confirm").value;
+      const enabled = $("archive-encryption").checked;
+      const password = $("encryption-password").value;
+      const confirm = $("encryption-confirm").value;
       if ((enabled || (encryption && encryption.enabled)) && password !== confirm) throw new Error("The archive passwords do not match.");
       if (!enabled && encryption && encryption.enabled && !password) throw new Error("Enter the current archive password to disable encryption.");
-      var unlocking = !!(enabled && encryption && encryption.enabled && !encryption.unlocked);
-      var result = U.require(await U.send({ type: unlocking ? "AE_UNLOCK_ARCHIVE_ENCRYPTION" : "AE_SET_ARCHIVE_ENCRYPTION", enabled: enabled, password: password }));
+      const unlocking = !!(enabled && encryption && encryption.enabled && !encryption.unlocked);
+      const result = U.require(await U.send({ type: unlocking ? "AE_UNLOCK_ARCHIVE_ENCRYPTION" : "AE_SET_ARCHIVE_ENCRYPTION", enabled: enabled, password: password }));
       $("encryption-password").value = "";
       $("encryption-confirm").value = "";
       renderEncryption(result.encryption, result.preferences);
-      var active = !!(result.encryption && result.encryption.enabled);
+      const active = !!(result.encryption && result.encryption.enabled);
       U.feedback(active ? (unlocking ? "Encrypted archives unlocked for this browser session." : "Encrypted archives enabled for this browser session.") : "Encrypted archives disabled.", "success");
     });
   });
   U.on("btn-encryption-lock", "click", function () {
     return U.run("btn-encryption-lock", "Locking encrypted archives…", async function () {
-      var result = U.require(await U.send({ type: "AE_LOCK_ARCHIVE_ENCRYPTION" }));
+      const result = U.require(await U.send({ type: "AE_LOCK_ARCHIVE_ENCRYPTION" }));
       renderEncryption(result.encryption, result.preferences);
       U.feedback("Archive encryption is locked. New saves will pause until it is unlocked.", "warning");
     });
   });
 
-  var silentSupported = !!(chrome.downloads && chrome.downloads.setUiOptions);
+  const silentSupported = !!(chrome.downloads && chrome.downloads.setUiOptions);
   $("chk-silent").disabled = !silentSupported;
   if (!silentSupported) U.setText("silent-note", "Unavailable in this browser.");
   U.on("chk-silent", "change", async function () {
-    var wanted = $("chk-silent").checked;
-    var permission = wanted ? new Promise(function (resolve) { chrome.permissions.request({ permissions: ["downloads.ui"] }, function (granted) { void chrome.runtime.lastError; resolve(granted); }); }) : Promise.resolve(true);
+    const wanted = $("chk-silent").checked;
+    const permission = wanted ? new Promise(function (resolve) { chrome.permissions.request({ permissions: ["downloads.ui"] }, function (granted) { void chrome.runtime.lastError; resolve(granted); }); }) : Promise.resolve(true);
     $("chk-silent").disabled = true;
     try {
       if (!await permission) throw new Error("Download UI permission was not granted.");
-      var result = U.require(await U.send({ type: "AE_SET_SILENT", enabled: wanted }));
+      const result = U.require(await U.send({ type: "AE_SET_SILENT", enabled: wanted }));
       if (wanted && !result.suppressed) throw new Error("This browser could not suppress the download bubble.");
       U.feedback(wanted ? "Quiet downloads enabled." : "Normal download UI restored.");
     } catch (error) {
@@ -287,29 +288,29 @@
   });
   U.on("btn-selftest", "click", function () {
     return U.run("btn-selftest", "Writing a small archive test file…", async function () {
-      var result = U.require(await U.send({ type: "AE_TEST_ARCHIVE" }));
+      const result = U.require(await U.send({ type: "AE_TEST_ARCHIVE" }));
       U.setText("selftest-result", "Write verified: " + (result.resolved || result.path));
       U.feedback("Archive write completed and verified.");
     });
   });
   async function loadArenaTabs() {
     try {
-      var tabs = (await chrome.tabs.query({})).filter(function (tab) { return AEView.arenaUrl(tab.url); });
-      var previous = $("history-tab").value;
+      const tabs = (await chrome.tabs.query({})).filter(function (tab) { return AEView.arenaUrl(tab.url); });
+      const previous = $("history-tab").value;
       $("history-tab").replaceChildren();
-      if (!tabs.length) { var empty = U.element("option", "", "Open an Arena tab first"); empty.value = ""; $("history-tab").appendChild(empty); }
-      tabs.forEach(function (tab) { var option = U.element("option", "", tab.title || tab.url); option.value = String(tab.id); $("history-tab").appendChild(option); });
+      if (!tabs.length) { const empty = U.element("option", "", "Open an Arena tab first"); empty.value = ""; $("history-tab").appendChild(empty); }
+      tabs.forEach(function (tab) { const option = U.element("option", "", tab.title || tab.url); option.value = String(tab.id); $("history-tab").appendChild(option); });
       if (tabs.some(function (tab) { return String(tab.id) === previous; })) $("history-tab").value = previous;
       $("btn-history").disabled = !tabs.length;
     } catch (error) { U.feedback(error.message, "error"); }
   }
   U.on("btn-history", "click", function () {
     return U.run("btn-history", "Reading Arena history…", async function () {
-      var id = Number($("history-tab").value);
+      const id = Number($("history-tab").value);
       if (!id) throw new Error("Choose a signed-in Arena tab first.");
       U.setText("history-status", "Archiving your history. Keep this page and the Arena tab open.");
-      var result = U.require(await U.send({ type: "AE_HISTORY_BACKFILL", tabId: id }));
-      var failed = Array.isArray(result.failed) ? result.failed.length : Number(result.failed || 0);
+      const result = U.require(await U.send({ type: "AE_HISTORY_BACKFILL", tabId: id }));
+      const failed = Array.isArray(result.failed) ? result.failed.length : Number(result.failed || 0);
       U.setText("history-status", "History import finished. " + (result.written || 0) + " saved, " + (result.skipped || 0) + " skipped, " + failed + " failed.");
       U.feedback(failed ? "History import finished with " + failed + " failed conversations. Retry to recover them." : "History import finished.", failed ? "warning" : null);
       await loadLibrary();
@@ -337,7 +338,7 @@
     navigate(location.hash.slice(1));
     await refresh();
     renderBackup(await U.send({ type: "AE_GITHUB_STATUS" }), true);
-    var native = await U.send({ type: "AE_NATIVE_STATUS" });
+    const native = await U.send({ type: "AE_NATIVE_STATUS" });
     U.setText("native-status", native.state === "ok" ? "Arena Archive app connected. Its selected folder is used for saves." : native.state === "no-root" ? "Choose a folder in the Arena Archive app. Downloads is used until then." : "Using your browser's download folder. Install the optional Arena Archive app to choose another destination.");
     if (native.state === "ok") U.setText("archive-path", "Arena Archive / selected folder");
     chrome.storage.local.get(["ae_silent_writes"], function (result) { void chrome.runtime.lastError; $("chk-silent").checked = silentSupported && !!(result && result.ae_silent_writes); });
