@@ -2,7 +2,7 @@
  * assistant output. A retry has its own identity and never overwrites its predecessor. */
 function requestAttempt(s, evt) {
   if (!evt.requestId || !/(create-chat|create-evaluation|post-to-evaluation|in\/append)/i.test(evt.url || "")) return null;
-  var attempt = s.requestAttempts.find(function (a) { return a.request_id === evt.requestId; });
+  let attempt = s.requestAttempts.find(function (a) { return a.request_id === evt.requestId; });
   if (!attempt) {
     attempt = { request_id: evt.requestId, url: evt.url, method: evt.method || "POST", outcome: "pending", started_at: evt.capturedAt || new Date().toISOString() };
     s.requestAttempts.push(attempt);
@@ -12,9 +12,9 @@ function requestAttempt(s, evt) {
 }
 
 function captureRequestMetadata(s, evt) {
-  var attempt = requestAttempt(s, evt);
+  const attempt = requestAttempt(s, evt);
   if (!attempt) return;
-  var parsed;
+  let parsed;
   try { parsed = JSON.parse(evt.body || "{}"); } catch (e) { return; }
   attempt.mode = typeof parsed.mode === "string" ? parsed.mode : null;
   attempt.evaluation_id = /(create-evaluation|post-to-evaluation)/i.test(evt.url || "") ? parsed.id || null : null;
@@ -24,7 +24,7 @@ function captureRequestMetadata(s, evt) {
   attempt.requested_agent_model_id = parsed.modelId || null;
   attempt.requested_harness_id = parsed.harnessId || null;
   if (attempt.turn_id) {
-    var previous = s.requestAttempts.filter(function (a) {
+    const previous = s.requestAttempts.filter(function (a) {
       return a !== attempt && a.turn_id === attempt.turn_id && a.evaluation_id === attempt.evaluation_id && a.started_at <= attempt.started_at;
     }).pop();
     if (previous) attempt.retry_of = previous.request_id;
@@ -32,9 +32,9 @@ function captureRequestMetadata(s, evt) {
 }
 
 function captureResponseMetadata(s, evt) {
-  var headers = AE.safeTransportHeaders(evt.headers);
+  const headers = AE.safeTransportHeaders(evt.headers);
   Object.assign(s.transport.headers, headers);
-  var attempt = requestAttempt(s, evt);
+  const attempt = requestAttempt(s, evt);
   if (!attempt) return;
   if (evt.status != null) attempt.status = evt.status;
   attempt.response_headers = Object.assign({}, attempt.response_headers || {}, headers);
@@ -43,8 +43,8 @@ function captureResponseMetadata(s, evt) {
     attempt.outcome = evt.status >= 400 ? "http_error" : "streaming";
   }
   if (evt.kind === "request_error") {
-    var text = String(evt.error || evt.body || "Request failed");
-    var parsed;
+    let text = String(evt.error || evt.body || "Request failed");
+    let parsed;
     try { parsed = JSON.parse(text); } catch (e) { /* text error response */ }
     if (parsed) text = String(parsed.message || (parsed.error && (parsed.error.message || parsed.error)) || text);
     attempt.error = AE.redactSecretText(text).slice(0, 600);
@@ -64,11 +64,11 @@ function captureResponseMetadata(s, evt) {
 }
 
 function markAgentTurnComplete(s, kind, metadata) {
-  var key = s.currentStreamKey;
+  const key = s.currentStreamKey;
   if (!key) return;
-  var idx = s.messageIndex[key];
+  const idx = s.messageIndex[key];
   if (idx != null && s.messages[idx]) {
-    var message = s.messages[idx];
+    const message = s.messages[idx];
     message.finished = true;
     if (metadata) message.metadata = Object.assign({}, message.metadata || {}, AE.assistantMetadata({ metadata: metadata }));
   }
@@ -85,21 +85,21 @@ function recordPageData(s, data, url) {
   if (data.catalog && Array.isArray(data.catalog.models) && /\/(?:text\/(?:direct|side-by-side)|max|c)(?:[/?#]|$)/i.test(url || "")) {
     s.modelCatalog = AE.cleanModelCatalog(data.catalog.models, url);
   }
-  var transcript = data.transcript;
+  const transcript = data.transcript;
   if (!transcript || !Array.isArray(transcript.messages)) return;
   s.transcriptMetadata = AE.transcriptMetadata(transcript);
   if (typeof AE.historyAgentToPayload !== "function") return;
-  var history = AE.historyAgentToPayload(transcript, { id: s.session.session_id });
+  const history = AE.historyAgentToPayload(transcript, { id: s.session.session_id });
   history.messages.forEach(function (message, historyIndex) {
-    var existingIndex = s.messageIndex[message.id];
+    const existingIndex = s.messageIndex[message.id];
     if (existingIndex != null) {
-      var old = s.messages[existingIndex];
+      const old = s.messages[existingIndex];
       old.metadata = Object.assign({}, old.metadata || {}, message.metadata || {});
       if (!old.content.length || (JSON.stringify(message.content).length > JSON.stringify(old.content).length && !s.streamDirty)) old.content = message.content;
     } else {
-      var insertAt = s.messages.length;
-      for (var i = historyIndex + 1; i < history.messages.length; i++) {
-        var nextIndex = s.messageIndex[history.messages[i].id];
+      let insertAt = s.messages.length;
+      for (let i = historyIndex + 1; i < history.messages.length; i++) {
+        const nextIndex = s.messageIndex[history.messages[i].id];
         if (nextIndex != null) { insertAt = nextIndex; break; }
       }
       s.messages.splice(insertAt, 0, message);
@@ -109,15 +109,15 @@ function recordPageData(s, data, url) {
 }
 
 function latestRequestOutcome(s) {
-  var attempts = s.requestAttempts || [];
+  const attempts = s.requestAttempts || [];
   return attempts.length ? attempts[attempts.length - 1] : null;
 }
 
 function observedMode(s, snapshot) {
-  var attempt = latestRequestOutcome(s);
+  const attempt = latestRequestOutcome(s);
   if (attempt && attempt.mode) return attempt.mode;
   if (snapshot && snapshot.battle && snapshot.battle.mode) return snapshot.battle.mode;
-  var url = snapshot && snapshot.url || s.session.url || "";
+  const url = snapshot && snapshot.url || s.session.url || "";
   if (/\/(?:text\/direct|max)(?:[/?#]|$)/i.test(url)) return "direct";
   if (/\/text\/side-by-side(?:[/?#]|$)/i.test(url)) return "side-by-side";
   if (/\/agent(?:[/?#]|$)/i.test(url)) return "agent";

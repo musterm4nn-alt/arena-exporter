@@ -11,7 +11,7 @@ function padBattleIndex(n) {
 
 function cloneBlocks(blocks) {
   return (blocks || []).map(function (b) {
-    var c = {};
+    const c = {};
     Object.keys(b || {}).forEach(function (k) {
       if (k === "vote" || k === "winner" || k === "outcome" || k === "vote_choice") return;
       c[k] = b[k];
@@ -21,10 +21,10 @@ function cloneBlocks(blocks) {
 }
 
 function precedingUserPrompt(messages, index) {
-  for (var i = index - 1; i >= 0; i--) {
-    var m = messages[i];
+  for (let i = index - 1; i >= 0; i--) {
+    const m = messages[i];
     if (!m || m.role !== "user") continue;
-    var texts = (m.content || []).filter(function (b) {
+    const texts = (m.content || []).filter(function (b) {
       return b && b.type === "text" && b.text;
     }).map(function (b) { return b.text; });
     if (texts.length) return texts.join("\n");
@@ -33,18 +33,18 @@ function precedingUserPrompt(messages, index) {
 }
 
 function laneSampleBlocks(contestant) {
-  var blocks = [];
+  const blocks = [];
   if (contestant.reasoning) blocks.push({ type: "thinking", text: contestant.reasoning, source: "network" });
   if (contestant.response) {
     blocks.push({ type: "text", text: contestant.response, format: "markdown", source: "network" });
   }
-  var calls = contestant.tool_calls && contestant.tool_calls.length
+  const calls = contestant.tool_calls && contestant.tool_calls.length
     ? contestant.tool_calls
     : (contestant.tools || []).map(function (name) { return { toolName: name }; });
   calls.forEach(function (t) {
-    var name = t.toolName || t.tool_name || t;
+    const name = t.toolName || t.tool_name || t;
     if (!name || typeof name !== "string") return;
-    var block = { type: "tool_call", tool_name: name, source: "network" };
+    const block = { type: "tool_call", tool_name: name, source: "network" };
     if (t.toolCallId) block.call_id = t.toolCallId;
     if (t.args != null) block.arguments = t.args;
     blocks.push(block);
@@ -64,22 +64,22 @@ function laneSampleBlocks(contestant) {
 }
 
 function buildAttributionSamples(s, payload) {
-  var samples = [];
-  var key = (s.session && (s.session.conversation_key || s.session.session_id)) || "unknown";
-  var messages = (payload && payload.messages) || [];
-  var battles = (payload && payload.battles) || [];
-  var sourceMode = payload && payload.export && payload.export.source && payload.export.source.mode || "agent";
-  var selectedMode = sourceMode === "direct" || sourceMode === "direct-battle" || sourceMode === "side-by-side";
+  const samples = [];
+  const key = (s.session && (s.session.conversation_key || s.session.session_id)) || "unknown";
+  const messages = (payload && payload.messages) || [];
+  const battles = (payload && payload.battles) || [];
+  const sourceMode = payload && payload.export && payload.export.source && payload.export.source.mode || "agent";
+  const selectedMode = sourceMode === "direct" || sourceMode === "direct-battle" || sourceMode === "side-by-side";
 
   battles.forEach(function (battle, i) {
-    var idx = i + 1;
-    var prompt = battle.prompt || null;
+    const idx = i + 1;
+    const prompt = battle.prompt || null;
     (battle.contestants || []).forEach(function (c) {
       if (!c || !c.lane) return;
-      var model = c.model || null;
+      let model = c.model || null;
       if (model && AE.isPlaceholderModel && AE.isPlaceholderModel(model)) model = null;
-      var files = (c.files || []).map(function (f) { return f.path || f; }).filter(Boolean);
-      var sampleBlocks = laneSampleBlocks(c);
+      const files = (c.files || []).map(function (f) { return f.path || f; }).filter(Boolean);
+      const sampleBlocks = laneSampleBlocks(c);
       if (!sampleBlocks.length && !files.length) return;
       samples.push({
         sample_id: key + ":battle-" + padBattleIndex(idx) + ":" + c.lane,
@@ -104,7 +104,7 @@ function buildAttributionSamples(s, payload) {
   messages.forEach(function (m, i) {
     if (selectedMode && battles.length) return; // lane samples already contain these outputs
     if (!m || m.role !== "assistant") return;
-    var blocks = cloneBlocks(m.content);
+    const blocks = cloneBlocks(m.content);
     if (!blocks.length) return;
     samples.push({
       sample_id: key + ":msg:" + (m.id || String(i)),

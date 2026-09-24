@@ -5,8 +5,8 @@ var AE = AE || {};
   "use strict";
   AE.catalogModelLabel = function (row) {
     if (!row || typeof row !== "object") return null;
-    var values = [row.publicName, row.displayName, row.name];
-    for (var i = 0; i < values.length; i++) {
+    const values = [row.publicName, row.displayName, row.name];
+    for (let i = 0; i < values.length; i++) {
       if (typeof values[i] === "string" && values[i] && !AE.isPlaceholderModel(values[i])) return values[i];
     }
     return null;
@@ -16,15 +16,15 @@ var AE = AE || {};
     return catalog.models.find(function (row) { return row.id === id; }) || null;
   };
   AE.cleanModelCatalog = function (rows, url) {
-    var seen = {};
-    var fields = ["id", "name", "publicName", "displayName", "organization", "provider", "userSelectable", "rank", "rankByModality"];
-    var models = [];
+    const seen = {};
+    const fields = ["id", "name", "publicName", "displayName", "organization", "provider", "userSelectable", "rank", "rankByModality"];
+    const models = [];
     (Array.isArray(rows) ? rows : []).slice(0, 4000).forEach(function (row) {
       if (!row || typeof row.id !== "string" || row.id.length > 160 || seen[row.id]) return;
       seen[row.id] = true;
-      var clean = {};
+      const clean = {};
       fields.forEach(function (field) {
-        var value = row[field];
+        const value = row[field];
         if (value == null) return;
         if (typeof value === "string") clean[field] = value.slice(0, 300);
         else if (typeof value === "number" || typeof value === "boolean") clean[field] = value;
@@ -35,15 +35,15 @@ var AE = AE || {};
     return { source_url: url || null, captured_at: new Date().toISOString(), models: models };
   };
   AE.assistantMetadata = function (message) {
-    var source = Object.assign({}, message || {}, (message && (message.metadata || message.messageMetadata)) || {});
-    var out = {};
+    const source = Object.assign({}, message || {}, (message && (message.metadata || message.messageMetadata)) || {});
+    const out = {};
     ["nodeId", "manifestNodeId", "pending", "requiresReview", "feedback"].forEach(function (key) {
       if (Object.prototype.hasOwnProperty.call(source, key)) out[key] = source[key];
     });
     return AE.scrubSecrets(out);
   };
   AE.transcriptMetadata = function (transcript) {
-    var out = {};
+    const out = {};
     ["pagination", "transcriptReadStrategy", "productMode", "feedbackType", "customFeedbackArm"].forEach(function (key) {
       if (Object.prototype.hasOwnProperty.call(transcript || {}, key)) out[key] = transcript[key];
     });
@@ -51,13 +51,13 @@ var AE = AE || {};
     return AE.scrubSecrets(out);
   };
   AE.pageDataFromObjects = function (objects, url, references) {
-    var result = { catalog: null, transcript: null };
-    var visits = 0;
-    var visited = new Set();
+    const result = { catalog: null, transcript: null };
+    let visits = 0;
+    const visited = new Set();
     function resolve(value, depth) {
       if (depth > 12) return value;
       if (typeof value === "string" && /^\$[a-f0-9]+$/i.test(value) && references) {
-        var ref = references[value.slice(1)];
+        const ref = references[value.slice(1)];
         if (ref !== undefined && ref !== value) return resolve(ref, depth + 1);
       }
       if (Array.isArray(value)) return value.map(function (v) { return resolve(v, depth + 1); });
@@ -69,10 +69,10 @@ var AE = AE || {};
       if (!value || typeof value !== "object" || visited.has(value)) return;
       visited.add(value);
       if (value.initialModels) {
-        var rows = resolve(value.initialModels, 0);
+        const rows = resolve(value.initialModels, 0);
         if (Array.isArray(rows)) result.catalog = AE.cleanModelCatalog(rows, url);
       }
-      var messages = resolve(value.messages, 0);
+      const messages = resolve(value.messages, 0);
       if (Array.isArray(messages) && messages.some(function (m) { return m && m.role && Array.isArray(m.parts); })) {
         result.transcript = Object.assign({}, value, { messages: messages });
       }
@@ -85,16 +85,16 @@ var AE = AE || {};
   };
   AE.parsePageData = function (source, url) {
     source = String(source || "").slice(0, 8 * 1024 * 1024);
-    var chunks = [];
-    var re = /self\.__next_f\.push\(\s*\[\s*1\s*,\s*("(?:\\.|[^"\\])*")\s*\]\s*\)/g;
-    var match;
+    const chunks = [];
+    const re = /self\.__next_f\.push\(\s*\[\s*1\s*,\s*("(?:\\.|[^"\\])*")\s*\]\s*\)/g;
+    let match;
     while ((match = re.exec(source))) {
       try { chunks.push(JSON.parse(match[1])); } catch (e) { /* incomplete script */ }
     }
-    var flight = chunks.length ? chunks.join("") : source;
-    var objects = [], references = {};
+    const flight = chunks.length ? chunks.join("") : source;
+    const objects = [], references = {};
     flight.split(/\r?\n/).forEach(function (line) {
-      var row = /^([a-f0-9]+):(?:J)?([\[{].*)$/i.exec(line);
+      const row = /^([a-f0-9]+):(?:J)?([\[{].*)$/i.exec(line);
       if (!row) return;
       try {
         references[row[1]] = JSON.parse(row[2]);

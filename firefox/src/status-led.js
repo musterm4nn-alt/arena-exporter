@@ -10,13 +10,13 @@ var AE = AE || {};
 (function () {
   "use strict";
 
-  var ARENA_TAB_RE = /^https:\/\/([^/]+\.)?(arena\.ai|lmarena\.ai)\//i;
-  var visualKind = "";
-  var lastTitle = "";
-  var bobTimer = null;
-  var bobFrame = 0;
-  var BOB_MS = 450;
-  var PATHS = {
+  const ARENA_TAB_RE = /^https:\/\/([^/]+\.)?(arena\.ai|lmarena\.ai)\//i;
+  let visualKind = "";
+  let lastTitle = "";
+  let bobTimer = null;
+  let bobFrame = 0;
+  const BOB_MS = 450;
+  const PATHS = {
     idle: { 16: "icons/led/16-idle.png", 32: "icons/led/32-idle.png", 48: "icons/led/48-idle.png" },
     ok: { 16: "icons/led/16-ok.png", 32: "icons/led/32-ok.png", 48: "icons/led/48-ok.png" },
     stream: { 16: "icons/led/16-stream.png", 32: "icons/led/32-stream.png", 48: "icons/led/48-stream.png" },
@@ -24,7 +24,7 @@ var AE = AE || {};
     warn: { 16: "icons/led/16-idle.png", 32: "icons/led/32-idle.png", 48: "icons/led/48-idle.png" },
     error: { 16: "icons/led/16-error.png", 32: "icons/led/32-error.png", 48: "icons/led/48-error.png" }
   };
-  var TITLES = {
+  const TITLES = {
     idle: "Arena Exporter — idle",
     ok: "Arena Exporter — archive connected",
     stream: "Arena Exporter — capturing",
@@ -35,10 +35,10 @@ var AE = AE || {};
 
   AE.statusLedKind = function (opts) {
     opts = opts || {};
-    var summary = opts.summary || {};
-    var onArena = !!opts.onArena;
-    var native = summary.nativeSink || opts.native || null;
-    var lastSync = summary.lastSync || null;
+    const summary = opts.summary || {};
+    const onArena = !!opts.onArena;
+    const native = summary.nativeSink || opts.native || null;
+    const lastSync = summary.lastSync || null;
     if (lastSync && lastSync.ok === false) return "error";
     if (summary.captureHealthCritical) return "error";
     if (summary.streaming) return "stream";
@@ -48,18 +48,18 @@ var AE = AE || {};
   };
 
   function paint(kind) {
-    var visual = kind === "stream" && bobFrame ? "stream-b" : kind;
+    let visual = kind === "stream" && bobFrame ? "stream-b" : kind;
     if (kind === "warn") visual = "idle";
-    var title = TITLES[kind] || TITLES.idle;
-    var paths = PATHS[visual] || PATHS.idle;
+    const title = TITLES[kind] || TITLES.idle;
+    const paths = PATHS[visual] || PATHS.idle;
     if (visual === visualKind && title === lastTitle) return;
     visualKind = visual;
     lastTitle = title;
     try {
       if (chrome.action && chrome.action.setIcon) {
-        var resolved = {};
+        const resolved = {};
         Object.keys(paths).forEach(function (size) { resolved[size] = chrome.runtime.getURL(paths[size]); });
-        var iconRequest = chrome.action.setIcon({ path: resolved });
+        const iconRequest = chrome.action.setIcon({ path: resolved });
         if (iconRequest && iconRequest.catch) iconRequest.catch(function () {
           if (AE.recordIssue) AE.recordIssue("toolbar", "icon_failed");
         });
@@ -67,7 +67,7 @@ var AE = AE || {};
     } catch (e) { /* ignore */ }
     try {
       if (chrome.action && chrome.action.setTitle) {
-        var titleRequest = chrome.action.setTitle({ title: title });
+        const titleRequest = chrome.action.setTitle({ title: title });
         if (titleRequest && titleRequest.catch) titleRequest.catch(function () {});
       }
     } catch (e2) { /* ignore */ }
@@ -100,8 +100,8 @@ var AE = AE || {};
       try {
         chrome.tabs.query({ active: true, lastFocusedWindow: true }, function (tabs) {
           void chrome.runtime.lastError;
-          var tab = (tabs && tabs[0]) || null;
-          var url = (tab && tab.url) || "";
+          const tab = (tabs && tabs[0]) || null;
+          const url = (tab && tab.url) || "";
           resolve(ARENA_TAB_RE.test(url) ? tab : null);
         });
       } catch (e) {
@@ -110,15 +110,15 @@ var AE = AE || {};
     });
   }
 
-  var refreshing = false, streamExpiry = null;
+  let refreshing = false, streamExpiry = null;
   AE.refreshStatusLed = function () {
     if (refreshing) return;
     refreshing = true;
-    var go = function () {
+    const go = function () {
       activeArenaTab().then(function (tab) {
-        var key=tab && canonicalSessionKey(conversationKeyFromUrl(tab.url)||store.tabKeys[tab.id]);
-        var session=key && store.sessions[key];
-        var summary=session?{streaming:sessionIsStreaming(session),lastSync:session.lastSync,nativeSink:AE.nativeLastStatus(),
+        const key=tab && canonicalSessionKey(conversationKeyFromUrl(tab.url)||store.tabKeys[tab.id]);
+        const session=key && store.sessions[key];
+        const summary=session?{streaming:sessionIsStreaming(session),lastSync:session.lastSync,nativeSink:AE.nativeLastStatus(),
           captureHealthCritical:(session.warnings||[]).some(function(w){return w===AE.CAPTURE_HEALTH_MSG.BATTLE_NO_EVAL||w===AE.CAPTURE_HEALTH_MSG.AGENT_NO_STREAM;})}:{};
         applyIcon(AE.statusLedKind({ summary: summary, onArena: !!tab }));
         clearTimeout(streamExpiry);

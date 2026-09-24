@@ -55,12 +55,12 @@ var AE = AE || {};
 (function () {
   "use strict";
 
-  var SECRET_NAMES = /^(?:recaptcha.*|grecaptcha.*|captcha.*|authorization|proxyauthorization|cookie|setcookie|apikey|xapikey|secret|clientsecret|password|passwd|token|accesstoken|publicaccesstoken|refreshtoken|idtoken|sessiontoken|authtoken|bearertoken|oauthtoken|oauth2token|githubtoken|personalaccesstoken|pat|jwt|credentials|privatekey|privatekeypem|secretkey|signingkey)$/i;
-  var FIELD = "(?:recaptcha[a-z0-9_-]*|g-recaptcha[a-z0-9_-]*|captcha[a-z0-9_-]*|authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x[-_]?api[-_]?key|client[-_]?secret|secret|password|passwd|(?:public[-_]?)?access[-_]?token|refresh[-_]?token|id[-_]?token|session[-_]?token|auth[-_]?token|bearer[-_]?token|oauth2?[-_]?token|github[-_]?token|personal[-_]?access[-_]?token|token|jwt|credentials|private[-_]?key)";
-  var FIELD_VALUE = new RegExp("((?:[\\\"']?" + FIELD + "[\\\"']?)\\s*[:=]\\s*)(?:\\\"(?:\\\\.|[^\\\"\\\\])*(?:\\\"|$)|'(?:\\\\.|[^'\\\\])*(?:'|$)|[^&\\s,;}\\]]+)", "gi");
-  var QUERY_SECRET = new RegExp("([?&]" + FIELD + "=)[^&#\\s]*", "gi");
-  var PEM_PRIVATE = /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/g;
-  var OPENSSH_PRIVATE = /-----BEGIN OPENSSH PRIVATE KEY-----[\s\S]*?-----END OPENSSH PRIVATE KEY-----/g;
+  const SECRET_NAMES = /^(?:recaptcha.*|grecaptcha.*|captcha.*|authorization|proxyauthorization|cookie|setcookie|apikey|xapikey|secret|clientsecret|password|passwd|token|accesstoken|publicaccesstoken|refreshtoken|idtoken|sessiontoken|authtoken|bearertoken|oauthtoken|oauth2token|githubtoken|personalaccesstoken|pat|jwt|credentials|privatekey|privatekeypem|secretkey|signingkey)$/i;
+  const FIELD = "(?:recaptcha[a-z0-9_-]*|g-recaptcha[a-z0-9_-]*|captcha[a-z0-9_-]*|authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x[-_]?api[-_]?key|client[-_]?secret|secret|password|passwd|(?:public[-_]?)?access[-_]?token|refresh[-_]?token|id[-_]?token|session[-_]?token|auth[-_]?token|bearer[-_]?token|oauth2?[-_]?token|github[-_]?token|personal[-_]?access[-_]?token|token|jwt|credentials|private[-_]?key)";
+  const FIELD_VALUE = new RegExp("((?:[\\\"']?" + FIELD + "[\\\"']?)\\s*[:=]\\s*)(?:\\\"(?:\\\\.|[^\\\"\\\\])*(?:\\\"|$)|'(?:\\\\.|[^'\\\\])*(?:'|$)|[^&\\s,;}\\]]+)", "gi");
+  const QUERY_SECRET = new RegExp("([?&]" + FIELD + "=)[^&#\\s]*", "gi");
+  const PEM_PRIVATE = /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/g;
+  const OPENSSH_PRIVATE = /-----BEGIN OPENSSH PRIVATE KEY-----[\s\S]*?-----END OPENSSH PRIVATE KEY-----/g;
 
   function normalizedName(name) {
     return String(name == null ? "" : name).replace(/[^a-z0-9]/gi, "");
@@ -71,11 +71,11 @@ var AE = AE || {};
   }
 
   function scrubFragment(fragment) {
-    var raw = String(fragment || "");
+    const raw = String(fragment || "");
     if (raw.charAt(0) !== "#" || raw.indexOf("=") === -1) return null;
     try {
-      var params = new URLSearchParams(raw.slice(1));
-      var changed = false;
+      const params = new URLSearchParams(raw.slice(1));
+      let changed = false;
       Array.from(params.keys()).forEach(function (key) {
         if (!secretName(key)) return;
         params.set(key, "[REDACTED]");
@@ -91,10 +91,10 @@ var AE = AE || {};
    * changing. This is important for raw evaluation frames, where normalizing a
    * harmless citation URL can make an otherwise valid frame unparseable. */
   AE.scrubCredentialUrl = function (value) {
-    var text = String(value == null ? "" : value);
+    const text = String(value == null ? "" : value);
     try {
-      var url = new URL(text);
-      var changed = false;
+      const url = new URL(text);
+      let changed = false;
       if (url.username || url.password) {
         url.username = "";
         url.password = "";
@@ -105,7 +105,7 @@ var AE = AE || {};
         url.searchParams.set(key, "[REDACTED]");
         changed = true;
       });
-      var fragment = scrubFragment(url.hash);
+      const fragment = scrubFragment(url.hash);
       if (fragment !== null) {
         url.hash = fragment;
         changed = true;
@@ -118,7 +118,7 @@ var AE = AE || {};
 
   function scrubEmbeddedUrls(text) {
     return String(text || "").replace(/\bhttps?:\/\/[^\s<>"']+/gi, function (candidate) {
-      var trailing = "";
+      let trailing = "";
       while (/[),.;\]}]$/.test(candidate)) {
         trailing = candidate.slice(-1) + trailing;
         candidate = candidate.slice(0, -1);
@@ -128,7 +128,7 @@ var AE = AE || {};
   }
 
   AE.redactSecretText = function (text) {
-    var redacted = String(text == null ? "" : text)
+    const redacted = String(text == null ? "" : text)
       .replace(PEM_PRIVATE, "[REDACTED_PRIVATE_KEY]")
       .replace(OPENSSH_PRIVATE, "[REDACTED_PRIVATE_KEY]")
       .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*)?/g, "[REDACTED_JWT]")
@@ -160,7 +160,7 @@ var AE = AE || {};
         return v.map(function (item) { return walk(item, depth + 1); });
       }
       if (!v || typeof v !== "object") return v;
-      var out = {};
+      const out = {};
       Object.keys(v).forEach(function (key) {
         if (secretName(key) || key === "__proto__" || key === "constructor" || key === "prototype") return;
         out[key] = walk(v[key], depth + 1);
@@ -171,9 +171,9 @@ var AE = AE || {};
   };
 
   AE.safeTransportHeaders = function (headers) {
-    var out = {};
+    const out = {};
     ["x-session-settled", "x-stream-version", "x-arena-chat-id"].forEach(function (name) {
-      var value = null;
+      let value = null;
       if (headers && typeof headers.get === "function") value = headers.get(name);
       else if (Array.isArray(headers)) headers.forEach(function (pair) {
         if (pair && String(pair[0]).toLowerCase() === name) value = pair[1];
@@ -196,8 +196,8 @@ var AE = AE || {};
   "use strict";
   AE.catalogModelLabel = function (row) {
     if (!row || typeof row !== "object") return null;
-    var values = [row.publicName, row.displayName, row.name];
-    for (var i = 0; i < values.length; i++) {
+    const values = [row.publicName, row.displayName, row.name];
+    for (let i = 0; i < values.length; i++) {
       if (typeof values[i] === "string" && values[i] && !AE.isPlaceholderModel(values[i])) return values[i];
     }
     return null;
@@ -207,15 +207,15 @@ var AE = AE || {};
     return catalog.models.find(function (row) { return row.id === id; }) || null;
   };
   AE.cleanModelCatalog = function (rows, url) {
-    var seen = {};
-    var fields = ["id", "name", "publicName", "displayName", "organization", "provider", "userSelectable", "rank", "rankByModality"];
-    var models = [];
+    const seen = {};
+    const fields = ["id", "name", "publicName", "displayName", "organization", "provider", "userSelectable", "rank", "rankByModality"];
+    const models = [];
     (Array.isArray(rows) ? rows : []).slice(0, 4000).forEach(function (row) {
       if (!row || typeof row.id !== "string" || row.id.length > 160 || seen[row.id]) return;
       seen[row.id] = true;
-      var clean = {};
+      const clean = {};
       fields.forEach(function (field) {
-        var value = row[field];
+        const value = row[field];
         if (value == null) return;
         if (typeof value === "string") clean[field] = value.slice(0, 300);
         else if (typeof value === "number" || typeof value === "boolean") clean[field] = value;
@@ -226,15 +226,15 @@ var AE = AE || {};
     return { source_url: url || null, captured_at: new Date().toISOString(), models: models };
   };
   AE.assistantMetadata = function (message) {
-    var source = Object.assign({}, message || {}, (message && (message.metadata || message.messageMetadata)) || {});
-    var out = {};
+    const source = Object.assign({}, message || {}, (message && (message.metadata || message.messageMetadata)) || {});
+    const out = {};
     ["nodeId", "manifestNodeId", "pending", "requiresReview", "feedback"].forEach(function (key) {
       if (Object.prototype.hasOwnProperty.call(source, key)) out[key] = source[key];
     });
     return AE.scrubSecrets(out);
   };
   AE.transcriptMetadata = function (transcript) {
-    var out = {};
+    const out = {};
     ["pagination", "transcriptReadStrategy", "productMode", "feedbackType", "customFeedbackArm"].forEach(function (key) {
       if (Object.prototype.hasOwnProperty.call(transcript || {}, key)) out[key] = transcript[key];
     });
@@ -242,13 +242,13 @@ var AE = AE || {};
     return AE.scrubSecrets(out);
   };
   AE.pageDataFromObjects = function (objects, url, references) {
-    var result = { catalog: null, transcript: null };
-    var visits = 0;
-    var visited = new Set();
+    const result = { catalog: null, transcript: null };
+    let visits = 0;
+    const visited = new Set();
     function resolve(value, depth) {
       if (depth > 12) return value;
       if (typeof value === "string" && /^\$[a-f0-9]+$/i.test(value) && references) {
-        var ref = references[value.slice(1)];
+        const ref = references[value.slice(1)];
         if (ref !== undefined && ref !== value) return resolve(ref, depth + 1);
       }
       if (Array.isArray(value)) return value.map(function (v) { return resolve(v, depth + 1); });
@@ -260,10 +260,10 @@ var AE = AE || {};
       if (!value || typeof value !== "object" || visited.has(value)) return;
       visited.add(value);
       if (value.initialModels) {
-        var rows = resolve(value.initialModels, 0);
+        const rows = resolve(value.initialModels, 0);
         if (Array.isArray(rows)) result.catalog = AE.cleanModelCatalog(rows, url);
       }
-      var messages = resolve(value.messages, 0);
+      const messages = resolve(value.messages, 0);
       if (Array.isArray(messages) && messages.some(function (m) { return m && m.role && Array.isArray(m.parts); })) {
         result.transcript = Object.assign({}, value, { messages: messages });
       }
@@ -276,16 +276,16 @@ var AE = AE || {};
   };
   AE.parsePageData = function (source, url) {
     source = String(source || "").slice(0, 8 * 1024 * 1024);
-    var chunks = [];
-    var re = /self\.__next_f\.push\(\s*\[\s*1\s*,\s*("(?:\\.|[^"\\])*")\s*\]\s*\)/g;
-    var match;
+    const chunks = [];
+    const re = /self\.__next_f\.push\(\s*\[\s*1\s*,\s*("(?:\\.|[^"\\])*")\s*\]\s*\)/g;
+    let match;
     while ((match = re.exec(source))) {
       try { chunks.push(JSON.parse(match[1])); } catch (e) { /* incomplete script */ }
     }
-    var flight = chunks.length ? chunks.join("") : source;
-    var objects = [], references = {};
+    const flight = chunks.length ? chunks.join("") : source;
+    const objects = [], references = {};
     flight.split(/\r?\n/).forEach(function (line) {
-      var row = /^([a-f0-9]+):(?:J)?([\[{].*)$/i.exec(line);
+      const row = /^([a-f0-9]+):(?:J)?([\[{].*)$/i.exec(line);
       if (!row) return;
       try {
         references[row[1]] = JSON.parse(row[2]);

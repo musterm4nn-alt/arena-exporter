@@ -3,19 +3,19 @@
 var AE = AE || {};
 
 function fence(lang, text) {
-  var body = String(text == null ? "" : text).replace(/\n+$/, "");
+  const body = String(text == null ? "" : text).replace(/\n+$/, "");
   return "```" + (lang || "") + "\n" + body + "\n```";
 }
 
 AE.iterateMarkdownChunks = function (payload) {
   payload = payload || {};
-  var session = payload.session || {};
-  var battles = payload.battles || [];
-  var messages = payload.messages || [];
-  var exp = payload.export || {};
-  var source = exp.source || {};
-  var title = session.title || (battles[0] && battles[0].prompt) || "Arena chat";
-  var lines = [];
+  const session = payload.session || {};
+  const battles = payload.battles || [];
+  const messages = payload.messages || [];
+  const exp = payload.export || {};
+  const source = exp.source || {};
+  const title = session.title || (battles[0] && battles[0].prompt) || "Arena chat";
+  const lines = [];
   lines.push("# " + title);
   lines.push("");
   lines.push("- Mode: " + (source.mode || (battles.length ? "battle" : "agent")));
@@ -26,12 +26,12 @@ AE.iterateMarkdownChunks = function (payload) {
   if (exp.extension_version) lines.push("- Captured by: arena-agent-exporter v" + exp.extension_version);
   if (exp.exported_at) lines.push("- Exported: " + exp.exported_at);
   if (source.mode === "agent") lines.push("- Orchestrator: " + (session.orchestrator_model || "not revealed by Arena"));
-  var latest = battles.length ? battles[battles.length - 1] : null;
+  const latest = battles.length ? battles[battles.length - 1] : null;
   if (latest) {
     /* Battles are anonymous until the post-vote reveal: contestants carry
      * model: null, there is no `anonymous` field to read. */
-    var contestants = latest.contestants || [];
-    var named = contestants.filter(function (c) { return c && c.model; });
+    const contestants = latest.contestants || [];
+    const named = contestants.filter(function (c) { return c && c.model; });
     lines.push("- Models: " + (contestants.length && named.length === contestants.length
       ? named.map(function (c) { return c.model; }).join(" vs ")
       : "pending"));
@@ -41,7 +41,7 @@ AE.iterateMarkdownChunks = function (payload) {
 
   if (battles.length) {
     battles.forEach(function (b, i) {
-      var selectedMode = /^(direct|direct-battle|side-by-side)$/.test(b.mode || "");
+      const selectedMode = /^(direct|direct-battle|side-by-side)$/.test(b.mode || "");
       lines.push("## " + (selectedMode ? "Turn " : "Battle ") + (b.index || i + 1));
       lines.push("");
       if (b.prompt) {
@@ -66,7 +66,7 @@ AE.iterateMarkdownChunks = function (payload) {
           lines.push("- tool `" + (t.toolName || t.tool_name) + "`" + (t.args && t.args.path ? " `" + t.args.path + "`" : ""));
         });
         (c.files || []).forEach(function (f) {
-          var p = f.archive_path || f.path;
+          const p = f.archive_path || f.path;
           if (p) lines.push("- file [" + (f.path || p) + "](" + p + ")");
         });
         lines.push("");
@@ -76,7 +76,7 @@ AE.iterateMarkdownChunks = function (payload) {
 
   if (messages.length) {
     messages.forEach(function (m) {
-      var heading = m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : m.role;
+      const heading = m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : m.role;
       lines.push("## " + heading);
       lines.push("");
       (m.content || []).forEach(function (b) {
@@ -90,7 +90,7 @@ AE.iterateMarkdownChunks = function (payload) {
         } else if (b.type === "tool_call") {
           lines.push("- tool `" + (b.tool_name || "unknown") + "`");
         } else if (b.type === "artifact") {
-          var href = (b.attachment && b.attachment.path) || b.content_or_url || b.title;
+          const href = (b.attachment && b.attachment.path) || b.content_or_url || b.title;
           lines.push("- artifact [" + (b.title || href) + "](" + href + ")");
         }
       });
@@ -98,11 +98,11 @@ AE.iterateMarkdownChunks = function (payload) {
     });
   }
 
-  var attempts = payload.meta && payload.meta.request_attempts || [];
+  const attempts = payload.meta && payload.meta.request_attempts || [];
   if (attempts.length) {
     lines.push("## Request outcomes", "");
     attempts.forEach(function (attempt) {
-      var status = attempt.status ? "HTTP " + attempt.status + ", " : "";
+      const status = attempt.status ? "HTTP " + attempt.status + ", " : "";
       lines.push("- " + status + String(attempt.outcome || "pending").replace(/_/g, " ") +
         (attempt.error ? ": " + attempt.error : "") +
         (attempt.retry_of ? " (retry of " + attempt.retry_of + ")" : ""));
@@ -110,8 +110,8 @@ AE.iterateMarkdownChunks = function (payload) {
     lines.push("");
   }
 
-  var meta = payload.meta || {};
-  var warnings = Array.isArray(meta.warnings) ? meta.warnings : [];
+  const meta = payload.meta || {};
+  const warnings = Array.isArray(meta.warnings) ? meta.warnings : [];
   if (warnings.length || meta.completeness_detail) {
     lines.push("## Capture notes", "");
     if (meta.completeness) lines.push("- Completeness: " + meta.completeness);

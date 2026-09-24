@@ -11,12 +11,12 @@ var AE = AE || {};
 (function () {
   "use strict";
 
-  var SECRET_NAMES = /^(?:recaptcha.*|grecaptcha.*|captcha.*|authorization|proxyauthorization|cookie|setcookie|apikey|xapikey|secret|clientsecret|password|passwd|token|accesstoken|publicaccesstoken|refreshtoken|idtoken|sessiontoken|authtoken|bearertoken|oauthtoken|oauth2token|githubtoken|personalaccesstoken|pat|jwt|credentials|privatekey|privatekeypem|secretkey|signingkey)$/i;
-  var FIELD = "(?:recaptcha[a-z0-9_-]*|g-recaptcha[a-z0-9_-]*|captcha[a-z0-9_-]*|authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x[-_]?api[-_]?key|client[-_]?secret|secret|password|passwd|(?:public[-_]?)?access[-_]?token|refresh[-_]?token|id[-_]?token|session[-_]?token|auth[-_]?token|bearer[-_]?token|oauth2?[-_]?token|github[-_]?token|personal[-_]?access[-_]?token|token|jwt|credentials|private[-_]?key)";
-  var FIELD_VALUE = new RegExp("((?:[\\\"']?" + FIELD + "[\\\"']?)\\s*[:=]\\s*)(?:\\\"(?:\\\\.|[^\\\"\\\\])*(?:\\\"|$)|'(?:\\\\.|[^'\\\\])*(?:'|$)|[^&\\s,;}\\]]+)", "gi");
-  var QUERY_SECRET = new RegExp("([?&]" + FIELD + "=)[^&#\\s]*", "gi");
-  var PEM_PRIVATE = /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/g;
-  var OPENSSH_PRIVATE = /-----BEGIN OPENSSH PRIVATE KEY-----[\s\S]*?-----END OPENSSH PRIVATE KEY-----/g;
+  const SECRET_NAMES = /^(?:recaptcha.*|grecaptcha.*|captcha.*|authorization|proxyauthorization|cookie|setcookie|apikey|xapikey|secret|clientsecret|password|passwd|token|accesstoken|publicaccesstoken|refreshtoken|idtoken|sessiontoken|authtoken|bearertoken|oauthtoken|oauth2token|githubtoken|personalaccesstoken|pat|jwt|credentials|privatekey|privatekeypem|secretkey|signingkey)$/i;
+  const FIELD = "(?:recaptcha[a-z0-9_-]*|g-recaptcha[a-z0-9_-]*|captcha[a-z0-9_-]*|authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x[-_]?api[-_]?key|client[-_]?secret|secret|password|passwd|(?:public[-_]?)?access[-_]?token|refresh[-_]?token|id[-_]?token|session[-_]?token|auth[-_]?token|bearer[-_]?token|oauth2?[-_]?token|github[-_]?token|personal[-_]?access[-_]?token|token|jwt|credentials|private[-_]?key)";
+  const FIELD_VALUE = new RegExp("((?:[\\\"']?" + FIELD + "[\\\"']?)\\s*[:=]\\s*)(?:\\\"(?:\\\\.|[^\\\"\\\\])*(?:\\\"|$)|'(?:\\\\.|[^'\\\\])*(?:'|$)|[^&\\s,;}\\]]+)", "gi");
+  const QUERY_SECRET = new RegExp("([?&]" + FIELD + "=)[^&#\\s]*", "gi");
+  const PEM_PRIVATE = /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/g;
+  const OPENSSH_PRIVATE = /-----BEGIN OPENSSH PRIVATE KEY-----[\s\S]*?-----END OPENSSH PRIVATE KEY-----/g;
 
   function normalizedName(name) {
     return String(name == null ? "" : name).replace(/[^a-z0-9]/gi, "");
@@ -27,11 +27,11 @@ var AE = AE || {};
   }
 
   function scrubFragment(fragment) {
-    var raw = String(fragment || "");
+    const raw = String(fragment || "");
     if (raw.charAt(0) !== "#" || raw.indexOf("=") === -1) return null;
     try {
-      var params = new URLSearchParams(raw.slice(1));
-      var changed = false;
+      const params = new URLSearchParams(raw.slice(1));
+      let changed = false;
       Array.from(params.keys()).forEach(function (key) {
         if (!secretName(key)) return;
         params.set(key, "[REDACTED]");
@@ -47,10 +47,10 @@ var AE = AE || {};
    * changing. This is important for raw evaluation frames, where normalizing a
    * harmless citation URL can make an otherwise valid frame unparseable. */
   AE.scrubCredentialUrl = function (value) {
-    var text = String(value == null ? "" : value);
+    const text = String(value == null ? "" : value);
     try {
-      var url = new URL(text);
-      var changed = false;
+      const url = new URL(text);
+      let changed = false;
       if (url.username || url.password) {
         url.username = "";
         url.password = "";
@@ -61,7 +61,7 @@ var AE = AE || {};
         url.searchParams.set(key, "[REDACTED]");
         changed = true;
       });
-      var fragment = scrubFragment(url.hash);
+      const fragment = scrubFragment(url.hash);
       if (fragment !== null) {
         url.hash = fragment;
         changed = true;
@@ -74,7 +74,7 @@ var AE = AE || {};
 
   function scrubEmbeddedUrls(text) {
     return String(text || "").replace(/\bhttps?:\/\/[^\s<>"']+/gi, function (candidate) {
-      var trailing = "";
+      let trailing = "";
       while (/[),.;\]}]$/.test(candidate)) {
         trailing = candidate.slice(-1) + trailing;
         candidate = candidate.slice(0, -1);
@@ -84,7 +84,7 @@ var AE = AE || {};
   }
 
   AE.redactSecretText = function (text) {
-    var redacted = String(text == null ? "" : text)
+    const redacted = String(text == null ? "" : text)
       .replace(PEM_PRIVATE, "[REDACTED_PRIVATE_KEY]")
       .replace(OPENSSH_PRIVATE, "[REDACTED_PRIVATE_KEY]")
       .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*)?/g, "[REDACTED_JWT]")
@@ -116,7 +116,7 @@ var AE = AE || {};
         return v.map(function (item) { return walk(item, depth + 1); });
       }
       if (!v || typeof v !== "object") return v;
-      var out = {};
+      const out = {};
       Object.keys(v).forEach(function (key) {
         if (secretName(key) || key === "__proto__" || key === "constructor" || key === "prototype") return;
         out[key] = walk(v[key], depth + 1);
@@ -127,9 +127,9 @@ var AE = AE || {};
   };
 
   AE.safeTransportHeaders = function (headers) {
-    var out = {};
+    const out = {};
     ["x-session-settled", "x-stream-version", "x-arena-chat-id"].forEach(function (name) {
-      var value = null;
+      let value = null;
       if (headers && typeof headers.get === "function") value = headers.get(name);
       else if (Array.isArray(headers)) headers.forEach(function (pair) {
         if (pair && String(pair[0]).toLowerCase() === name) value = pair[1];
