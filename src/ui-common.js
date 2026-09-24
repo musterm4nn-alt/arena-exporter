@@ -1,40 +1,40 @@
 /* Shared, dependency-free UI utilities for the popup and workspace. */
 (function () {
   "use strict";
-  var ui = globalThis.AEUI = {};
+  const ui = globalThis.AEUI = {};
   ui.$ = function (id) { return document.getElementById(id); };
   ui.show = function (id, visible) {
-    var el = ui.$(id);
+    const el = ui.$(id);
     if (el) el.classList.toggle("hidden", !visible);
   };
   ui.setText = function (id, value) {
-    var el = ui.$(id);
+    const el = ui.$(id);
     if (el) el.textContent = value == null ? "" : String(value);
   };
   ui.setTone = function (id, tone, text) {
-    var el = ui.$(id);
+    const el = ui.$(id);
     if (!el) return;
     if (tone) el.dataset.tone = tone;
     if (text != null) el.textContent = String(text);
   };
   ui.on = function (id, event, handler) {
-    var el = ui.$(id);
+    const el = ui.$(id);
     if (el) el.addEventListener(event, handler);
   };
   ui.send = function (message) {
     return new Promise(function (resolve) {
-      var settled = false;
+      let settled = false;
       function finish(result) {
         if (settled) return;
         settled = true;
         resolve(result || { ok: false, error: "No response from the extension." });
       }
       function callback(result) {
-        var error = chrome.runtime.lastError;
+        const error = chrome.runtime.lastError;
         finish(error ? { ok: false, error: error.message || "Extension unavailable. Reload it and try again." } : result);
       }
       try {
-        var request = chrome.runtime.sendMessage(message, callback);
+        const request = chrome.runtime.sendMessage(message, callback);
         if (request && typeof request.then === "function") {
           request.then(function (result) { callback(result); }, function (error) {
             finish({ ok: false, error: error && error.message || String(error) });
@@ -47,8 +47,8 @@
   };
   ui.tabMessage = function (id, message, timeoutMs) {
     return new Promise(function (resolve) {
-      var done = false;
-      var timer = setTimeout(function () {
+      let done = false;
+      const timer = setTimeout(function () {
         finish({ error: "Arena did not answer. Let the current response finish, then reload the Arena tab." });
       }, timeoutMs == null ? 8000 : timeoutMs);
       function finish(result) {
@@ -58,7 +58,7 @@
         resolve(result);
       }
       try {
-        var request = chrome.tabs.sendMessage(id, message, function (result) {
+        const request = chrome.tabs.sendMessage(id, message, function (result) {
           void chrome.runtime.lastError;
           finish(result || { error: "Reload the Arena tab to connect page capture." });
         });
@@ -73,7 +73,7 @@
     });
   };
   ui.activeTab = async function () {
-    var tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     return tabs[0] || null;
   };
   ui.openWorkspace = function (view) {
@@ -95,7 +95,7 @@
     ui.feedback("Opened the conversation folder.");
   };
   ui.run = async function (id, pending, action) {
-    var button = ui.$(id);
+    const button = ui.$(id);
     if (!button || button.disabled) return;
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
@@ -112,12 +112,12 @@
   };
   ui.date = function (value, withTime) {
     if (!value) return "Not yet";
-    var d = new Date(value);
+    const d = new Date(value);
     if (!Number.isFinite(d.getTime())) return "Unknown";
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(withTime ? { hour: "2-digit", minute: "2-digit" } : {}) });
   };
   ui.element = function (tag, cls, text) {
-    var e = document.createElement(tag);
+    const e = document.createElement(tag);
     if (cls) e.className = cls;
     if (text != null) e.textContent = text;
     return e;
@@ -125,8 +125,8 @@
   ui.version = function () { ui.setText("version-badge", "v" + chrome.runtime.getManifest().version); };
   ui.number = function (value) { return Number(value || 0).toLocaleString(); };
   ui.subscribe = function (refresh) {
-    var timer;
-    var changed = function () { clearTimeout(timer); timer = setTimeout(refresh, 180); };
+    let timer;
+    const changed = function () { clearTimeout(timer); timer = setTimeout(refresh, 180); };
     if (chrome.runtime.onMessage) chrome.runtime.onMessage.addListener(function (message) {
       if (message && message.type === "AE_UI_CHANGED") changed();
     });

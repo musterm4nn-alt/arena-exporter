@@ -2,14 +2,15 @@
 var AE = AE || {};
 (function () {
   "use strict";
-  var cache = new WeakMap(), notificationTimer = null, issues = [];
-  var defaults = { autoArchive: true, archiveEncryption: null };
+  const cache = new WeakMap(), issues = [];
+  let notificationTimer = null;
+  const defaults = { autoArchive: true, archiveEncryption: null };
 
   function storageSetLocal(value) {
     return new Promise(function (resolve, reject) {
       try {
-        var request = chrome.storage.local.set(value, function () {
-          var error = chrome.runtime && chrome.runtime.lastError;
+        const request = chrome.storage.local.set(value, function () {
+          const error = chrome.runtime && chrome.runtime.lastError;
           if (error) reject(new Error(error.message || "settings write failed")); else resolve();
         });
         if (request && typeof request.then === "function") request.then(resolve, reject);
@@ -19,14 +20,14 @@ var AE = AE || {};
   AE.preferences = Object.assign({}, defaults);
   AE.preferencesReady = new Promise(function (resolve, reject) {
     try {
-      var request = chrome.storage.local.get(["ae_preferences"], function (stored) {
-        var error = chrome.runtime && chrome.runtime.lastError;
+      const request = chrome.storage.local.get(["ae_preferences"], function (stored) {
+        const error = chrome.runtime && chrome.runtime.lastError;
         if (error) reject(new Error(error.message || "settings read failed")); else resolve(stored || {});
       });
       if (request && typeof request.then === "function") request.then(resolve, reject);
     } catch (error) { reject(error); }
   }).then(function (stored) {
-    var prefs = stored && stored.ae_preferences;
+    const prefs = stored && stored.ae_preferences;
     AE.preferences.autoArchive = !(prefs && prefs.autoArchive === false);
     AE.preferences.archiveEncryption = prefs && prefs.archiveEncryption || null;
     if (AE.archiveEncryption && AE.archiveEncryption.restore) AE.archiveEncryption.restore(AE.preferences.archiveEncryption);
@@ -34,10 +35,11 @@ var AE = AE || {};
   }).catch(function () { if (AE.recordIssue) AE.recordIssue("settings", "read_failed"); });
 
   AE.parseCachedEvaluation = function (session, key, text, init) {
-    var entries = cache.get(session);
+    let entries = cache.get(session);
     if (!entries) { entries = new Map(); cache.set(session, entries); }
     // Requests can arrive after their streams. The init is part of the key.
-    var signature = JSON.stringify(init || null), old = entries.get(key);
+    const signature = JSON.stringify(init || null);
+    let old = entries.get(key);
     if (!old || old.text !== text || old.signature !== signature) {
       old = { text: text, signature: signature,
         value: AE.parseEvaluationStream ? AE.parseEvaluationStream(text, init) : AE.parseBattleStream(text) };
@@ -67,7 +69,7 @@ var AE = AE || {};
     note: "Downloads fallback uses a bounded data URL; large attachments may require the native archive app."
   }, AE.ARCHIVE_LIMITS || {});
   AE.diagnostics = function () {
-    var sessions = Object.values(store.sessions);
+    const sessions = Object.values(store.sessions);
     return {
       version: extensionVersion(),
       schema: AE.SCHEMA_VERSION,
@@ -104,9 +106,9 @@ var AE = AE || {};
     };
   };
   AE.libraryEntries = async function () {
-    var index = await AE.archiveIndexLoad();
+    const index = await AE.archiveIndexLoad();
     return Object.keys(index).map(function (key) {
-      var entry = index[key];
+      const entry = index[key];
       return { key: key, title: entry.title || "Untitled conversation", url: entry.url || null,
         mode: entry.mode || "agent", subtype: entry.subtype || "text", rel: entry.rel,
         updated_at: entry.updated_at, turns: entry.turns || 0, models: Array.isArray(entry.models) ? entry.models : [],
@@ -119,9 +121,9 @@ var AE = AE || {};
     }).sort(function (a, b) { return String(b.updated_at || "").localeCompare(String(a.updated_at || "")); });
   };
   AE.openArchivedFolder = async function (key) {
-    var index = await AE.archiveIndexLoad(), entry = index[key];
+    const index = await AE.archiveIndexLoad(), entry = index[key];
     if (!entry || !AE.nativeSafeRel(entry.rel)) throw new Error("This conversation has no saved archive folder.");
-    var destinations = Object.keys(entry.destinations || {}).sort(function (a, b) {
+    const destinations = Object.keys(entry.destinations || {}).sort(function (a, b) {
       return String(entry.destinations[b].updated_at).localeCompare(String(entry.destinations[a].updated_at));
     });
     if (destinations[0] && destinations[0].indexOf("native:") === 0) {
@@ -132,7 +134,7 @@ var AE = AE || {};
   };
   AE.handleWorkspaceMessage = function (msg, sender, respond) {
     if (!["AE_PREFERENCES", "AE_SET_PREFERENCES", "AE_SET_ARCHIVE_ENCRYPTION", "AE_UNLOCK_ARCHIVE_ENCRYPTION", "AE_LOCK_ARCHIVE_ENCRYPTION", "AE_LIBRARY", "AE_OPEN_ARCHIVED_FOLDER", "AE_DIAGNOSTICS"].includes(msg.type)) return false;
-    var page = String(sender && sender.url || "").split(/[?#]/)[0];
+    const page = String(sender && sender.url || "").split(/[?#]/)[0];
     if (!sender || sender.id !== chrome.runtime.id ||
         ![chrome.runtime.getURL("src/options.html"), chrome.runtime.getURL("src/popup.html")].includes(page)) {
       respond({ ok: false, error: "Open this action from Arena Exporter." }); return true;
@@ -140,7 +142,7 @@ var AE = AE || {};
     Promise.all([stateReadyPromise, AE.preferencesReady]).then(async function () {
       if (msg.type === "AE_SET_PREFERENCES") {
         if (!msg.preferences || typeof msg.preferences.autoArchive !== "boolean") throw new Error("Choose an automatic archive setting.");
-        var next = Object.assign({}, AE.preferences, { autoArchive: msg.preferences.autoArchive });
+        const next = Object.assign({}, AE.preferences, { autoArchive: msg.preferences.autoArchive });
         await storageSetLocal({ ae_preferences: next });
         AE.preferences = next;
         autoArchiveEnabled = next.autoArchive;
@@ -150,8 +152,8 @@ var AE = AE || {};
       }
       if (msg.type === "AE_SET_ARCHIVE_ENCRYPTION") {
         if (!AE.archiveEncryption) throw new Error("Encrypted archives are unavailable in this runtime.");
-        var record = await AE.archiveEncryption.configure(msg.password || "", msg.enabled !== false);
-        var encryptedPreferences = Object.assign({}, AE.preferences, { archiveEncryption: record });
+        const record = await AE.archiveEncryption.configure(msg.password || "", msg.enabled !== false);
+        const encryptedPreferences = Object.assign({}, AE.preferences, { archiveEncryption: record });
         await storageSetLocal({ ae_preferences: encryptedPreferences });
         AE.preferences = encryptedPreferences;
         AE.notifyUI();
