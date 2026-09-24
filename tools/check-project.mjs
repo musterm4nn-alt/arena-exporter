@@ -31,7 +31,7 @@ assert(backgroundSrc.indexOf('"lib/format.js"') !== -1 && backgroundSrc.indexOf(
   "src/fonts/DepartureMono-Regular.woff2", "docs/architecture.md", "docs/security.md", "SECURITY.md",
   "macos/ArenaArchive/Package.swift", "macos/ArenaArchive/Sources/NativeHostCore/NativeHostCore.swift",
   "macos/ArenaArchive/Sources/NativeHost/main.swift", "macos/ArenaArchive/Sources/ArenaArchiveApp/ArenaArchiveApp.swift", "macos/ArenaArchive/Resources/com.arenaarchive.host.chrome.json", "macos/ArenaArchive/Resources/com.arenaarchive.host.firefox.json", "tools/install-native-host.mjs", "tools/native-host-manifest.mjs",
-  "schemas/export-2.1.schema.json", "schemas/streaming-2.1.schema.json", "tools/validate-schema.mjs", "tools/acceptance.mjs", "tools/decrypt-archive.mjs", "tools/release-local.mjs", "tools/lint.mjs", "tests/code-quality.test.js"
+  "schemas/export-2.1.schema.json", "schemas/streaming-2.1.schema.json", "tools/validate-schema.mjs", "tools/acceptance.mjs", "tools/decrypt-archive.mjs", "tools/release-local.mjs", "tools/lint.mjs", "tests/code-quality.test.js", "tests/dom-arena.test.js"
 ].forEach(requireFile);
 
 for (const file of ["src/popup.html", "src/options.html"]) {
