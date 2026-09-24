@@ -1,4 +1,5 @@
 dist/
+node_modules/
 *.crx
 *.pem
 .DS_Store
