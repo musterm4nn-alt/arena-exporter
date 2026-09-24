@@ -101,7 +101,16 @@ async function playwrightAcceptance() {
       const packageDir = path.join(root, "dist", `Arena-Agent-Exporter-${manifest.version}-chrome`);
       if (!fs.existsSync(path.join(packageDir, "manifest.json"))) throw new Error("build the Chrome package before --extension acceptance");
       profile = fs.mkdtempSync(path.join(os.tmpdir(), "arena-exporter-acceptance-"));
-      context = await chromium.launchPersistentContext(profile, { ...launchOptions, args: [`--disable-extensions-except=${packageDir}`, `--load-extension=${packageDir}`] });
+      // Headless shell cannot load extensions and Playwright disables them by
+      // default, so drive full Chromium headless instead. Branded Chrome
+      // ignores these flags; use the bundled Chromium (default) there.
+      const headed = args.includes("--headed");
+      context = await chromium.launchPersistentContext(profile, {
+        headless: false, // real window, or --headless=new below: never headless shell
+        ...(browserExecutable ? { executablePath: browserExecutable } : {}),
+        ignoreDefaultArgs: ["--disable-extensions"],
+        args: [...(headed ? [] : ["--headless=new"]), `--disable-extensions-except=${packageDir}`, `--load-extension=${packageDir}`]
+      });
       let worker = context.serviceWorkers()[0];
       if (!worker) worker = await context.waitForEvent("serviceworker", { timeout: 10000 });
       const id = new URL(worker.url()).hostname;
@@ -112,7 +121,9 @@ async function playwrightAcceptance() {
       const title = await page.title();
       if (!/Arena Exporter/.test(title)) throw new Error(`extension options page did not load: ${title}`);
       const body = await page.locator("body").innerText();
-      if (!body.includes("Conversations") || !body.includes("GitHub backup")) throw new Error("extension workspace landmarks missing");
+      // innerText reflects CSS text-transform, so match case-insensitively.
+      const flat = body.toLowerCase();
+      if (!flat.includes("conversations") || !flat.includes("github backup")) throw new Error("extension workspace landmarks missing");
       console.log("Real unpacked Chrome extension acceptance passed: options page loaded.");
     } else {
       const preview = await startPreview();
