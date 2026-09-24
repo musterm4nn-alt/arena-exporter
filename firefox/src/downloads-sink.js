@@ -15,17 +15,17 @@ var AE = AE || {};
   "use strict";
 
   AE.ARCHIVE_DIR = "arena-archive";
-  var INDEX_KEY = "ae_archive_index";
+  const INDEX_KEY = "ae_archive_index";
   /* chrome.downloads takes a data: URL; there is no URL.createObjectURL in a
    * service worker. Cap the *encoded* URL, not the raw string: encodeURIComponent
    * can triple the size, and Chrome refuses data: URLs around 2MB. */
-  var MAX_DATA_URL_BYTES = 1.8 * 1024 * 1024;
+  const MAX_DATA_URL_BYTES = 1.8 * 1024 * 1024;
   AE.ARCHIVE_LIMITS = {
     downloadsDataUrlBytes: MAX_DATA_URL_BYTES,
     attachmentFetchBytes: 15 * 1024 * 1024,
     nativeFileBytes: 32 * 1024 * 1024
   };
-  var uiSuppressed = false;
+  let uiSuppressed = false;
 
   function mimeFor(path) {
     if (/\.json$/i.test(path)) return "application/json";
@@ -40,12 +40,12 @@ var AE = AE || {};
 
   /* SHA-256 hex. Used to skip rewriting files that did not change. */
   function sha256Hex(str) {
-    var bytes = new TextEncoder().encode(String(str == null ? "" : str));
+    const bytes = new TextEncoder().encode(String(str == null ? "" : str));
     return crypto.subtle.digest("SHA-256", bytes).then(function (buf) {
-      var a = new Uint8Array(buf);
-      var out = "";
-      for (var i = 0; i < a.length; i++) {
-        var h = a[i].toString(16);
+      const a = new Uint8Array(buf);
+      let out = "";
+      for (let i = 0; i < a.length; i++) {
+        const h = a[i].toString(16);
         out += h.length === 1 ? "0" + h : h;
       }
       return out;
@@ -58,7 +58,7 @@ var AE = AE || {};
    * archives. Lane responses and attribution samples stay. */
   AE.slimArchiveJson = function (text) {
     try {
-      var o = JSON.parse(text);
+      const o = JSON.parse(text);
       if (!o || typeof o !== "object" || !o.meta) return text;
       delete o.meta.captured_requests;
       delete o.meta.stream_samples;
@@ -71,10 +71,10 @@ var AE = AE || {};
   };
 
   function fitDataUrl(path, text) {
-    var url = dataUrlFor(path, text);
+    let url = dataUrlFor(path, text);
     if (url.length <= MAX_DATA_URL_BYTES) return { text: text, url: url };
     if (/conversation\.json$/i.test(path)) {
-      var slim = AE.slimArchiveJson(text);
+      const slim = AE.slimArchiveJson(text);
       if (slim !== text) {
         text = slim;
         url = dataUrlFor(path, text);
@@ -90,14 +90,14 @@ var AE = AE || {};
     return new Promise(function (resolve) {
       /* downloads.ui / setUiOptions is Chrome-only. Firefox has no equivalent;
        * missing API or a failed call must not look like success. */
-      var downloadsUi = chrome.downloads && chrome.downloads["setUiOptions"];
+      const downloadsUi = chrome.downloads && chrome.downloads["setUiOptions"];
       if (typeof downloadsUi !== "function") {
         resolve(false);
         return;
       }
       try {
         downloadsUi({ enabled: !enabled }, function () {
-          var err = chrome.runtime.lastError;
+          const err = chrome.runtime.lastError;
           if (err) { uiSuppressed = false; resolve(false); return; }
           uiSuppressed = !!enabled;
           resolve(uiSuppressed);
@@ -118,7 +118,7 @@ var AE = AE || {};
     return new Promise(function (resolve) {
       chrome.downloads.search({ id: id }, function (items) {
         void chrome.runtime.lastError;
-        var it = items && items[0];
+        const it = items && items[0];
         if (!it) { resolve({ ok: false, error: "download record vanished" }); return; }
         if (it.state === "in_progress" && (tries || 0) < 150) {
           setTimeout(function () { resolve(awaitTerminal(id, (tries || 0) + 1)); }, 100);
@@ -141,12 +141,12 @@ var AE = AE || {};
   }
 
   AE.writeArchiveFile = function (relPath, content, options) {
-    var safe = AE.safeArchivePath ? AE.safeArchivePath(relPath) : relPath;
+    const safe = AE.safeArchivePath ? AE.safeArchivePath(relPath) : relPath;
     if (!safe) {
       return Promise.resolve({ ok: false, path: relPath, error: "illegal path" });
     }
-    var text = String(content == null ? "" : content);
-    var fitted;
+    const text = String(content == null ? "" : content);
+    let fitted;
     if (/^data:[^,]*,/.test(text)) {
       if (text.length > MAX_DATA_URL_BYTES) {
         return Promise.resolve({
@@ -170,26 +170,26 @@ var AE = AE || {};
       chrome.downloads.download({
         url: fitted.url, filename: safe, conflictAction: "overwrite", saveAs: false
       }, function (id) {
-        var err = chrome.runtime.lastError;
+        const err = chrome.runtime.lastError;
         if (err || id == null) {
           resolve({ ok: false, path: safe, error: (err && err.message) || "download refused" });
           return;
         }
         awaitTerminal(id, 0).then(async function (res) {
-          var landedPath = (res.resolved || "").replace(/\\/g, "/");
-          var correctPath = landedPath === safe || landedPath.endsWith("/" + safe);
+          const landedPath = (res.resolved || "").replace(/\\/g, "/");
+          const correctPath = landedPath === safe || landedPath.endsWith("/" + safe);
           if (options && options.reveal && res.ok && correctPath) {
             try {
               // Firefox's browser namespace reports show() failures as a Promise.
-              var downloadsApi = typeof browser !== "undefined" ? browser.downloads : chrome.downloads;
-              var shown = await downloadsApi.show(id);
+              const downloadsApi = typeof browser !== "undefined" ? browser.downloads : chrome.downloads;
+              const shown = await downloadsApi.show(id);
               if (shown === false) throw new Error("Folder could not be opened.");
             } catch (error) { res.ok = false; res.error = "Folder could not be opened: " + error.message; }
           }
           return eraseWhenSettled(id).then(function () {
             /* Chrome reports "complete" even when it has silently rewritten the
              * target, so verify the path it actually used ends where we asked. */
-            var landed = correctPath;
+            const landed = correctPath;
             resolve({
               ok: res.ok && landed,
               path: safe,
@@ -228,16 +228,16 @@ var AE = AE || {};
   /* ---------- write a whole conversation ---------- */
 
   function latestModels(payload) {
-    var battles = (payload && payload.battles) || [];
+    const battles = (payload && payload.battles) || [];
     if (!battles.length) return [];
-    var latest = battles[battles.length - 1];
+    const latest = battles[battles.length - 1];
     return (latest.contestants || []).map(function (c) { return c && c.model; }).filter(Boolean);
   }
 
   function archiveRelOwner(index, key, rel) {
-    var keys = Object.keys(index || {});
-    for (var i = 0; i < keys.length; i++) {
-      var otherKey = keys[i];
+    const keys = Object.keys(index || {});
+    for (let i = 0; i < keys.length; i++) {
+      const otherKey = keys[i];
       if (otherKey !== key && index[otherKey] && index[otherKey].rel === rel) return otherKey;
     }
     return null;
@@ -246,8 +246,8 @@ var AE = AE || {};
   /* Serial, not parallel: every write is a download plus a history erase, and
    * firing a dozen at once makes Chrome queue them unpredictably. */
   function writeSequential(jobs) {
-    var written = [], failed = [];
-    var chain = Promise.resolve();
+    const written = [], failed = [];
+    let chain = Promise.resolve();
     jobs.forEach(function (job) {
       chain = chain.then(function () {
         return AE.writeArchiveFile(job.full, job.content).then(function (res) {
@@ -267,20 +267,20 @@ var AE = AE || {};
    */
   // Storage returns copies, so serialize the complete read/write transaction
   // across conversations and destinations. A failed job must not jam the queue.
-  var archiveWriteQueue = Promise.resolve();
+  let archiveWriteQueue = Promise.resolve();
   function encryptionMigrationBlock(payload) {
-    var session = payload && payload.session || {};
-    var key = session.conversation_key || session.session_id;
+    const session = payload && payload.session || {};
+    const key = session.conversation_key || session.session_id;
     if (!key) return Promise.resolve(null);
     return AE.archiveIndexLoad().then(function (index) {
-      var existing = index[key];
+      const existing = index[key];
       if (!existing) return null;
       if (!existing.encrypted && Object.keys(existing.hashes || {}).some(function (file) { return file !== AE.ARCHIVE_INDEX; })) {
         return "This conversation already has plaintext archive files. Move or remove that archive before enabling encryption.";
       }
-      var destinations = existing.destinations || {};
-      var hasPlaintext = Object.keys(destinations).some(function (destination) {
-        var state = destinations[destination] || {};
+      const destinations = existing.destinations || {};
+      const hasPlaintext = Object.keys(destinations).some(function (destination) {
+        const state = destinations[destination] || {};
         if (state.encrypted) return false;
         return Object.keys(state.hashes || {}).some(function (file) { return file !== AE.ARCHIVE_INDEX; });
       });
@@ -289,7 +289,7 @@ var AE = AE || {};
   }
   AE.writeArchive = function (payload, files, opts) {
     opts = opts || {};
-    var task = archiveWriteQueue.then(function () {
+    const task = archiveWriteQueue.then(function () {
       if (!opts._encrypted && AE.archiveEncryption && AE.archiveEncryption.status().enabled) {
         if (!AE.archiveEncryption.isUnlocked()) {
           return { ok: false, error: "Unlock encrypted archives before saving.", failed: [{ path: "conversation.enc", error: "archive encryption is locked" }] };
@@ -316,59 +316,59 @@ var AE = AE || {};
 
   function writeArchive(payload, files, opts) {
     opts = opts || {};
-    var prefix = opts.prefix != null ? opts.prefix : AE.ARCHIVE_DIR;
-    var destination = opts.destinationKey || "downloads:" + prefix;
-    var writeJobs = opts.writeJobs || writeSequential;
-    var writeFile = opts.writeFile || AE.writeArchiveFile;
+    const prefix = opts.prefix != null ? opts.prefix : AE.ARCHIVE_DIR;
+    const destination = opts.destinationKey || "downloads:" + prefix;
+    const writeJobs = opts.writeJobs || writeSequential;
+    const writeFile = opts.writeFile || AE.writeArchiveFile;
     return AE.archiveIndexLoad().then(function (index) {
-      var session = (payload && payload.session) || {};
-      var key = session.conversation_key || session.session_id;
+      const session = (payload && payload.session) || {};
+      const key = session.conversation_key || session.session_id;
       if (!key) return { ok: false, error: "no conversation key" };
 
-      var existing = index[key] || null;
-      var existingRel = existing && existing.rel ? existing.rel : null;
-      var collisionOwner = existingRel ? archiveRelOwner(index, key, existingRel) : null;
+      const existing = index[key] || null;
+      const existingRel = existing && existing.rel ? existing.rel : null;
+      const collisionOwner = existingRel ? archiveRelOwner(index, key, existingRel) : null;
       /* v1.15.0 and earlier used only the first eight UUID characters. If an
        * old index has two keys pinned to that same folder, move each one to its
        * new full-id path on its next sync instead of preserving the collision. */
-      var repairedCollision = !!collisionOwner;
-      var rel = existingRel && !repairedCollision
+      const repairedCollision = !!collisionOwner;
+      let rel = existingRel && !repairedCollision
         ? existingRel
         : AE.archiveRelFor(payload, null);
-      var relSafe = AE.safeArchivePath ? AE.safeArchivePath(rel) : rel;
+      const relSafe = AE.safeArchivePath ? AE.safeArchivePath(rel) : rel;
       if (!relSafe) return { ok: false, error: "illegal archive path" };
       rel = relSafe;
-      var subtype = existing && existing.subtype
+      const subtype = existing && existing.subtype
         ? existing.subtype
         : (AE.firstBattleSubtype ? AE.firstBattleSubtype(payload) : null);
 
       /* Hashes are relative to the conversation folder. A relocated chat must
        * rewrite every file into its new folder even when its bytes are unchanged. */
-      var destinations = Object.assign({}, (existing && existing.destinations) || {});
-      var destinationState = destinations[destination];
+      const destinations = Object.assign({}, (existing && existing.destinations) || {});
+      const destinationState = destinations[destination];
       // Legacy unscoped hashes are deliberately ignored once, to populate the
       // current destination after upgrading or changing the native app's root.
-      var hashes = repairedCollision || (destinationState && destinationState.rel !== rel) ? {} : ((destinationState && destinationState.hashes) || {});
-      var nextHashes = {};
-      var jobs = [];
-      var skipped = 0;
-      var rejected = [];
+      const hashes = repairedCollision || (destinationState && destinationState.rel !== rel) ? {} : ((destinationState && destinationState.hashes) || {});
+      const nextHashes = {};
+      const jobs = [];
+      let skipped = 0;
+      const rejected = [];
 
       if (repairedCollision && AE.decorateArchivePaths && AE.filesToWrite) {
         AE.decorateArchivePaths(payload, rel);
         files = AE.filesToWrite(payload);
       }
 
-      var chain = Promise.resolve();
+      let chain = Promise.resolve();
       (files || []).forEach(function (f) {
         if (!f || typeof f.content !== "string" || !f.path) return;
-        var filePath = AE.safeArchivePath ? AE.safeArchivePath(f.path) : f.path;
+        const filePath = AE.safeArchivePath ? AE.safeArchivePath(f.path) : f.path;
         if (!filePath) {
           rejected.push({ path: f.path, error: "illegal path" });
           return;
         }
         chain = chain.then(function () {
-          var contentHash = opts.encrypted && opts.sourceHash && filePath === "conversation.enc" ? Promise.resolve(opts.sourceHash) : sha256Hex((f.encoding || "utf8") + "\n" + f.content);
+          const contentHash = opts.encrypted && opts.sourceHash && filePath === "conversation.enc" ? Promise.resolve(opts.sourceHash) : sha256Hex((f.encoding || "utf8") + "\n" + f.content);
           return contentHash.then(function (h) {
             nextHashes[filePath] = h;
             if (hashes[filePath] === h) { skipped++; return; }
@@ -387,16 +387,16 @@ var AE = AE || {};
           res.failed = (res.failed || []).concat(rejected);
           /* Only remember hashes for files that actually landed; a failed write
            * must be retried next turn, not skipped as unchanged. */
-          var keep = {};
+          const keep = {};
           Object.keys(nextHashes).forEach(function (path) {
-            var landed = res.written.some(function (w) { return w.path === path; });
+            const landed = res.written.some(function (w) { return w.path === path; });
             if (landed || hashes[path] === nextHashes[path]) keep[path] = nextHashes[path];
           });
 
-          var models = latestModels(payload);
-          var detail = payload.meta && payload.meta.completeness_detail;
+          const models = latestModels(payload);
+          let detail = payload.meta && payload.meta.completeness_detail;
           if (!detail && AE.scoreCompleteness) detail = AE.scoreCompleteness(payload);
-          var inferredSub = (AE.firstBattleSubtype && AE.firstBattleSubtype(payload)) || subtype;
+          const inferredSub = (AE.firstBattleSubtype && AE.firstBattleSubtype(payload)) || subtype;
           destinations[destination] = { hashes: keep, updated_at: new Date().toISOString(), rel: rel, encrypted: !!opts.encrypted, encryption_format: opts.encrypted && AE.archiveEncryption ? AE.archiveEncryption.format : null };
           index[key] = {
             rel: rel,
@@ -427,7 +427,7 @@ var AE = AE || {};
             .then(function () { return mirrorIndex(index, destination, writeFile, prefix); })
             .then(async function (mirror) {
               if (mirror && !mirror.ok) res.failed.push({ path: AE.ARCHIVE_INDEX, error: mirror.error || "archive index mirror failed" });
-              var result = {
+              const result = {
                 ok: res.failed.length === 0,
                 rel: rel,
                 written: res.written.map(function (w) { return w.path; }),
@@ -444,16 +444,16 @@ var AE = AE || {};
 
   /* On-disk copy for the reader app. chrome.storage.local stays authoritative;
    * this is written last so a crash leaves the mirror stale, never the source. */
-  var lastMirrorHashes = {};
+  const lastMirrorHashes = {};
   function mirrorIndex(index, destination, writeFile, prefix) {
     writeFile = writeFile || AE.writeArchiveFile;
     prefix = prefix != null ? prefix : AE.ARCHIVE_DIR;
-    var view = {};
-    var durable = {};
+    const view = {};
+    const durable = {};
     Object.keys(index).forEach(function (k) {
-      var e = index[k];
+      let e = index[k];
       if (!e.destinations || !e.destinations[destination]) return;
-      var destinationEntry = e.destinations[destination];
+      const destinationEntry = e.destinations[destination];
       e = Object.assign({}, e, destinationEntry.entry || {});
       view[k] = {
         rel: destinationEntry.rel || e.rel, mode: e.mode, subtype: e.subtype, title: e.title,
@@ -466,8 +466,8 @@ var AE = AE || {};
         turns: e.turns
       };
     });
-    var text = JSON.stringify({ version: 1, chats: view }, null, 2);
-    var idxPath = prefix ? prefix + "/" + AE.ARCHIVE_INDEX : AE.ARCHIVE_INDEX;
+    const text = JSON.stringify({ version: 1, chats: view }, null, 2);
+    const idxPath = prefix ? prefix + "/" + AE.ARCHIVE_INDEX : AE.ARCHIVE_INDEX;
     return sha256Hex(JSON.stringify(durable)).then(function (h) {
       if (h === lastMirrorHashes[destination]) return { ok: true, skipped: true };
       return writeFile(idxPath, text).then(function (r) {
