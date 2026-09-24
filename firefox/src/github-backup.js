@@ -3,9 +3,10 @@
 var AE = AE || {};
 (function () {
   "use strict";
-  var CONFIG = "ae_github_config", STATUS = "ae_github_status";
-  var MAX_BACKUP_FILE_BYTES = 32 * 1024 * 1024;
-  var ALARM = "arena-github-backup", lock = Promise.resolve(), running = false;
+  const CONFIG = "ae_github_config", STATUS = "ae_github_status";
+  const MAX_BACKUP_FILE_BYTES = 32 * 1024 * 1024;
+  const ALARM = "arena-github-backup";
+  let lock = Promise.resolve(), running = false;
   function storageGet(key) {
     return new Promise(function (resolve, reject) {
       chrome.storage.local.get([key], function (value) {
@@ -23,7 +24,7 @@ var AE = AE || {};
     });
   }
   function exclusive(fn) {
-    var next = lock.then(fn);
+    const next = lock.then(fn);
     lock = next.catch(function () {});
     return next;
   }
@@ -40,28 +41,28 @@ var AE = AE || {};
   function refPath(config) { return config.branch.split("/").map(encodeURIComponent).join("/"); }
   async function api(config, path, method, body) {
     if (typeof browser !== "undefined" && browser.runtime && typeof browser.runtime.getBrowserInfo === "function" && browser.permissions) {
-      var permissions = await browser.permissions.getAll();
-      var required = ["personalCommunications", "websiteContent", "authenticationInfo"];
+      const permissions = await browser.permissions.getAll();
+      const required = ["personalCommunications", "websiteContent", "authenticationInfo"];
       if (!permissions.data_collection || required.some(function (name) { return !permissions.data_collection.includes(name); })) {
         throw new Error("Allow GitHub backup data permissions by reconnecting in Settings.");
       }
     }
-    var controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, 20000);
+    const controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, 20000);
     try {
-      var response = await fetch("https://api.github.com" + path, {
+      const response = await fetch("https://api.github.com" + path, {
         method: method || "GET", credentials: "omit", redirect: "error", signal: controller.signal,
         headers: { Accept: "application/vnd.github+json", Authorization: "Bearer " + config.token,
           "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
         body: body == null ? undefined : JSON.stringify(body)
       });
       if (!response.ok) {
-        var error = new Error(response.status === 401 ? "GitHub token expired or invalid. Reconnect in Settings." :
+        const error = new Error(response.status === 401 ? "GitHub token expired or invalid. Reconnect in Settings." :
           response.status === 403 ? "GitHub denied the request. Check Contents write permission or try again after the rate limit resets." :
           response.status === 404 ? "GitHub repository or branch was not found. Check the repository and token access." :
           "GitHub request failed (HTTP " + response.status + "). Your backup remains queued.");
         error.status = response.status;
-        var retry = Number(response.headers.get("retry-after")) * 1000;
-        var reset = Number(response.headers.get("x-ratelimit-reset")) * 1000 - Date.now();
+        const retry = Number(response.headers.get("retry-after")) * 1000;
+        const reset = Number(response.headers.get("x-ratelimit-reset")) * 1000 - Date.now();
         error.retryMs = Math.max(retry || 0, response.headers.get("x-ratelimit-remaining") === "0" ? reset : 0);
         throw error;
       }
@@ -72,24 +73,24 @@ var AE = AE || {};
     } finally { clearTimeout(timer); }
   }
   async function privateRepo(config) {
-    var repo = await api(config, repoPath(config));
+    const repo = await api(config, repoPath(config));
     if (!repo.private) throw new Error("Backups require a private GitHub repository.");
     if (repo.permissions && repo.permissions.push === false) throw new Error("The token needs Contents: read and write for this repository.");
     return repo;
   }
   async function blob(file) {
-    var encoded = AE.nativeEncodeFile(safePath(file.path), file.content, file.encoding);
+    const encoded = AE.nativeEncodeFile(safePath(file.path), file.content, file.encoding);
     if (!encoded.ok) throw new Error("Backup file could not be encoded: " + encoded.error);
-    var value = encoded.file;
+    const value = encoded.file;
     if (value.encoding === "base64" && value.content.length > Math.ceil(MAX_BACKUP_FILE_BYTES * 4 / 3) + 8) {
       throw new Error("Backup file exceeds the 32 MiB limit: " + file.path);
     }
-    var bytes = value.encoding === "base64" ? Uint8Array.from(atob(value.content), function (c) { return c.charCodeAt(0); }) : new TextEncoder().encode(value.content);
+    const bytes = value.encoding === "base64" ? Uint8Array.from(atob(value.content), function (c) { return c.charCodeAt(0); }) : new TextEncoder().encode(value.content);
     if (bytes.byteLength > MAX_BACKUP_FILE_BYTES) throw new Error("Backup file exceeds the 32 MiB limit: " + file.path);
-    var header = new TextEncoder().encode("blob " + bytes.length + "\0");
-    var data = new Uint8Array(header.length + bytes.length);
+    const header = new TextEncoder().encode("blob " + bytes.length + "\0");
+    const data = new Uint8Array(header.length + bytes.length);
     data.set(header); data.set(bytes, header.length);
-    var digest = await crypto.subtle.digest("SHA-1", data);
+    const digest = await crypto.subtle.digest("SHA-1", data);
     return { sha: Array.from(new Uint8Array(digest), function (v) { return v.toString(16).padStart(2, "0"); }).join(""),
       encoding: value.encoding === "utf8" ? "utf-8" : "base64", content: value.content };
   }
@@ -100,8 +101,8 @@ var AE = AE || {};
     });
   }
   AE.githubStatus = async function () {
-    var config = await storageGet(CONFIG), status = await storageGet(STATUS);
-    var counts = await AE.backupStore.counts(), currentTarget = config.repo ? target(config) : "";
+    const config = await storageGet(CONFIG), status = await storageGet(STATUS);
+    const counts = await AE.backupStore.counts(), currentTarget = config.repo ? target(config) : "";
     return { ok: true, enabled: !!config.enabled, connected: !!config.token,
       repo: config.repo || "", branch: config.branch || "", folder: config.folder || "arena-archive",
       pending: counts[currentTarget] || 0,
@@ -110,12 +111,12 @@ var AE = AE || {};
   };
   AE.githubConfigure = function (input) {
     return exclusive(async function () {
-      var previous = await storageGet(CONFIG);
-      var config = { repo: String(input.repo || "").trim(), branch: String(input.branch || "").trim(),
+      const previous = await storageGet(CONFIG);
+      const config = { repo: String(input.repo || "").trim(), branch: String(input.branch || "").trim(),
         folder: safePath(String(input.folder || "arena-archive").trim()), token: String(input.token || previous.token || "").trim(), enabled: true };
       if (!/^[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+$/.test(config.repo) || /\/(?:\.|\.\.)$/.test(config.repo)) throw new Error("Enter a repository as owner/name.");
       if (!config.token) throw new Error("Enter a GitHub token with Contents: read and write for your private archive repository.");
-      var repo = await privateRepo(config);
+      const repo = await privateRepo(config);
       config.branch = config.branch || repo.default_branch || "main";
       if (!/^[A-Za-z0-9_./-]+$/.test(config.branch) || config.branch.includes("..") || config.branch.startsWith("/")) throw new Error("Invalid branch name.");
       try { await api(config, repoPath(config) + "/git/ref/heads/" + refPath(config)); }
@@ -134,7 +135,7 @@ var AE = AE || {};
   };
   AE.githubPause = function (forget) {
     return exclusive(async function () {
-      var config = await storageGet(CONFIG);
+      const config = await storageGet(CONFIG);
       config.enabled = false;
       if (forget) delete config.token;
       await storageSet(CONFIG, config);
@@ -142,15 +143,15 @@ var AE = AE || {};
     });
   };
   AE.githubEnqueue = async function (key, rel, files, entry) {
-    var config = await storageGet(CONFIG);
+    const config = await storageGet(CONFIG);
     if (!config.enabled || !config.token) return { queued: false };
     if (typeof key !== "string" || !key) throw new Error("A conversation identifier is required for backup.");
     rel = safePath(rel);
     // Validate before making a durable record; never store the config/token here.
-    var prepared = (files || []).map(function (file) {
+    const prepared = (files || []).map(function (file) {
       return { path: safePath(file.path), content: String(file.content), encoding: file.encoding || null };
     });
-    var destination = target(config);
+    const destination = target(config);
     await AE.backupStore.put({ id: destination + "\n" + rel, target: destination,
       revision: crypto.randomUUID(), key: key, rel: rel, files: prepared, entry: entry || {} });
     arm();
@@ -159,9 +160,9 @@ var AE = AE || {};
   AE.githubQueueArchive = async function (payload, files, result) {
     if (!result || !result.ok) return;
     try {
-      var session = payload.session || {}, key = session.conversation_key || session.session_id;
-      var index = await AE.archiveIndexLoad(), source = index[key] || {};
-      var entry = { rel: result.rel };
+      const session = payload.session || {}, key = session.conversation_key || session.session_id;
+      const index = await AE.archiveIndexLoad(), source = index[key] || {};
+      const entry = { rel: result.rel };
       ["mode", "subtype", "title", "url", "models", "models_pending", "updated_at", "turns", "completeness", "completeness_detail", "files_expected", "files_with_bytes", "encrypted", "encryption_format"].forEach(function (field) { entry[field] = source[field]; });
       result.backup = await AE.githubEnqueue(key, result.rel, files, entry);
     } catch (error) {
@@ -171,20 +172,21 @@ var AE = AE || {};
   };
   async function upload(config, items) {
     await privateRepo(config);
-    var base = repoPath(config), prefix = config.folder + "/", uploaded = new Set();
-    var prepared = new Map();
-    for (var item of items) {
-      for (var file of item.files) prepared.set(prefix + safePath(item.rel) + "/" + safePath(file.path), await blob(file));
+    const base = repoPath(config), prefix = config.folder + "/", uploaded = new Set();
+    const prepared = new Map();
+    for (const item of items) {
+      for (const file of item.files) prepared.set(prefix + safePath(item.rel) + "/" + safePath(file.path), await blob(file));
     }
-    for (var attempt = 0; attempt < 3; attempt++) {
-      var head = await api(config, base + "/git/ref/heads/" + refPath(config));
-      var commit = await api(config, base + "/git/commits/" + head.object.sha);
-      var tree = await api(config, base + "/git/trees/" + commit.tree.sha + "?recursive=1");
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const head = await api(config, base + "/git/ref/heads/" + refPath(config));
+      const commit = await api(config, base + "/git/commits/" + head.object.sha);
+      const tree = await api(config, base + "/git/trees/" + commit.tree.sha + "?recursive=1");
       if (tree.truncated) throw new Error("The repository tree is too large to back up safely. Use a dedicated archive repository.");
-      var existing = new Map(tree.tree.map(function (node) { return [node.path, node]; }));
-      var indexPath = prefix + "_index.json", index = { version: 1, chats: {} };
+      const existing = new Map(tree.tree.map(function (node) { return [node.path, node]; }));
+      const indexPath = prefix + "_index.json";
+      let index = { version: 1, chats: {} };
       if (existing.has(indexPath)) {
-        var remote = await api(config, base + "/git/blobs/" + existing.get(indexPath).sha);
+        const remote = await api(config, base + "/git/blobs/" + existing.get(indexPath).sha);
         try {
           index = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(remote.content.replace(/\s/g, "")), function (c) { return c.charCodeAt(0); })));
           if (!index.chats || typeof index.chats !== "object" || Array.isArray(index.chats)) throw new Error();
@@ -192,28 +194,28 @@ var AE = AE || {};
       }
       items.forEach(function (item) { Object.defineProperty(index.chats, item.key, { value: item.entry, enumerable: true, configurable: true, writable: true }); });
       prepared.set(indexPath, await blob({ path: "_index.json", content: JSON.stringify(index, null, 2) }));
-      var changes = [];
-      for (var pair of prepared) {
-        var path = pair[0], content = pair[1], old = existing.get(path);
+      const changes = [];
+      for (const pair of prepared) {
+        const path = pair[0], content = pair[1], old = existing.get(path);
         if (old && old.type !== "blob") throw new Error("A folder conflicts with a backup file on GitHub.");
         // Do not follow or replace symlink/submodule paths or their parents.
-        var parts = path.split("/");
-        for (var depth = 1; depth < parts.length; depth++) {
-          var ancestor = existing.get(parts.slice(0, depth).join("/"));
+        const parts = path.split("/");
+        for (let depth = 1; depth < parts.length; depth++) {
+          const ancestor = existing.get(parts.slice(0, depth).join("/"));
           if (ancestor && ancestor.type !== "tree") throw new Error("A file conflicts with the backup folder on GitHub.");
         }
         if (old && old.mode !== "100644" && old.mode !== "100755") throw new Error("A symbolic link conflicts with a backup file on GitHub.");
         if (old && old.sha === content.sha) continue;
         if (!uploaded.has(content.sha)) {
-          var created = await api(config, base + "/git/blobs", "POST", { content: content.content, encoding: content.encoding });
+          const created = await api(config, base + "/git/blobs", "POST", { content: content.content, encoding: content.encoding });
           if (created.sha !== content.sha) throw new Error("GitHub returned an unexpected file checksum.");
           uploaded.add(content.sha);
         }
         changes.push({ path: path, mode: "100644", type: "blob", sha: content.sha });
       }
       if (!changes.length) return;
-      var nextTree = await api(config, base + "/git/trees", "POST", { base_tree: commit.tree.sha, tree: changes });
-      var nextCommit = await api(config, base + "/git/commits", "POST", {
+      const nextTree = await api(config, base + "/git/trees", "POST", { base_tree: commit.tree.sha, tree: changes });
+      const nextCommit = await api(config, base + "/git/commits", "POST", {
         message: "Back up Arena archive (" + items.length + " conversations)", tree: nextTree.sha, parents: [head.object.sha]
       });
       try {
@@ -226,9 +228,9 @@ var AE = AE || {};
   }
   AE.githubFlush = function (manual) {
     return exclusive(async function () {
-      var config = await storageGet(CONFIG), status = await storageGet(STATUS);
+      const config = await storageGet(CONFIG), status = await storageGet(STATUS);
       if (!config.enabled || !config.token || (!manual && status.nextRetry > Date.now())) return AE.githubStatus();
-      var items = await AE.backupStore.list(target(config), 10);
+      const items = await AE.backupStore.list(target(config), 10);
       if (!items.length) return AE.githubStatus();
       running = true;
       try {
@@ -236,7 +238,7 @@ var AE = AE || {};
         await AE.backupStore.acknowledge(items);
         await storageSet(STATUS, { lastSuccess: new Date().toISOString(), error: null, failures: 0 });
       } catch (error) {
-        var failures = Math.min((status.failures || 0) + 1, 6);
+        const failures = Math.min((status.failures || 0) + 1, 6);
         await storageSet(STATUS, { lastSuccess: status.lastSuccess || null, error: error.message,
           failures: failures, nextRetry: Date.now() + Math.max(60000 * Math.pow(2, failures - 1), error.retryMs || 0) });
       } finally { running = false; }

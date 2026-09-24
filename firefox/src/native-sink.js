@@ -16,12 +16,12 @@ var AE = AE || {};
   AE.NATIVE_MAX_BYTES = 32 * 1024 * 1024;
   AE.NATIVE_HINT = "Open Arena Archive and choose a folder, or use its default Downloads folder";
 
-  var HELLO_MS = 4000;
-  var WRITE_MS = 20000;
-  var lastStatus = { state: "missing", connected: false, error: "host-missing", fallback: true, hint: AE.NATIVE_HINT };
-  var lastStatusAt = 0;
-  var STATUS_TTL_MS = 4000;
-  var idSeq = 0;
+  const HELLO_MS = 4000;
+  const WRITE_MS = 20000;
+  let lastStatus = { state: "missing", connected: false, error: "host-missing", fallback: true, hint: AE.NATIVE_HINT };
+  let lastStatusAt = 0;
+  const STATUS_TTL_MS = 4000;
+  let idSeq = 0;
 
   function nextId() {
     idSeq += 1;
@@ -48,14 +48,14 @@ var AE = AE || {};
   /* POSIX rel relative to the app root. Reject empty, NUL, absolute, drive
    * letters, and any `..` segment — never send those on the wire. */
   AE.nativeSafeRel = function (rel) {
-    var p = String(rel == null ? "" : rel).replace(/\\/g, "/");
+    const p = String(rel == null ? "" : rel).replace(/\\/g, "/");
     if (!p || /[\x00-\x1f]/.test(p)) return null;
     if (p.charAt(0) === "/" || p.charAt(0) === "~") return null;
     if (/^[a-zA-Z]:/.test(p)) return null;
     if (p.indexOf("://") !== -1) return null;
-    var parts = p.split("/");
-    var out = [];
-    for (var i = 0; i < parts.length; i++) {
+    const parts = p.split("/");
+    const out = [];
+    for (let i = 0; i < parts.length; i++) {
       if (!parts[i] || parts[i] === ".") continue;
       if (parts[i] === "..") return null;
       out.push(parts[i]);
@@ -64,19 +64,19 @@ var AE = AE || {};
   };
 
   function utf8ToBase64(str) {
-    var bytes = new TextEncoder().encode(String(str == null ? "" : str));
-    var bin = "";
-    var chunk = 0x8000;
-    for (var i = 0; i < bytes.length; i += chunk) {
+    const bytes = new TextEncoder().encode(String(str == null ? "" : str));
+    let bin = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
       bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
     }
     return btoa(bin);
   }
 
   function base64DecodedBytes(b64) {
-    var s = String(b64 || "").replace(/\s/g, "");
+    const s = String(b64 || "").replace(/\s/g, "");
     if (!s) return 0;
-    var pad = 0;
+    let pad = 0;
     if (s.slice(-2) === "==") pad = 2;
     else if (s.slice(-1) === "=") pad = 1;
     return Math.floor(s.length * 3 / 4) - pad;
@@ -91,21 +91,21 @@ var AE = AE || {};
    * utf8 strings → encoding utf8; data-url / binary / base64 → encoding base64.
    */
   AE.nativeEncodeFile = function (rel, content, encodingHint) {
-    var safe = AE.nativeSafeRel(rel);
+    const safe = AE.nativeSafeRel(rel);
     if (!safe) return { ok: false, error: "illegal path" };
     if (typeof content !== "string") {
       return { ok: false, error: "unsupported content" };
     }
-    var hint = String(encodingHint || "");
-    var isDataUrl = /^data:[^,]*,/.test(content);
-    var asBase64 = hint === "base64" || hint === "dataurl" || isDataUrl;
-    var encoding = asBase64 ? "base64" : "utf8";
-    var body = content;
+    const hint = String(encodingHint || "");
+    const isDataUrl = /^data:[^,]*,/.test(content);
+    const asBase64 = hint === "base64" || hint === "dataurl" || isDataUrl;
+    const encoding = asBase64 ? "base64" : "utf8";
+    let body = content;
     if (asBase64) {
       if (isDataUrl) {
-        var comma = content.indexOf(",");
-        var meta = content.slice(5, comma);
-        var payload = content.slice(comma + 1);
+        const comma = content.indexOf(",");
+        const meta = content.slice(5, comma);
+        let payload = content.slice(comma + 1);
         if (/;base64/i.test(meta)) body = payload.replace(/\s/g, "");
         else {
           try { payload = decodeURIComponent(payload); } catch (e) { /* keep */ }
@@ -117,7 +117,7 @@ var AE = AE || {};
         body = utf8ToBase64(content);
       }
     }
-    var decoded = encoding === "utf8" ? utf8Bytes(body) : base64DecodedBytes(body);
+    const decoded = encoding === "utf8" ? utf8Bytes(body) : base64DecodedBytes(body);
     if (decoded > AE.NATIVE_MAX_BYTES) {
       return { ok: false, error: "too large (" + decoded + " bytes, max 32MiB)" };
     }
@@ -142,11 +142,11 @@ var AE = AE || {};
   }
 
   function attachSession(port) {
-    var pending = {};
-    var closed = false;
+    const pending = {};
+    let closed = false;
 
     function settle(id, value, error) {
-      var p = pending[id];
+      const p = pending[id];
       if (!p) return false;
       delete pending[id];
       if (p.timer) clearTimeout(p.timer);
@@ -164,8 +164,8 @@ var AE = AE || {};
     });
     port.onDisconnect.addListener(function () {
       closed = true;
-      var errMsg = (chrome.runtime.lastError && chrome.runtime.lastError.message) || "disconnected";
-      var err = new Error(errMsg);
+      const errMsg = (chrome.runtime.lastError && chrome.runtime.lastError.message) || "disconnected";
+      const err = new Error(errMsg);
       err.hostMissing = hostMissingMessage(errMsg);
       rejectAll(err);
     });
@@ -173,14 +173,14 @@ var AE = AE || {};
     function request(op, extra, timeoutMs) {
       return new Promise(function (resolve, reject) {
         if (closed) {
-          var gone = new Error("disconnected");
+          const gone = new Error("disconnected");
           gone.hostMissing = true;
           reject(gone);
           return;
         }
-        var id = nextId();
-        var msg = Object.assign({ id: id, op: op }, extra || {});
-        var entry = { resolve: resolve, reject: reject, timer: null };
+        const id = nextId();
+        const msg = Object.assign({ id: id, op: op }, extra || {});
+        const entry = { resolve: resolve, reject: reject, timer: null };
         pending[id] = entry;
         try {
           port.postMessage(msg);
@@ -204,7 +204,7 @@ var AE = AE || {};
 
   /* hello, then a live session. Probe-only callers disconnect themselves. */
   AE.nativeConnect = function () {
-    var opened = connectPort();
+    const opened = connectPort();
     if (!opened.ok) {
       remember({
         state: "missing",
@@ -215,10 +215,10 @@ var AE = AE || {};
       });
       return Promise.resolve(hintMsg("host-missing"));
     }
-    var session = attachSession(opened.port);
+    const session = attachSession(opened.port);
     return session.request("hello", null, HELLO_MS).then(function (msg) {
       if (!msg || msg.ok !== true) {
-        var err = (msg && msg.error) || "hello failed";
+        const err = (msg && msg.error) || "hello failed";
         session.disconnect();
         if (err === "no-root") {
           remember({
@@ -275,8 +275,8 @@ var AE = AE || {};
       };
     }, function (err) {
       session.disconnect();
-      var missing = !!(err && err.hostMissing) || hostMissingMessage(err && err.message);
-      var code = missing ? "host-missing" : ((err && err.message) || "connect-error");
+      const missing = !!(err && err.hostMissing) || hostMissingMessage(err && err.message);
+      const code = missing ? "host-missing" : ((err && err.message) || "connect-error");
       remember({
         state: missing ? "missing" : "error",
         connected: false,
@@ -301,13 +301,13 @@ var AE = AE || {};
   };
 
   function nativeWriteJobs(session, jobs) {
-    var written = [];
-    var failed = [];
-    var files = [];
-    var jobForRel = {};
+    const written = [];
+    const failed = [];
+    const files = [];
+    const jobForRel = {};
     (jobs || []).forEach(function (job) {
-      var rel = job.full || job.path;
-      var enc = AE.nativeEncodeFile(rel, job.content, job.encoding);
+      const rel = job.full || job.path;
+      const enc = AE.nativeEncodeFile(rel, job.content, job.encoding);
       if (!enc.ok) {
         failed.push({ path: job.path, error: enc.error });
         return;
@@ -321,10 +321,11 @@ var AE = AE || {};
       jobForRel[enc.file.rel] = job;
     });
 
-    var batches = [], current = [], currentBytes = 0;
+    const batches = [];
+    let current = [], currentBytes = 0;
     files.forEach(function (file) {
-      var content = file.content || "";
-      var bytes = file.encoding === "base64" ? Math.ceil(content.length * 3 / 4) : new TextEncoder().encode(content).byteLength;
+      const content = file.content || "";
+      const bytes = file.encoding === "base64" ? Math.ceil(content.length * 3 / 4) : new TextEncoder().encode(content).byteLength;
       if (current.length && (current.length >= AE.NATIVE_BATCH || currentBytes + bytes > AE.NATIVE_BATCH_BYTES)) {
         batches.push(current);
         current = [];
@@ -335,20 +336,20 @@ var AE = AE || {};
     });
     if (current.length) batches.push(current);
 
-    var chain = Promise.resolve();
+    let chain = Promise.resolve();
     batches.forEach(function (batch) {
       chain = chain.then(function () {
         return session.request("write", { files: batch }, WRITE_MS).then(function (msg) {
           if (msg && msg.ok) {
             batch.forEach(function (f) { written.push(jobForRel[f.rel]); });
           } else {
-            var err = (msg && msg.error) || "write failed";
+            const err = (msg && msg.error) || "write failed";
             batch.forEach(function (f) {
               failed.push({ path: jobForRel[f.rel].path, error: err });
             });
           }
         }, function (err) {
-          var code = (err && err.message) || "write failed";
+          const code = (err && err.message) || "write failed";
           batch.forEach(function (f) {
             failed.push({ path: jobForRel[f.rel].path, error: code });
           });
@@ -370,12 +371,12 @@ var AE = AE || {};
           hint: (session && session.hint) || AE.NATIVE_HINT
         };
       }
-      var writeJobs = function (jobs) { return nativeWriteJobs(session, jobs); };
-      var writeFile = function (rel, content) {
+      const writeJobs = function (jobs) { return nativeWriteJobs(session, jobs); };
+      const writeFile = function (rel, content) {
         return nativeWriteJobs(session, [{
           path: rel, full: rel, content: content, encoding: "utf8"
         }]).then(function (r) {
-          var fail = r.failed && r.failed[0];
+          const fail = r.failed && r.failed[0];
           return { ok: r.failed.length === 0, path: rel, error: fail && fail.error };
         });
       };
@@ -416,7 +417,7 @@ var AE = AE || {};
       }]).then(function (r) {
         try { session.disconnect(); } catch (e) { /* ignore */ }
         if (r.failed && r.failed.length) {
-          var err = r.failed[0].error || "write failed";
+          const err = r.failed[0].error || "write failed";
           return {
             ok: false,
             error: err,

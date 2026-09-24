@@ -7,7 +7,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     // messages always provide both, so this fallback cannot widen browser
     // authorization.
     if (!chrome.runtime || typeof chrome.runtime.getURL !== "function") return !!sender && sender.id == null;
-    var page = String(sender && sender.url || "").split(/[?#]/)[0];
+    const page = String(sender && sender.url || "").split(/[?#]/)[0];
     return !!sender && sender.id === chrome.runtime.id && [chrome.runtime.getURL("src/options.html"), chrome.runtime.getURL("src/popup.html")].includes(page);
   }
   if (msg.type === "AE_EVENT") {
@@ -28,13 +28,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (AE.handleWorkspaceMessage && AE.handleWorkspaceMessage(msg, sender, sendResponse)) return true;
 
   if (msg.type.indexOf("AE_GITHUB_") === 0 || msg.type === "AE_OPEN_FOLDER") {
-    var optionsUrl = chrome.runtime.getURL("src/options.html");
-    var popupUrl = chrome.runtime.getURL("src/popup.html");
+    const optionsUrl = chrome.runtime.getURL("src/options.html");
+    const popupUrl = chrome.runtime.getURL("src/popup.html");
     if (!sender || sender.id !== chrome.runtime.id || ![optionsUrl, popupUrl].includes(String(sender.url || "").split(/[?#]/)[0])) {
       sendResponse({ ok: false, error: "Open this action from the extension." });
       return;
     }
-    var action;
+    let action;
     if (msg.type === "AE_GITHUB_STATUS") action = function () { return AE.githubStatus(); };
     if (msg.type === "AE_GITHUB_FLUSH") action = function () { return AE.githubFlush(true); };
     if (msg.type === "AE_OPEN_FOLDER") action = function () { return AE.openConversationFolder(msg); };
@@ -42,7 +42,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       if (msg.type === "AE_GITHUB_CONFIGURE") action = function () { return AE.githubConfigure(msg.config || {}); };
       if (msg.type === "AE_GITHUB_PAUSE") action = function () { return AE.githubPause(!!msg.forget); };
       if (msg.type === "AE_GITHUB_IMPORT") action = async function () {
-        var queued = await AE.githubEnqueue(msg.key, msg.rel, msg.files, msg.entry);
+        const queued = await AE.githubEnqueue(msg.key, msg.rel, msg.files, msg.entry);
         return queued.queued ? { ok: true } : { ok: false, error: "Connect GitHub backups before importing an archive." };
       };
     }
@@ -74,12 +74,12 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
   if (msg.type === "AE_GET_STATE") {
     stateReadyPromise.then(function () {
-      var selected = activateRequestSession(msg);
+      const selected = activateRequestSession(msg);
       if (selected.error) { sendResponse({ ok: false, error: selected.error }); return; }
-      var s = selected.session;
+      const s = selected.session;
       if (msg.snapshot) applyCaptureHealth(s, msg.snapshot);
-      var finish = function () {
-        var current = store.sessions[canonicalSessionKey(s.session.conversation_key)] || s;
+      const finish = function () {
+        const current = store.sessions[canonicalSessionKey(s.session.conversation_key)] || s;
         sendResponse({ ok: true, state: getStateSummary(current, msg.snapshot), sessions: listSessionSummaries() });
         try { if (AE.refreshStatusLed) AE.refreshStatusLed(); } catch (eLed) {}
         /* Opening the popup/options page is the natural moment to re-check
@@ -95,18 +95,18 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
   if (msg.type === "AE_SET_MANUAL_VOTE") {
     stateReadyPromise.then(function () {
-      var selected = activateRequestSession(msg);
+      const selected = activateRequestSession(msg);
       if (selected.error) { sendResponse({ ok: false, error: selected.error }); return; }
-      var s = selected.session;
+      const s = selected.session;
       if (msg.choice === "clear") {
-        for (var i = s.battleVotes.length - 1; i >= 0; i--) {
+        for (let i = s.battleVotes.length - 1; i >= 0; i--) {
           if (s.battleVotes[i].source === "manual") { s.battleVotes.splice(i, 1); break; }
         }
         scheduleSave();
         sendResponse({ ok: true, state: getStateSummary() });
         return;
       }
-      var ok = recordBattleVote(s, {
+      const ok = recordBattleVote(s, {
         choice: msg.choice, source: "manual", url: msg.url || "",
         capturedAt: new Date().toISOString()
       });
@@ -121,20 +121,20 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
   if (msg.type === "AE_EXPORT") {
     stateReadyPromise.then(function () {
-      var selected = activateRequestSession(msg);
+      const selected = activateRequestSession(msg);
       if (selected.error) { sendResponse({ ok: false, error: selected.error }); return; }
-      var mode = msg.mode === "last_message" ? "last_message" : "full_history";
-      var out = buildExport(mode, msg.snapshot, selected.session);
-      var payload = out.payload;
-      var after = (AE.finalizeArchivePayload)
+      const mode = msg.mode === "last_message" ? "last_message" : "full_history";
+      const out = buildExport(mode, msg.snapshot, selected.session);
+      let payload = out.payload;
+      const after = (AE.finalizeArchivePayload)
         ? AE.finalizeArchivePayload(payload, { tabId: msg.tabId })
         : Promise.resolve(payload);
       after.then(function () {
         if (AE.applyCompletenessMeta) AE.applyCompletenessMeta(payload);
         payload = AE.scrubSecrets(payload);
-        var json = JSON.stringify(payload, null, 2);
+        const json = JSON.stringify(payload, null, 2);
         if (msg.format === "jsonl" && AE.renderJsonl) {
-          var jsonl = AE.renderJsonl(payload), jsonlFilename = out.filename.replace(/\.json$/, ".jsonl");
+          const jsonl = AE.renderJsonl(payload), jsonlFilename = out.filename.replace(/\.json$/, ".jsonl");
           if (!msg.save) { sendResponse({ ok: true, text: jsonl, filename: jsonlFilename, streamed: true }); return; }
           downloadTextFile(jsonlFilename, jsonl, "application/x-ndjson;charset=utf-8", true).then(function (result) {
             sendResponse(Object.assign({}, result, { filename: jsonlFilename, streamed: true }));
@@ -142,7 +142,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
           return;
         }
         if (msg.format === "markdown") {
-          var markdown = AE.renderMarkdown(payload), filename = out.filename.replace(/\.json$/, ".md");
+          const markdown = AE.renderMarkdown(payload), filename = out.filename.replace(/\.json$/, ".md");
           if (!msg.save) { sendResponse({ ok: true, text: markdown, filename: filename }); return; }
           downloadTextFile(filename, markdown, "text/markdown;charset=utf-8", true).then(function (result) {
             sendResponse(Object.assign({}, result, { filename: filename }));
@@ -153,20 +153,20 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
           sendResponse({ ok: true, json: json, filename: out.filename, payload: null });
           return;
         }
-        var stamp = AE.buildStamp();
-        var dir = "arena-exporter-attachments/" + stamp + "/";
-        var downloads = [];
+        const stamp = AE.buildStamp();
+        const dir = "arena-exporter-attachments/" + stamp + "/";
+        const downloads = [];
         if (AE.decorateInlineArtifacts) {
-          var inline = AE.decorateInlineArtifacts(payload, dir);
+          const inline = AE.decorateInlineArtifacts(payload, dir);
           (inline.saved || []).forEach(function (s) {
             if (s && s.dataUrl && s.path) downloads.push({ dataUrl: s.dataUrl, path: s.path });
           });
         }
         downloadTextFile(out.filename, json, "application/json;charset=utf-8", true).then(function (dl) {
           if (!dl.ok) { sendResponse({ ok: false, error: dl.error || "Download failed" }); return; }
-          var chain = Promise.resolve();
-          var savedCount = 0;
-          var attachmentError = null;
+          let chain = Promise.resolve();
+          let savedCount = 0;
+          let attachmentError = null;
           downloads.forEach(function (d) {
             chain = chain.then(function () {
               return downloadDataUrlFile(d.path, d.dataUrl).then(function (result) {
@@ -194,7 +194,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
 
   if (msg.type === "AE_HISTORY_PROGRESS") {
     if (!globalThis.__aeBackfill) globalThis.__aeBackfill = {};
-    var p = globalThis.__aeBackfill;
+    const p = globalThis.__aeBackfill;
     if (msg.stage) p.stage = msg.stage;
     if (msg.page != null) p.page = msg.page;
     if (msg.count != null) p.count = msg.count;
@@ -214,13 +214,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       sendResponse({ ok: false, error: "backfill already running", backfill: globalThis.__aeBackfill });
       return;
     }
-    var tabId = msg.tabId;
+    const tabId = msg.tabId;
     globalThis.__aeBackfill = { running: true, stage: "start", written: 0, skipped: 0, failed: 0, listed: 0, error: null, failedItems: [] };
-    var tabMsg = function (payload) {
+    const tabMsg = function (payload) {
       return new Promise(function (resolve) {
         try {
           chrome.tabs.sendMessage(tabId, payload, function (got) {
-            var err = chrome.runtime.lastError;
+            const err = chrome.runtime.lastError;
             if (err) resolve({ ok: false, error: err.message || "no response — reload the arena.ai tab" });
             else resolve(got || { ok: false, error: "no response — open an arena.ai tab and reload it" });
           });
@@ -229,31 +229,31 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         }
       });
     };
-    var finish = function (res) {
+    const finish = function (res) {
       globalThis.__aeBackfill.running = false;
       if (res && res.ok === false) globalThis.__aeBackfill.error = res.error || globalThis.__aeBackfill.error;
       try { sendResponse(res); } catch (e) { /* popup may have closed */ }
     };
     AE.archiveIndexLoad().then(function (index) {
-      var skip = {};
+      const skip = {};
       Object.keys(index || {}).forEach(function (k) { skip[k] = true; });
       globalThis.__aeBackfill.stage = "list";
       return tabMsg({ type: "AE_HISTORY_LIST" }).then(function (got) {
         if (!got || !got.ok) {
           return { ok: false, error: (got && got.error) || "history list failed" };
         }
-        var list = got.list || [];
-        var wanted = [];
-        var skipped = 0;
+        const list = got.list || [];
+        const wanted = [];
+        let skipped = 0;
         list.forEach(function (item) {
           if (item && item.id) wanted.push(item);
         });
         globalThis.__aeBackfill.listed = list.length;
         globalThis.__aeBackfill.skipped = skipped;
         globalThis.__aeBackfill.total = wanted.length;
-        var failed = [];
-        var written = 0;
-        var chain = Promise.resolve();
+        const failed = [];
+        let written = 0;
+        let chain = Promise.resolve();
         wanted.forEach(function (item, i) {
           chain = chain.then(function () {
             globalThis.__aeBackfill.stage = "fetch";
@@ -268,7 +268,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
                 globalThis.__aeBackfill.failedItems = failed.slice(-20);
                 return;
               }
-              var payload = AE.historyRecordToPayload(gotRec.record);
+              const payload = AE.historyRecordToPayload(gotRec.record);
               if (!payload || !payload.session || !payload.session.conversation_key) {
                 failed.push({ id: item.id, error: "could not convert" });
                 globalThis.__aeBackfill.failed = failed.length;
@@ -279,11 +279,11 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
                 globalThis.__aeBackfill.failed = failed.length;
                 return;
               }
-              var key = payload.session.conversation_key;
-              var prior = index[key] || index["c:" + item.id] || null;
-              var alreadyGreen = !!(prior && (prior.completeness === "green" || prior.completeness === "full"));
+              const key = payload.session.conversation_key;
+              const prior = index[key] || index["c:" + item.id] || null;
+              const alreadyGreen = !!(prior && (prior.completeness === "green" || prior.completeness === "full"));
               if (AE.applyHonestSubtype) AE.applyHonestSubtype(payload);
-              var urls = AE.collectArtifactUrls ? AE.collectArtifactUrls(payload) : [];
+              const urls = AE.collectArtifactUrls ? AE.collectArtifactUrls(payload) : [];
               if (alreadyGreen && !urls.length) {
                 skipped += 1;
                 globalThis.__aeBackfill.skipped = skipped;
@@ -294,17 +294,17 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
                 globalThis.__aeBackfill.skipped = skipped;
                 return;
               }
-              var existingRel = (prior && prior.rel) || null;
+              const existingRel = (prior && prior.rel) || null;
               globalThis.__aeBackfill.stage = "fetch";
               return AE.finalizeArchivePayload(payload, { tabId: tabId, existingRel: existingRel }).then(function () {
-              var score = payload.meta && payload.meta.completeness_detail;
+              const score = payload.meta && payload.meta.completeness_detail;
               if (score && score.emptyShell && !score.prompt && !(score.files && score.files.expected)) {
                 skipped += 1;
                 globalThis.__aeBackfill.skipped = skipped;
                 return;
               }
               globalThis.__aeBackfill.stage = "write";
-              var files = AE.filesToWrite ? AE.filesToWrite(payload) : [];
+              const files = AE.filesToWrite ? AE.filesToWrite(payload) : [];
               return writeArchiveBest(payload, files).then(function (res) {
                 if (res && res.ok) {
                   written += 1;
@@ -347,14 +347,14 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
 
   if (msg.type === "AE_SYNC") {
     stateReadyPromise.then(function () {
-      var tabId = msg.tabId != null ? msg.tabId : null;
-      var key = msg.sessionKey || null;
+      const tabId = msg.tabId != null ? msg.tabId : null;
+      let key = msg.sessionKey || null;
       if (!key && tabId != null) {
         key = store.tabKeys[tabId] || "tab:" + tabId;
       }
       key = canonicalSessionKey(key || store.activeKey);
       runTurnSync("manual", key, tabId).then(function (result) {
-        var selected = store.sessions[canonicalSessionKey(key)];
+        const selected = store.sessions[canonicalSessionKey(key)];
         sendResponse({ ok: !!(result && result.ok), sync: result, state: getStateSummary(selected) });
       });
     });
@@ -363,12 +363,12 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   /* Round-trips one file through the real sink so the options page can prove
    * the archive path works before a capture depends on it. */
   if (msg.type === "AE_TEST_ARCHIVE") {
-    var stamp = new Date().toISOString();
-    var body = "arena-exporter archive self-test\n" + stamp + "\n";
-    var viaDownloads = function () {
+    const stamp = new Date().toISOString();
+    const body = "arena-exporter archive self-test\n" + stamp + "\n";
+    const viaDownloads = function () {
       return AE.writeArchiveFile(AE.ARCHIVE_DIR + "/_selftest.txt", body);
     };
-    var done = function (res) { sendResponse(res); };
+    const done = function (res) { sendResponse(res); };
     if (typeof AE.writeNativeSelftest === "function") {
       AE.writeNativeSelftest(body).then(function (res) {
         if (res && res.ok) { done(res); return; }
@@ -403,7 +403,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   }
   if (msg.type === "AE_CLEAR") {
     stateReadyPromise.then(function () {
-      var selected = activateRequestSession(msg);
+      const selected = activateRequestSession(msg);
       if (selected.error) { sendResponse({ ok: false, error: selected.error }); return; }
       clearActiveSession();
       sendResponse({ ok: true });
