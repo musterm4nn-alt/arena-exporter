@@ -33,7 +33,7 @@ const root = path.join(__dirname, "..");
   const built = spawnSync(process.execPath, [path.join(root, "tools/release-local.mjs"), "--skip-tests", "--output", output], { cwd: root, encoding: "utf8" });
   assert.equal(built.status, 0, built.stdout + built.stderr);
   const releaseManifest = JSON.parse(fs.readFileSync(path.join(output, "release-manifest.json"), "utf8"));
-  assert.deepEqual(releaseManifest.artifacts.map(item => item.name).sort(), ["Arena-Agent-Exporter-2.2.1-chrome.zip", "Arena-Agent-Exporter-2.2.1-firefox.zip"]);
+  assert.deepEqual(releaseManifest.artifacts.map(item => item.name).sort(), ["Arena-Agent-Exporter-2.2.2-chrome.zip", "Arena-Agent-Exporter-2.2.2-firefox.zip"]);
   fs.rmSync(output, { recursive: true, force: true });
   console.log("Local release and native-host installer tool checks passed.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

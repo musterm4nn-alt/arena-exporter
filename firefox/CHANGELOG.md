@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.2 — 2026-09-24
+
+Refactor release: `const`/`let` across all extension modules (documented `var` exceptions only for cross-script globals and `vm`-surfaced names), guarded issue-recorder calls, UI control-inventory snapshot gate, and Arena DOM fixture coverage. No behavior, schema, storage, or UI changes.
+
 ## 2.2.1 — 2026-09-24
 
 Fork code-quality release: shared vote/stamp modules, lint gate, and dedupe regression tests. No behavior, schema, storage, or UI changes.

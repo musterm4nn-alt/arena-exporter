@@ -6,7 +6,7 @@ import ArchiveKit
 /// and archive writes live here so they can be tested without a browser.
 public struct NativeHostCore {
     public static let appName = "ArenaArchive"
-    public static let version = "2.2.1"
+    public static let version = "2.2.2"
     public static let maxFilesPerWrite = 80
     public static let maxFileBytes = 32 * 1024 * 1024
 

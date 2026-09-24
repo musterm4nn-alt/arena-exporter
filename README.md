@@ -1,6 +1,6 @@
 # Arena Exporter
 
-**Version 2.2.1** is a local-first Manifest V3 extension for exporting [arena.ai](https://arena.ai) Agent, Battle, Direct, and Side-by-Side conversations as structured JSON and readable Markdown.
+**Version 2.2.2** is a local-first Manifest V3 extension for exporting [arena.ai](https://arena.ai) Agent, Battle, Direct, and Side-by-Side conversations as structured JSON and readable Markdown.
 
 Arena Exporter records streamed text, reasoning and tool evidence, files, request outcomes, transport metadata, and model-label provenance. It keeps the page's own response intact and never treats a failed request as an assistant answer.
 
@@ -18,7 +18,7 @@ Arena Exporter records streamed text, reasoning and tool evidence, files, reques
 ### Chrome / Chromium
 
 1. Open `chrome://extensions` and enable **Developer mode**.
-2. Choose **Load unpacked** and select this repository root, or build and unzip `dist/Arena-Agent-Exporter-2.2.1-chrome.zip`.
+2. Choose **Load unpacked** and select this repository root, or build and unzip `dist/Arena-Agent-Exporter-2.2.2-chrome.zip`.
 3. Reload the extension and the Arena tab.
 
 The manifest public key is retained so an unpacked installation keeps its identity.
