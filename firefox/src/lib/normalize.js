@@ -8,9 +8,9 @@ var AE = AE || {};
 (function () {
   "use strict";
 
-  var THINKING_KEY_RE = /(^|[_\-.])(thinking|reasoning|reasoning_content|chain[_\s-]?of[_\s-]?thought|thought|cot)s?$/i;
-  var COMMAND_TOOL_RE = /^(run_?command|exec(ute)?(_command)?|bash|shell|terminal|run_?shell|run_?terminal|computer_?terminal)$/i;
-  var ACTION_NAME_RE = /^(create|write|edit|patch|delete|read|open|list|move|rename|navigate|click|scroll|type|hover|drag|select|browse|search|fetch|generate|render|build|deploy|install|analyze|vote|submit)[_-]/i;
+  const THINKING_KEY_RE = /(^|[_\-.])(thinking|reasoning|reasoning_content|chain[_\s-]?of[_\s-]?thought|thought|cot)s?$/i;
+  const COMMAND_TOOL_RE = /^(run_?command|exec(ute)?(_command)?|bash|shell|terminal|run_?shell|run_?terminal|computer_?terminal)$/i;
+  const ACTION_NAME_RE = /^(create|write|edit|patch|delete|read|open|list|move|rename|navigate|click|scroll|type|hover|drag|select|browse|search|fetch|generate|render|build|deploy|install|analyze|vote|submit)[_-]/i;
 
   function asText(v) {
     if (v == null) return "";
@@ -30,7 +30,7 @@ var AE = AE || {};
   }
 
   function argsOf(tc) {
-    var a = tc.arguments != null ? tc.arguments
+    let a = tc.arguments != null ? tc.arguments
       : tc.input != null ? tc.input
       : (tc.function && tc.function.arguments != null) ? tc.function.arguments
       : tc.parameters != null ? tc.parameters
@@ -63,8 +63,8 @@ var AE = AE || {};
    */
   AE.normalizeCaptured = function (data, opts) {
     opts = opts || {};
-    var blocks = [];
-    var depthGuard = 0;
+    const blocks = [];
+    let depthGuard = 0;
 
     function push(b) {
       if (!b) return;
@@ -77,15 +77,15 @@ var AE = AE || {};
       if (!o || depthGuard > 400) return;
       depthGuard++;
       if (Array.isArray(o)) {
-        for (var i = 0; i < o.length; i++) scan(o[i]);
+        for (let i = 0; i < o.length; i++) scan(o[i]);
         return;
       }
       if (typeof o !== "object") return;
 
       // OpenAI-style completion envelope: {choices:[{delta|message}]}
       if (Array.isArray(o.choices)) {
-        for (var ci = 0; ci < o.choices.length; ci++) {
-          var ch = o.choices[ci] || {};
+        for (let ci = 0; ci < o.choices.length; ci++) {
+          const ch = o.choices[ci] || {};
           scanMessageObject(ch.delta || ch.message || {});
         }
         return; // choices payloads are leaf-ish; don't re-scan children
@@ -93,8 +93,8 @@ var AE = AE || {};
 
       scanMessageObject(o);
 
-      for (var key of Object.keys(o)) {
-        var v = o[key];
+      for (const key of Object.keys(o)) {
+        const v = o[key];
         if (v && typeof v === "object") scan(v);
       }
     }
@@ -102,8 +102,8 @@ var AE = AE || {};
     function scanMessageObject(m) {
       if (!m || typeof m !== "object") return;
 
-      var keys = Object.keys(m);
-      var i, k, v;
+      const keys = Object.keys(m);
+      let i, k, v;
 
       // ---- thinking / reasoning text ----
       for (i = 0; i < keys.length; i++) {
@@ -115,9 +115,9 @@ var AE = AE || {};
 
       // ---- message with role ----
       if (typeof m.role === "string") {
-        var role = m.role.toLowerCase();
+        const role = m.role.toLowerCase();
         if (role === "user" || role === "system") {
-          var body = textOfResult(m.content);
+          const body = textOfResult(m.content);
           if (body) push({ type: "text", role: role, text: body, format: "markdown" });
         } else if (role === "assistant" && typeof m.content === "string" && m.content) {
           push({ type: "text", role: "assistant", text: m.content, format: "markdown" });
@@ -134,8 +134,8 @@ var AE = AE || {};
       // ---- Vercel AI SDK UIMessage parts (generic path; the background also
       //      handles top-level UIMessages with snapshot semantics) ----
       if (Array.isArray(m.parts)) {
-        var pb = AE.partsToBlocks(m.parts, typeof m.role === "string" ? m.role.toLowerCase() : "assistant");
-        for (var pbi = 0; pbi < pb.length; pbi++) push(pb[pbi]);
+        const pb = AE.partsToBlocks(m.parts, typeof m.role === "string" ? m.role.toLowerCase() : "assistant");
+        for (let pbi = 0; pbi < pb.length; pbi++) push(pb[pbi]);
       }
 
       // ---- streaming content delta without role (OpenAI-style) ----
@@ -144,9 +144,9 @@ var AE = AE || {};
       }
 
       // ---- typed event envelopes ----
-      var etype = typeof m.type === "string" ? m.type.toLowerCase() : "";
+      const etype = typeof m.type === "string" ? m.type.toLowerCase() : "";
       if (etype === "content_block_delta" || etype === "text_delta") {
-        var d = m.delta || {};
+        const d = m.delta || {};
         if (typeof d.text === "string" && d.text) push({ type: "text", text: d.text });
         if (typeof d.thinking === "string" && d.thinking) push({ type: "thinking", text: d.thinking });
       }
@@ -194,7 +194,7 @@ var AE = AE || {};
 
       // ---- artifacts ----
       if (etype === "artifact" || m.artifact != null) {
-        var a = m.artifact && typeof m.artifact === "object" ? m.artifact : m;
+        const a = m.artifact && typeof m.artifact === "object" ? m.artifact : m;
         push({
           type: "artifact",
           artifact_type: a.artifact_type || a.kind || "unknown",
@@ -206,9 +206,9 @@ var AE = AE || {};
 
     function pushToolCall(tc) {
       if (!tc || typeof tc !== "object") return;
-      var name = toolNameOf(tc);
-      var args = argsOf(tc);
-      var block = {
+      const name = toolNameOf(tc);
+      const args = argsOf(tc);
+      const block = {
         type: "tool_call",
         tool_name: name,
         call_id: tc.id || tc.call_id || tc.tool_call_id || null,
@@ -219,7 +219,7 @@ var AE = AE || {};
 
       // Command-flavored tool calls also surface as first-class command blocks.
       if (COMMAND_TOOL_RE.test(name) && args && typeof args === "object") {
-        var cmd = args.command || args.cmd || args.script || null;
+        const cmd = args.command || args.cmd || args.script || null;
         if (cmd) push({ type: "command", command: asText(cmd) });
       }
       // Action-flavored tool names surface as action blocks for rollups.
@@ -245,8 +245,8 @@ var AE = AE || {};
    * step-start. */
 
   function pushToolPartBlocks(out, p, name) {
-    var state = typeof p.state === "string" ? p.state : "";
-    var callId = p.toolCallId || p.id || null;
+    const state = typeof p.state === "string" ? p.state : "";
+    const callId = p.toolCallId || p.id || null;
     if (state === "output-available") {
       if (p.input != null) {
         out.push({ type: "tool_call", tool_name: name, call_id: callId, arguments: p.input, status: "success" });
@@ -265,23 +265,23 @@ var AE = AE || {};
    * Convert a UIMessage parts array into canonical blocks.
    */
   AE.partsToBlocks = function (parts, role) {
-    var out = [];
+    const out = [];
     if (!Array.isArray(parts)) return out;
 
     if (role === "user" || role === "system") {
-      var texts = [];
-      for (var i = 0; i < parts.length; i++) {
-        var p = parts[i];
+      const texts = [];
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
         if (p && p.type === "text" && typeof p.text === "string") texts.push(p.text);
       }
       if (texts.length) out.push({ type: "text", role: role, text: texts.join("\n"), format: "markdown" });
       return out;
     }
 
-    for (var j = 0; j < parts.length; j++) {
-      var q = parts[j];
+    for (let j = 0; j < parts.length; j++) {
+      const q = parts[j];
       if (!q || typeof q !== "object" || typeof q.type !== "string") continue;
-      var t = q.type;
+      const t = q.type;
       if (t === "text" && typeof q.text === "string" && q.text) {
         out.push({ type: "text", text: q.text, format: "markdown" });
       } else if (t === "reasoning" && typeof q.text === "string" && q.text) {
@@ -307,12 +307,12 @@ var AE = AE || {};
    */
   AE.normalizeUIMessage = function (data) {
     if (!data || typeof data !== "object") return null;
-    var msg = null;
+    let msg = null;
     if (data.payload && data.payload.message && Array.isArray(data.payload.message.parts)) msg = data.payload.message;
     else if (data.message && Array.isArray(data.message.parts)) msg = data.message;
     else if (Array.isArray(data.parts) && (typeof data.id === "string" || typeof data.role === "string")) msg = data;
     if (!msg || !Array.isArray(msg.parts)) return null;
-    var role = typeof msg.role === "string" ? msg.role.toLowerCase() : "assistant";
+    const role = typeof msg.role === "string" ? msg.role.toLowerCase() : "assistant";
     return {
       messageId: typeof msg.id === "string" ? msg.id : null,
       role: role,
@@ -326,31 +326,31 @@ var AE = AE || {};
    * Heuristic: objects exposing path/fileName, or name + size/mime evidence.
    */
   AE.extractWorkspaceArtifacts = function (data) {
-    var blocks = [];
-    var visits = 0;
+    const blocks = [];
+    let visits = 0;
 
     function scan(o) {
       if (!o || visits++ > 800 || blocks.length >= 50) return;
       if (Array.isArray(o)) {
-        for (var i = 0; i < o.length; i++) scan(o[i]);
+        for (let i = 0; i < o.length; i++) scan(o[i]);
         return;
       }
       if (typeof o !== "object") return;
 
-      var title = null;
+      let title = null;
       if (typeof o.path === "string" && o.path) title = o.path;
       else if (typeof o.fileName === "string" && o.fileName) title = o.fileName;
       else if (typeof o.name === "string" && o.name &&
                (o.size != null || o.mimeType || o.contentType)) title = o.name;
 
       if (title) {
-        var kind = (typeof o.mimeType === "string" && o.mimeType) ||
+        const kind = (typeof o.mimeType === "string" && o.mimeType) ||
                    (typeof o.contentType === "string" && o.contentType) ||
                    (typeof o.type === "string" && o.type) || "file";
-        var href = (typeof o.url === "string" && o.url) ||
+        const href = (typeof o.url === "string" && o.url) ||
                    (typeof o.downloadUrl === "string" && o.downloadUrl) || null;
-        var inline = typeof o.content === "string" ? o.content : null;
-        var block = {
+        const inline = typeof o.content === "string" ? o.content : null;
+        const block = {
           type: "artifact",
           artifact_type: kind,
           title: title,
@@ -361,8 +361,8 @@ var AE = AE || {};
         blocks.push(block);
       }
 
-      for (var key of Object.keys(o)) {
-        var v = o[key];
+      for (const key of Object.keys(o)) {
+        const v = o[key];
         if (v && typeof v === "object") scan(v);
       }
     }
@@ -381,11 +381,11 @@ var AE = AE || {};
 
   /* Read one JSON value starting at i. Returns [value, nextIndex] or null. */
   function readJsonValue(str, i) {
-    var c = str[i];
+    const c = str[i];
     if (c === undefined) return null;
-    var end = -1;
+    let end = -1;
     if (c === '"') {
-      var j = i + 1;
+      let j = i + 1;
       while (j < str.length) {
         if (str[j] === "\\") { j += 2; continue; }
         if (str[j] === '"') { end = j + 1; break; }
@@ -393,9 +393,9 @@ var AE = AE || {};
       }
       if (end < 0) return null;
     } else if (c === '{' || c === '[') {
-      var depth = 0, inStr = false, esc = false;
-      for (var k = i; k < str.length; k++) {
-        var ch = str[k];
+      let depth = 0, inStr = false, esc = false;
+      for (let k = i; k < str.length; k++) {
+        const ch = str[k];
         if (inStr) {
           if (esc) esc = false;
           else if (ch === "\\") esc = true;
@@ -410,7 +410,7 @@ var AE = AE || {};
     } else {
       return null;
     }
-    var slice = str.slice(i, end);
+    const slice = str.slice(i, end);
     try { return [JSON.parse(slice), end]; } catch (e) { return null; }
   }
 
@@ -419,14 +419,14 @@ var AE = AE || {};
    * @returns {{init:Object|null, lanes:Object, prompt:string|null}}
    */
   AE.parseBattleStream = function (text, options) {
-    var result = { init: null, lanes: {}, prompt: null, modality: null };
+    const result = { init: null, lanes: {}, prompt: null, modality: null };
     if (typeof text !== "string" || !text) return result;
-    var i = 0;
+    let i = 0;
     while (i < text.length && /\s/.test(text[i])) i++;
 
     // Optional leading bare JSON object (the init record).
     if (text[i] === '{') {
-      var initRead = readJsonValue(text, i);
+      const initRead = readJsonValue(text, i);
       if (initRead) {
         if (initRead[0] && (initRead[0].error || initRead[0].errors) && !initRead[0].userMessage) return result;
         if (!initRead[0] || !(initRead[0].id || initRead[0].mode || initRead[0].userMessage || initRead[0].modelAMessageId)) return result;
@@ -435,7 +435,7 @@ var AE = AE || {};
         if (result.init && result.init.userMessage && typeof result.init.userMessage.content === "string") {
           result.prompt = result.init.userMessage.content;
         }
-        var amd = result.init && result.init.userMessage && result.init.userMessage.metadata &&
+        const amd = result.init && result.init.userMessage && result.init.userMessage.metadata &&
                   result.init.userMessage.metadata.autoModalityMetadata;
         if (amd && typeof amd.modality === "string") result.modality = amd.modality;
       }
@@ -443,15 +443,15 @@ var AE = AE || {};
 
     /* Single-char AI-SDK codes only (0 text, 2 data, 9 tool, a result, c cite, d finish).
      * A longer class would treat CSS `background:` inside file contents as a row. */
-    var rowRe = options && options.singleLane ? /([ab]?)([0-9a-e]):/y : /([ab])([0-9a-e]):/y;
+    const rowRe = options && options.singleLane ? /([ab]?)([0-9a-e]):/y : /([ab])([0-9a-e]):/y;
     while (i < text.length) {
       rowRe.lastIndex = i;
-      var m = rowRe.exec(text);
+      const m = rowRe.exec(text);
       if (!m) { i++; continue; }
-      var lane = m[1] || "a", code = m[2];
-      var valRead = readJsonValue(text, rowRe.lastIndex);
+      const lane = m[1] || "a", code = m[2];
+      const valRead = readJsonValue(text, rowRe.lastIndex);
       if (!valRead) { i = rowRe.lastIndex; continue; }
-      var val = valRead[0];
+      const val = valRead[0];
       i = valRead[1];
 
       if (code === "3") {
@@ -459,7 +459,7 @@ var AE = AE || {};
         if (result.lanes[lane]) result.lanes[lane].finished = false;
         continue;
       }
-      var L = result.lanes[lane] || (result.lanes[lane] = { text: "", finished: false, finishReason: null, citationsRaw: "", tools: [], toolResults: {}, files: [] });
+      const L = result.lanes[lane] || (result.lanes[lane] = { text: "", finished: false, finishReason: null, citationsRaw: "", tools: [], toolResults: {}, files: [] });
       if (code === "0" && typeof val === "string") {
         L.text += val;
       } else if (code === "d" && val && typeof val === "object") {
@@ -479,16 +479,16 @@ var AE = AE || {};
     }
 
     Object.keys(result.lanes).forEach(function (k) {
-      var L = result.lanes[k];
-      var cites = extractCitations(L.citationsRaw || "");
-      var codeFlag = false;
-      var toolNames = {};
+      const L = result.lanes[k];
+      const cites = extractCitations(L.citationsRaw || "");
+      let codeFlag = false;
+      const toolNames = {};
       L.tools.forEach(function (t) {
         toolNames[t.toolName] = true;
         if (/(write|create|code|exec|file|javascript|python|bash|shell|webdev)/i.test(t.toolName || "")) codeFlag = true;
         if (/web_?search/i.test(t.toolName || "") && t.toolCallId && L.toolResults[t.toolCallId]) {
-          var res = L.toolResults[t.toolCallId];
-          var arr = res && Array.isArray(res.results) ? res.results : [];
+          const res = L.toolResults[t.toolCallId];
+          const arr = res && Array.isArray(res.results) ? res.results : [];
           arr.forEach(function (r) {
             if (r && typeof r.url === "string" && !cites.some(function (c) { return c.url === r.url; })) {
               cites.push({ url: r.url, title: r.title || null });
@@ -497,12 +497,12 @@ var AE = AE || {};
         }
       });
       Object.keys(L.toolResults).forEach(function (id) {
-        var r = L.toolResults[id];
-        var msg = r && typeof r.message === "string" ? r.message : "";
+        const r = L.toolResults[id];
+        const msg = r && typeof r.message === "string" ? r.message : "";
         if (/Created\s+\S+\.(js|jsx|ts|tsx|html|py|css|vue|svelte)\b/i.test(msg)) codeFlag = true;
       });
       if ((result.workspaceFiles && result.workspaceFiles.length) || (L.files && L.files.some(function (f) {
-        var p = String((f && (f.path || f.downloadUrl || "")) || "");
+        const p = String((f && (f.path || f.downloadUrl || "")) || "");
         return p && !/\.(png|jpe?g|webp|gif|avif|svg|mp4|webm|mov)(\?|$)/i.test(p);
       }))) codeFlag = true;
       L.citations = cites;
@@ -516,7 +516,7 @@ var AE = AE || {};
 
   function pushFileFromTool(L, toolName, args) {
     if (!args || typeof args !== "object") return;
-    var p = args.path || args.file;
+    const p = args.path || args.file;
     if (!p || typeof p !== "string") return;
     if (!/(create|write|edit).*file|write_file|create_file|edit_file/i.test(toolName || "")) return;
     if (!L.files) L.files = [];
@@ -541,15 +541,15 @@ var AE = AE || {};
     if (!url) return;
     if (!L.files) L.files = [];
     if (L.files.some(function (f) { return f && (f.downloadUrl === url || f.url === url || f.content === url); })) return;
-    var video = kind === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(url);
-    var rec = {
+    const video = kind === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(url);
+    const rec = {
       path: "image-" + (L.files.length + 1) + (video ? ".mp4" : ".png"),
       contentType: video ? "video/mp4" : "image/png",
       source: "stream"
     };
     try {
-      var u = new URL(url, "https://arena.ai/");
-      var base = (u.pathname.split("/").pop() || "").split("?")[0];
+      const u = new URL(url, "https://arena.ai/");
+      const base = (u.pathname.split("/").pop() || "").split("?")[0];
       if (/\.(png|jpe?g|webp|gif|avif|svg|mp4|webm|mov)$/i.test(base)) rec.path = base;
     } catch (e) { /* keep default */ }
     if (url.indexOf("data:") === 0) rec.content = url;
@@ -559,9 +559,9 @@ var AE = AE || {};
 
   function ingestMediaItem(L, item) {
     if (!item || typeof item !== "object") return;
-    var t = String(item.type || item.kind || "").toLowerCase();
-    var kind = /video/.test(t) ? "video" : "image";
-    var url = item.url || item.src || item.imageUrl || item.image_url || item.downloadUrl || item.uri || null;
+    const t = String(item.type || item.kind || "").toLowerCase();
+    const kind = /video/.test(t) ? "video" : "image";
+    let url = item.url || item.src || item.imageUrl || item.image_url || item.downloadUrl || item.uri || null;
     if (typeof item.image === "string") url = url || item.image;
     if (item.image && typeof item.image === "object") url = url || item.image.url || item.image.src;
     if (item.output && typeof item.output === "object") url = url || item.output.url || item.output.src;
@@ -574,7 +574,7 @@ var AE = AE || {};
   }
 
   function ingestDataItems(result, L, val) {
-    var items = Array.isArray(val) ? val : (val ? [val] : []);
+    const items = Array.isArray(val) ? val : (val ? [val] : []);
     items.forEach(function (item) {
       if (!item || typeof item !== "object") return;
       if (item.type === "webdev" && item.event && item.event.type === "init" && Array.isArray(item.event.files)) {
@@ -590,7 +590,7 @@ var AE = AE || {};
         });
         return;
       }
-      var t = String(item.type || item.kind || (item.event && item.event.type) || "").toLowerCase();
+      const t = String(item.type || item.kind || (item.event && item.event.type) || "").toLowerCase();
       if (/image|media|video|t2i|txt2img|img/.test(t) || item.imageUrl || item.image_url || item.image || isMediaUrl(item.url || item.src || "")) {
         ingestMediaItem(L, item);
         if (item.event && typeof item.event === "object") ingestMediaItem(L, item.event);
@@ -610,7 +610,7 @@ var AE = AE || {};
   };
 
   AE.isPlaceholderModel = function (name) {
-    var t = String(name == null ? "" : name).replace(/\s+/g, " ").trim();
+    const t = String(name == null ? "" : name).replace(/\s+/g, " ").trim();
     if (!t) return true;
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t)) return true;
     return /^(?:response|model|assistant|lane|player|option)\s*[ab](?:\s+[ab]\s+is\s+better)?$/i.test(t);
@@ -623,15 +623,15 @@ var AE = AE || {};
    * accumulate evidence. Conservative on purpose: a value only counts when
    * the KEY names a model field AND the VALUE looks like an internal model
    * slug (vendor token or dotted version slug). */
-  var MODEL_FIELD_RE = /^(?:model|models|.*[_-]model|model[_-].*)$/i;
-  var MODEL_SLUG_RE = /^[a-z0-9][a-z0-9._:@\/-]{2,88}[a-z0-9)]$/i;
-  var VENDOR_TOKEN_RE = /(?:^|[._:-])(gpt|o[1345](?![a-z])|claude|opus|sonnet|haiku|gemini|grok|kimi|qwen|glm|deepseek|minimax|llama|mistral|nova|pixtral|phi|flux|dall)(?:[._:-]|$)/i;
+  const MODEL_FIELD_RE = /^(?:model|models|.*[_-]model|model[_-].*)$/i;
+  const MODEL_SLUG_RE = /^[a-z0-9][a-z0-9._:@\/-]{2,88}[a-z0-9)]$/i;
+  const VENDOR_TOKEN_RE = /(?:^|[._:-])(gpt|o[1345](?![a-z])|claude|opus|sonnet|haiku|gemini|grok|kimi|qwen|glm|deepseek|minimax|llama|mistral|nova|pixtral|phi|flux|dall)(?:[._:-]|$)/i;
 
   AE.scanForModelHints = function (data, out) {
-    var found = out || {};
-    var visits = 0;
+    const found = out || {};
+    let visits = 0;
     function note(value) {
-      var t = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+      const t = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
       if (!MODEL_SLUG_RE.test(t)) return;
       if (AE.isPlaceholderModel(t)) return;
       if (!VENDOR_TOKEN_RE.test(t) && !/^[a-z0-9]+[-._][0-9]/i.test(t)) return;
@@ -642,7 +642,7 @@ var AE = AE || {};
       if (!o || typeof o !== "object" || visits++ > 600) return;
       if (Array.isArray(o)) { o.forEach(walk); return; }
       Object.keys(o).forEach(function (k) {
-        var v = o[k];
+        const v = o[k];
         if (typeof v === "string") {
           if (MODEL_FIELD_RE.test(k)) note(v);
         } else if (v && typeof v === "object") {
@@ -658,18 +658,18 @@ var AE = AE || {};
    * visible, and a whitelist of six scalars threw all of it away. Keep the
    * whole body minus secrets, with the known-huge fields summarised so a
    * multi-turn body still fits the per-request cap. */
-  var EVAL_BODY_CAP = 24000;
-  var EVAL_BULK_FIELD_RE = /^(recaptcha|captcha|attachments?|files?|images?|workspace)/i;
+  const EVAL_BODY_CAP = 24000;
+  const EVAL_BULK_FIELD_RE = /^(recaptcha|captcha|attachments?|files?|images?|workspace)/i;
 
   AE.summarizeEvalRequest = function (body) {
-    var raw = typeof body === "string" ? body : "";
+    const raw = typeof body === "string" ? body : "";
     try {
-      var o = typeof body === "string" ? JSON.parse(body) : body;
+      const o = typeof body === "string" ? JSON.parse(body) : body;
       if (!o || typeof o !== "object") return raw.slice(0, EVAL_BODY_CAP);
-      var scrubbed = AE.scrubSecrets ? AE.scrubSecrets(o) : o;
+      const scrubbed = AE.scrubSecrets ? AE.scrubSecrets(o) : o;
       if (scrubbed && typeof scrubbed === "object" && !Array.isArray(scrubbed)) {
         Object.keys(scrubbed).forEach(function (k) {
-          var v = scrubbed[k];
+          const v = scrubbed[k];
           if (!EVAL_BULK_FIELD_RE.test(k)) return;
           /* Keep evidence the field existed without carrying its payload. */
           if (Array.isArray(v)) scrubbed[k] = "[" + v.length + " items omitted]";
@@ -677,7 +677,7 @@ var AE = AE || {};
           else if (typeof v === "string" && v.length > 200) scrubbed[k] = "[" + v.length + " chars omitted]";
         });
       }
-      var text = JSON.stringify(scrubbed);
+      const text = JSON.stringify(scrubbed);
       return text.length > EVAL_BODY_CAP ? text.slice(0, EVAL_BODY_CAP) : text;
     } catch (e) {
       return raw.slice(0, EVAL_BODY_CAP);
@@ -686,11 +686,11 @@ var AE = AE || {};
 
   /* Pull {url,title} citation objects out of a concatenated citation args stream. */
   function extractCitations(raw) {
-    var out = [];
-    var seen = {};
-    var re = /"url"\s*:\s*"([^"]+)"|"title"\s*:\s*"([^"]*)"/g;
-    var lastUrl = null;
-    var m;
+    const out = [];
+    const seen = {};
+    const re = /"url"\s*:\s*"([^"]+)"|"title"\s*:\s*"([^"]*)"/g;
+    let lastUrl = null;
+    let m;
     while ((m = re.exec(raw))) {
       if (m[1] !== undefined) {
         if (!seen[m[1]]) { seen[m[1]] = { url: m[1], title: null }; out.push(seen[m[1]]); }
@@ -705,13 +705,13 @@ var AE = AE || {};
 
   /* Turn an artifact title into a safe filename, unique within `used`. */
   AE.attachmentSlug = function (title, used) {
-    var base = String(title || "").replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
+    let base = String(title || "").replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
     if (!base) base = "attachment";
-    var ext = "";
-    var mm = /(\.[a-zA-Z0-9]{1,10})$/.exec(base);
+    let ext = "";
+    const mm = /(\.[a-zA-Z0-9]{1,10})$/.exec(base);
     if (mm) { ext = mm[1]; base = base.slice(0, -ext.length); }
-    var name = base + ext;
-    var n = 2;
+    let name = base + ext;
+    let n = 2;
     while (used && used[name]) name = base + "-" + (n++) + ext;
     if (used) used[name] = true;
     return name;
@@ -722,16 +722,16 @@ var AE = AE || {};
    * Adds block.attachment {path,bytes,media_type,truncated}; keeps
    * content_or_url as provenance. Returns {saved,failed}. */
   AE.decorateAttachments = function (payload, results, dir) {
-    var byUrl = {};
+    const byUrl = {};
     (results || []).forEach(function (r) { if (r && r.url) byUrl[r.url] = r; });
-    var used = {}, saved = [], failed = [];
+    const used = {}, saved = [], failed = [];
     (payload.messages || []).forEach(function (m) {
       (m.content || []).forEach(function (b) {
         if (b.type !== "artifact" || !b.content_or_url) return;
-        var r = byUrl[b.content_or_url];
+        const r = byUrl[b.content_or_url];
         if (!r) return;
         if (!r.ok) { failed.push({ url: r.url, error: r.error || "fetch failed" }); return; }
-        var name = AE.attachmentSlug(r.title || b.title || "attachment", used);
+        const name = AE.attachmentSlug(r.title || b.title || "attachment", used);
         b.attachment = {
           path: (dir || "attachments/") + name,
           bytes: r.bytes || 0,
@@ -747,16 +747,16 @@ var AE = AE || {};
   /* Inline artifacts (data: URLs or raw HTML/srcdoc) need no fetch. Returns
    * {saved:[{path,dataUrl,bytes}], warnings:[...]}. */
   AE.decorateInlineArtifacts = function (payload, dir) {
-    var used = {}, saved = [], warnings = [];
+    const used = {}, saved = [], warnings = [];
     (payload.messages || []).forEach(function (m) {
       (m.content || []).forEach(function (b) {
         if (b.type !== "artifact" || typeof b.content_or_url !== "string") return;
-        var v = b.content_or_url;
-        var isData = v.indexOf("data:") === 0;
-        var dataUrl = isData ? v : (v.charAt(0) === "<" ? "data:text/html;charset=utf-8," + encodeURIComponent(v) : null);
+        const v = b.content_or_url;
+        const isData = v.indexOf("data:") === 0;
+        const dataUrl = isData ? v : (v.charAt(0) === "<" ? "data:text/html;charset=utf-8," + encodeURIComponent(v) : null);
         if (!dataUrl) return;
-        var name = AE.attachmentSlug(b.title || "artifact", used);
-        var bytes = isData ? Math.round((v.length * 3) / 4) : v.length;
+        const name = AE.attachmentSlug(b.title || "artifact", used);
+        const bytes = isData ? Math.round((v.length * 3) / 4) : v.length;
         b.attachment = {
           path: (dir || "attachments/") + name,
           bytes: bytes,

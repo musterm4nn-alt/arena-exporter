@@ -2,12 +2,15 @@
  * (page /c/<id> or realtime session UUID), not by a single process-wide
  * state object. Classic-script globals — loaded via importScripts. */
 
-var STATE_KEY = "ae_store_v2";
-var LEGACY_STATE_KEY = "ae_state_v1";
-var MAX_SESSIONS = 12;
-var EVAL_TOTAL_CAP = 4 * 1024 * 1024; // raw battle stream bytes retained per session
-var MAX_WARNINGS = 50;
+const STATE_KEY = "ae_store_v2";
+const LEGACY_STATE_KEY = "ae_state_v1";
+const MAX_SESSIONS = 12;
+const EVAL_TOTAL_CAP = 4 * 1024 * 1024; // raw battle stream bytes retained per session
+const MAX_WARNINGS = 50;
 
+/* var, not const: the Node vm harness and the Firefox packaging test reach
+ * this object as context.store, and only var/function globals surface on the
+ * context object. Same for stateReadyPromise below. */
 var store = {
   sessions: {},
   tabKeys: {},
@@ -17,18 +20,19 @@ var store = {
   activeKey: null
 };
 
-var stateReady = false;
-var pendingEvents = [];
-var stateReadyResolve = null;
+let stateReady = false;
+let pendingEvents = [];
+let stateReadyResolve = null;
+/* var (see store note above): worker-harness ready() reads context.stateReadyPromise. */
 var stateReadyPromise = new Promise(function (resolve) { stateReadyResolve = resolve; });
-var saveTimer = null;
+let saveTimer = null;
 
 function genId(prefix) {
   return prefix + "_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
 
 function stripKeyPrefix(key) {
-  var k = String(key || "");
+  const k = String(key || "");
   if (k.indexOf("c:") === 0 || k.indexOf("s:") === 0) return k.slice(2);
   return k;
 }
@@ -71,7 +75,7 @@ function freshState(key) {
 }
 
 function hydrateSession(raw, key) {
-  var s = freshState(key);
+  const s = freshState(key);
   if (!raw || typeof raw !== "object") return s;
   s.session = Object.assign(s.session, raw.session && typeof raw.session === "object" ? raw.session : {});
   s.session.conversation_key = key;
@@ -114,7 +118,7 @@ function hydrateSession(raw, key) {
 
 function conversationKeyFromUrl(url) {
   url = String(url || "");
-  var m = /\/(?:c|agent)\/([A-Za-z0-9_-]+)/.exec(url);
+  let m = /\/(?:c|agent)\/([A-Za-z0-9_-]+)/.exec(url);
   if (m) return "c:" + m[1];
   m = /\/realtime\/v[0-9]+\/sessions\/([0-9a-fA-F-]{8,})\//i.exec(url);
   if (m) return "s:" + m[1];
@@ -126,7 +130,7 @@ function conversationKeyFromUrl(url) {
 function ensureState() {
   store.activeKey = canonicalSessionKey(store.activeKey);
   if (!store.activeKey || !store.sessions[store.activeKey]) {
-    var k = store.activeKey || "default";
+    const k = store.activeKey || "default";
     store.activeKey = k;
     if (!store.sessions[k]) store.sessions[k] = freshState(k);
   }
@@ -134,7 +138,7 @@ function ensureState() {
 }
 
 function canonicalSessionKey(key) {
-  var visited = {};
+  const visited = {};
   while (key && store.aliases[key] && !visited[key]) {
     visited[key] = true;
     key = store.aliases[key];
@@ -146,7 +150,7 @@ function migrateSession(fromKey, toKey) {
   fromKey = canonicalSessionKey(fromKey);
   toKey = canonicalSessionKey(toKey);
   if (!fromKey || !toKey || fromKey === toKey) return;
-  var src = store.sessions[fromKey];
+  const src = store.sessions[fromKey];
   if (src && !store.sessions[toKey]) {
     store.sessions[toKey] = src;
     src.session.conversation_key = toKey;
@@ -159,16 +163,16 @@ function migrateSession(fromKey, toKey) {
      * data (e.g. a "default"/placeholder bucket that captured events before
      * the conversation key was known), so fold it into the destination
      * instead of dropping it on the floor. */
-    var dst = store.sessions[toKey];
+    const dst = store.sessions[toKey];
     (src.messages || []).forEach(function (m) {
-      var existingIndex = m && m.id != null ? dst.messageIndex[m.id] : null;
+      const existingIndex = m && m.id != null ? dst.messageIndex[m.id] : null;
       if (existingIndex == null) {
         dst.messages.push(m);
         if (m && m.id != null) dst.messageIndex[m.id] = dst.messages.length - 1;
       } else {
-        var old = dst.messages[existingIndex];
+        const old = dst.messages[existingIndex];
         // Aliases can both contain the same message; retain the fuller capture.
-        var merged = Object.assign({}, old, m);
+        const merged = Object.assign({}, old, m);
         merged.content = JSON.stringify(old.content || []).length > JSON.stringify(m.content || []).length
           ? old.content : m.content;
         dst.messages[existingIndex] = merged;
@@ -238,14 +242,14 @@ function resolveSessionForEvent(evt, sender) {
   evt = evt || {};
   if (evt.conversationKey && !/^[cs]:[A-Za-z0-9_-]{1,160}$/.test(evt.conversationKey)) delete evt.conversationKey;
   if (evt.requestId && (!/^[A-Za-z0-9:_-]{1,180}$/.test(evt.requestId) || /^(?:__proto__|constructor|prototype)$/.test(evt.requestId))) delete evt.requestId;
-  var tabId = sender && sender.tab && sender.tab.id != null ? sender.tab.id : null;
-  var tabUrl = sender && sender.tab && sender.tab.url ? String(sender.tab.url) : "";
-  var pageUrl = evt.pageUrl || (evt.kind === "page_context" ? evt.url : tabUrl) || "";
-  var pageKey = conversationKeyFromUrl(pageUrl);
-  var prev = canonicalSessionKey(tabId != null ? store.tabKeys[tabId] : null);
-  var placeholder = tabId != null ? "tab:" + tabId : "default";
-  var key = evt.requestId ? canonicalSessionKey(store.requestKeys[evt.requestId]) : null;
-  var hint = evt.kind === "session_hint" && evt.sessionId ? "s:" + evt.sessionId : null;
+  const tabId = sender && sender.tab && sender.tab.id != null ? sender.tab.id : null;
+  const tabUrl = sender && sender.tab && sender.tab.url ? String(sender.tab.url) : "";
+  const pageUrl = evt.pageUrl || (evt.kind === "page_context" ? evt.url : tabUrl) || "";
+  const pageKey = conversationKeyFromUrl(pageUrl);
+  const prev = canonicalSessionKey(tabId != null ? store.tabKeys[tabId] : null);
+  const placeholder = tabId != null ? "tab:" + tabId : "default";
+  let key = evt.requestId ? canonicalSessionKey(store.requestKeys[evt.requestId]) : null;
+  const hint = evt.kind === "session_hint" && evt.sessionId ? "s:" + evt.sessionId : null;
   if (evt.kind === "page_context") {
     if (!pageKey && !evt.conversationKey) delete store.aliases[placeholder];
     key = canonicalSessionKey(evt.conversationKey || pageKey) || placeholder;
@@ -266,7 +270,7 @@ function resolveSessionForEvent(evt, sender) {
   // page navigates while fetch is pending. It is not a model identifier.
   if (evt.kind === "request" && /create-evaluation/i.test(evt.url || "")) {
     try {
-      var request = JSON.parse(evt.body || "{}");
+      const request = JSON.parse(evt.body || "{}");
       if (typeof request.id === "string" && /^[A-Za-z0-9_-]+$/.test(request.id)) key = "c:" + request.id;
     } catch (e) { /* partial request */ }
   }
@@ -278,12 +282,12 @@ function resolveSessionForEvent(evt, sender) {
 
   if (!store.sessions[key]) store.sessions[key] = freshState(key);
   store.activeKey = key;
-  var currentPage = tabId != null ? store.tabPages[tabId] : null;
+  const currentPage = tabId != null ? store.tabPages[tabId] : null;
   if (tabId != null && (!evt.pageUrl || !currentPage || evt.pageUrl === currentPage || evt.kind === "page_context")) {
     store.tabKeys[tabId] = key;
   }
   if (evt.requestId) store.requestKeys[evt.requestId] = key;
-  var s = store.sessions[key];
+  const s = store.sessions[key];
   if (!s.session.url && pageUrl) s.session.url = pageUrl;
   s.session.conversation_key = key;
   if (evt && evt.kind === "session_hint" && evt.sessionId) {
@@ -315,12 +319,12 @@ function lastActivity(s) {
  * rounds within a byte budget; never drop the round still being captured. */
 function pruneEvaluationStreams(s) {
   if (!s || !s.evaluationStreams) return;
-  var keys = Object.keys(s.evaluationStreams); // insertion order == round order
-  var total = 0;
-  for (var i = 0; i < keys.length; i++) total += (s.evaluationStreams[keys[i]] || "").length;
-  var dropped = 0;
+  const keys = Object.keys(s.evaluationStreams); // insertion order == round order
+  let total = 0;
+  for (let i = 0; i < keys.length; i++) total += (s.evaluationStreams[keys[i]] || "").length;
+  let dropped = 0;
   while (total > EVAL_TOTAL_CAP && keys.length > 1) {
-    var oldest = keys.shift();
+    const oldest = keys.shift();
     total -= (s.evaluationStreams[oldest] || "").length;
     delete s.evaluationStreams[oldest];
     dropped++;
@@ -336,12 +340,12 @@ function pruneEvaluationStreams(s) {
  * afternoon fills the quota and then *every* conversation silently stops
  * persisting. Evict least-recently-active first, never the active one. */
 function pruneStore() {
-  var requestIds = Object.keys(store.requestKeys);
+  const requestIds = Object.keys(store.requestKeys);
   requestIds.slice(0, Math.max(0, requestIds.length - 2000)).forEach(function (id) { delete store.requestKeys[id]; });
-  var keys = Object.keys(store.sessions);
+  const keys = Object.keys(store.sessions);
   keys.forEach(function (k) { pruneEvaluationStreams(store.sessions[k]); });
   if (keys.length <= MAX_SESSIONS) return;
-  var removable = keys.filter(function (k) { return k !== store.activeKey; })
+  const removable = keys.filter(function (k) { return k !== store.activeKey; })
     .sort(function (a, b) { return lastActivity(store.sessions[a]) - lastActivity(store.sessions[b]); });
   removable.slice(0, keys.length - MAX_SESSIONS).forEach(function (k) {
     delete store.sessions[k];
@@ -357,16 +361,16 @@ function pruneStore() {
   });
 }
 
-var saveChain = Promise.resolve();
+let saveChain = Promise.resolve();
 function flushSave() {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   if (typeof flushAllStreamMessages === "function") flushAllStreamMessages();
   pruneStore();
-  var payload = JSON.parse(JSON.stringify({ sessions: store.sessions, tabKeys: store.tabKeys,
+  const payload = JSON.parse(JSON.stringify({ sessions: store.sessions, tabKeys: store.tabKeys,
     tabPages: store.tabPages, aliases: store.aliases, requestKeys: store.requestKeys, activeKey: store.activeKey }));
-  var task = saveChain.then(function () { return storageSet(captureStorageArea(), { [STATE_KEY]: payload }); });
+  const task = saveChain.then(function () { return storageSet(captureStorageArea(), { [STATE_KEY]: payload }); });
   saveChain = task.catch(function () {
-    var s = ensureState();
+    const s = ensureState();
     s.storageError = true;
     addWarning(s, "Session persistence failed (storage full or unavailable). Capture continues in memory only.");
     if (AE.recordIssue) AE.recordIssue("storage", "persistence_failed");
@@ -383,13 +387,13 @@ function finishStateLoad(r) {
   if (stateReady) return;
   r = r || {};
   if (r[STATE_KEY] && typeof r[STATE_KEY] === "object") {
-    var packed = r[STATE_KEY];
+    const packed = r[STATE_KEY];
     store.tabKeys = packed.tabKeys && typeof packed.tabKeys === "object" ? packed.tabKeys : {};
     store.tabPages = packed.tabPages || {};
     store.aliases = packed.aliases || {};
     store.requestKeys = packed.requestKeys || {};
     store.activeKey = packed.activeKey || null;
-    var sessions = packed.sessions && typeof packed.sessions === "object" ? packed.sessions : {};
+    const sessions = packed.sessions && typeof packed.sessions === "object" ? packed.sessions : {};
     Object.keys(sessions).forEach(function (k) {
       store.sessions[k] = hydrateSession(AE.scrubSecrets ? AE.scrubSecrets(sessions[k]) : sessions[k], k);
     });
@@ -402,7 +406,7 @@ function finishStateLoad(r) {
     if (!store.sessions[store.activeKey]) store.sessions[store.activeKey] = freshState(store.activeKey);
   }
   stateReady = true;
-  var queued = pendingEvents;
+  const queued = pendingEvents;
   pendingEvents = [];
   queued.forEach(function (item) {
     handleEvent(item.evt, item.sender);
@@ -414,14 +418,14 @@ function finishStateLoad(r) {
 }
 
 function clearActiveSession() {
-  var k = store.activeKey || "default";
+  const k = store.activeKey || "default";
   store.sessions[k] = freshState(k);
   scheduleSave();
 }
 
 function listSessionSummaries() {
   return Object.keys(store.sessions).map(function (k) {
-    var s = store.sessions[k];
+    const s = store.sessions[k];
     return {
       key: k,
       sessionId: s.session.session_id,
@@ -449,7 +453,7 @@ function captureStorageArea() {
 
 function storageSet(area, value) {
   return new Promise(function (resolve, reject) {
-    var settled = false;
+    let settled = false;
     function finish(error) {
       if (settled) return;
       settled = true;
@@ -457,8 +461,8 @@ function storageSet(area, value) {
       else resolve();
     }
     try {
-      var request = area.set(value, function () {
-        var runtimeError = chrome.runtime && chrome.runtime.lastError;
+      const request = area.set(value, function () {
+        const runtimeError = chrome.runtime && chrome.runtime.lastError;
         finish(runtimeError ? new Error(runtimeError.message || "storage write failed") : null);
       });
       if (request && typeof request.then === "function") request.then(function () { finish(); }, function (error) { finish(error); });
@@ -468,7 +472,7 @@ function storageSet(area, value) {
 
 function storageGet(area, keys) {
   return new Promise(function (resolve, reject) {
-    var settled = false;
+    let settled = false;
     function finish(value, error) {
       if (settled) return;
       settled = true;
@@ -476,8 +480,8 @@ function storageGet(area, keys) {
       else resolve(value || {});
     }
     try {
-      var request = area.get(keys, function (value) {
-        var runtimeError = chrome.runtime && chrome.runtime.lastError;
+      const request = area.get(keys, function (value) {
+        const runtimeError = chrome.runtime && chrome.runtime.lastError;
         finish(value, runtimeError ? new Error(runtimeError.message || "storage read failed") : null);
       });
       if (request && typeof request.then === "function") request.then(function (value) { finish(value); }, function (error) { finish(null, error); });
@@ -486,11 +490,12 @@ function storageGet(area, keys) {
 }
 
 function startStoreLoad() {
-  var area = captureStorageArea(), keys = [STATE_KEY, LEGACY_STATE_KEY], request;
+  const area = captureStorageArea(), keys = [STATE_KEY, LEGACY_STATE_KEY];
+  let request;
   function loadWithCallback() {
     try {
       area.get(keys, function (value) {
-        var runtimeError = chrome.runtime && chrome.runtime.lastError;
+        const runtimeError = chrome.runtime && chrome.runtime.lastError;
         finishStateLoad(runtimeError ? {} : (value || {}));
       });
     } catch (error) { finishStateLoad({}); }

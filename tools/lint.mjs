@@ -34,14 +34,15 @@ const DOM_SINK_ALLOWLIST = new Set(["src/lib/dom-extract.js"]);
 const MODERN_FILES = new Set([
   "src/lib/vote.js", "src/lib/format.js", "src/lib/schema.js",
   "src/lib/evaluation-stream.js", "src/lib/privacy.js", "src/lib/page-data.js",
-  "src/streaming-export.js", "src/markdown.js", "src/attribution.js",
+  "src/lib/normalize.js", "src/streaming-export.js", "src/markdown.js", "src/attribution.js",
   "src/capture-health.js", "src/backup-store.js", "src/archive-folder.js",
   "src/export-download.js", "src/turn-sync.js", "src/request-capture.js",
   "src/ui-state.js", "src/ui-model.js", "src/status-led.js", "src/popup.js",
   "src/content.js", "src/options.js", "src/encrypted-archive.js",
   "src/export-builder.js", "src/ui-common.js", "src/runtime-services.js",
   "src/archive-layout.js", "src/downloads-sink.js", "src/message-router.js",
-  "src/github-backup.js", "src/native-sink.js"
+  "src/github-backup.js", "src/native-sink.js", "src/lib/normalize.js",
+  "src/interceptor.js", "src/session-store.js"
 ]);
 
 for (const file of [...sourceFiles("src").filter(f => !GENERATED.has(f)), ...sourceFiles("tools")]) {
@@ -59,9 +60,11 @@ for (const file of [...sourceFiles("src").filter(f => !GENERATED.has(f)), ...sou
   }
   if (MODERN_FILES.has(file)) {
     for (const line of text.split("\n")) {
-      // var AE lines and the cross-file autoArchiveEnabled flag predate the
+      // var AE lines, the cross-file autoArchiveEnabled flag, and the two
+      // session-store globals the vm harness reads as context.X predate the
       // const/let convention and stay on var for the global-object contract.
-      if (/\bvar\b/.test(line) && !/var AE = AE \|\| \{\}/.test(line) && !/var autoArchiveEnabled/.test(line)) {
+      if (/\bvar\b/.test(line) && !/var AE = AE \|\| \{\}/.test(line) && !/var autoArchiveEnabled/.test(line) &&
+          !/var (store|stateReadyPromise) =/.test(line)) {
         failures.push(`${file}: var is forbidden in modernized modules (use const/let)`);
         break;
       }

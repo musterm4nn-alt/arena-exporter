@@ -7,11 +7,11 @@
  * truncated. */
 (function () {
   "use strict";
-  var NS = "__ARENA_EXPORTER_EVT__";
+  const NS = "__ARENA_EXPORTER_EVT__";
 
   function pingReady() {
     try {
-      var target = "*";
+      let target = "*";
       try { if (location.origin) target = location.origin; } catch (e0) { /* ignore */ }
       window.postMessage({ type: NS, evt: { kind: "interceptor_ready", url: location.href } }, target);
     } catch (e1) { /* never break the host page */ }
@@ -32,15 +32,15 @@
    *  - /ai-proxy/realtime/v1/sessions/<uuid>/out  → long-lived agent event stream
    *  - /api/chat/<uuid>/...                       → chat-scoped REST endpoints
    * The /out stream framing is sniffed at runtime (SSE vs NDJSON vs raw). */
-  var REALTIME_OUT_RE = /\/realtime\/v[0-9]+\/sessions\/([0-9a-fA-F-]{8,})\/out/i;
-  var CHAT_ID_RE = /\/api\/chat\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i;
+  const REALTIME_OUT_RE = /\/realtime\/v[0-9]+\/sessions\/([0-9a-fA-F-]{8,})\/out/i;
+  const CHAT_ID_RE = /\/api\/chat\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i;
   /* User prompts enter via .../sessions/<id>/in/append (POST body) — request
    * bodies on these endpoints are captured, not just responses. */
-  var RELEVANT_REQ_RE = /(in\/append|create-chat|create-evaluation|post-to-evaluation|\/nextjs-api\/)/i;
-  var EVALUATION_STREAM_RE = /(create-evaluation|post-to-evaluation)/i;
+  const RELEVANT_REQ_RE = /(in\/append|create-chat|create-evaluation|post-to-evaluation|\/nextjs-api\/)/i;
+  const EVALUATION_STREAM_RE = /(create-evaluation|post-to-evaluation)/i;
   /* Skip telemetry/assets. Only these URLs are forwarded to the SW. */
-  var CAPTURE_URL_RE = /(\/realtime\/v[0-9]+\/sessions\/|\/in\/append|\/api\/chat\/|create-chat|create-evaluation|post-to-evaluation|workspace|\/api\/history|\/text\/(direct|side-by-side)|\/max(?:[/?#]|$)|\/agent\/)/i;
-  var EVAL_EMIT_CHUNK = 8192;
+  const CAPTURE_URL_RE = /(\/realtime\/v[0-9]+\/sessions\/|\/in\/append|\/api\/chat\/|create-chat|create-evaluation|post-to-evaluation|workspace|\/api\/history|\/text\/(direct|side-by-side)|\/max(?:[/?#]|$)|\/agent\/)/i;
+  const EVAL_EMIT_CHUNK = 8192;
 
   /* Third-party telemetry (Datadog RUM beacons and friends) was reaching the
    * archive. Nothing outside arena.ai / lmarena.ai (legacy host that 301s) is
@@ -60,7 +60,7 @@
     return REALTIME_OUT_RE.test(url) || EVALUATION_STREAM_RE.test(url) || CAPTURE_URL_RE.test(url);
   }
 
-  var requestSequence = 0;
+  let requestSequence = 0;
   function contextFor(method) {
     return { requestId: "ae-" + Date.now().toString(36) + "-" + (++requestSequence) + "-" + Math.random().toString(36).slice(2, 8),
       method: String(method || "GET").toUpperCase(), pageUrl: location.href, capturedAt: new Date().toISOString() };
@@ -72,7 +72,7 @@
     try {
       evt = Object.assign({ pageUrl: location.href }, context || {}, evt);
       if (typeof AE !== "undefined" && AE.scrubSecrets) evt = AE.scrubSecrets(evt);
-      var target = "*";
+      let target = "*";
       try { if (location.origin) target = location.origin; } catch (e) { /* ignore */ }
       window.postMessage({ type: NS, evt: evt }, target);
     } catch (e) { /* never break the host page */ }
@@ -81,16 +81,16 @@
   /* ---------- stream consumption (SSE / NDJSON / raw sniffing) ---------- */
 
   function parseSSEFrame(url, frame, context) {
-    var event = "message";
-    var dataLines = [];
-    var lines = frame.split(/\r\n|\r|\n/);
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
+    let event = "message";
+    const dataLines = [];
+    const lines = frame.split(/\r\n|\r|\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       if (line.indexOf("event:") === 0) event = line.slice(6).trim();
       else if (line.indexOf("data:") === 0) dataLines.push(line.slice(5).replace(/^ /, ""));
     }
     if (!dataLines.length) return;
-    var data = dataLines.join("\n");
+    const data = dataLines.join("\n");
     if (data === "[DONE]") { emit({ kind: "stream_done", url: url }, context); return; }
     try {
       emit({ kind: "sse", url: url, event: event, data: JSON.parse(data) }, context);
@@ -108,10 +108,10 @@
     }
   }
 
-  var SSE_FRAME_RE = /^\s*(event:|data:|id:|retry:|:)/;
+  const SSE_FRAME_RE = /^\s*(event:|data:|id:|retry:|:)/;
   /* Next.js RSC / flight rows look like "<rowid>:<payload>" (e.g. the
    * evaluation battle stream emits "a2:[{\"type\":\"heartbeat\"}]"). */
-  var RSC_LINE_RE = /^\s*[0-9a-zA-Z]+:/;
+  const RSC_LINE_RE = /^\s*[0-9a-zA-Z]+:/;
 
   function sniffStreamMode(buf) {
     if (SSE_FRAME_RE.test(buf)) return "sse";
@@ -123,10 +123,10 @@
 
   function parseRSCLine(url, line, context) {
     if (!line) return;
-    var ci = line.indexOf(":");
-    var rowId = ci > 0 ? line.slice(0, ci) : null;
-    var rest = ci > 0 ? line.slice(ci + 1) : line;
-    var data = null;
+    const ci = line.indexOf(":");
+    const rowId = ci > 0 ? line.slice(0, ci) : null;
+    const rest = ci > 0 ? line.slice(ci + 1) : line;
+    let data = null;
     try { data = JSON.parse(rest); } catch (e) { /* keep null */ }
     emit({ kind: "rsc_row", url: url, rowId: rowId, data: data, text: safeText(line).slice(0, 4096) }, context);
   }
@@ -135,11 +135,11 @@
    * delimiter-free lane deltas (`}a0:"…"b0:"…"`). That is not NDJSON —
    * never JSON.parse line-by-line and never truncate to 2KB. */
   async function consumeEvalStream(url, res, context) {
-    var reader = res.body.getReader();
-    var dec = new TextDecoder();
-    var carry = "";
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let carry = "";
     try { for (;;) {
-      var r = await reader.read();
+      const r = await reader.read();
       if (r.done) break;
       carry += dec.decode(r.value, { stream: true });
       while (carry.length >= EVAL_EMIT_CHUNK) {
@@ -156,40 +156,40 @@
   }
 
   async function consumeStream(url, res, context, contentType) {
-    var reader = res.body.getReader();
-    var dec = new TextDecoder();
-    var buf = "";
-    var mode = /text\/event-stream/i.test(contentType || "") ? "sse" : null;
-    var pendingCR = false;
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    let mode = /text\/event-stream/i.test(contentType || "") ? "sse" : null;
+    let pendingCR = false;
     function decodeChunk(bytes, done) {
-      var text = bytes ? dec.decode(bytes, { stream: true }) : dec.decode();
+      let text = bytes ? dec.decode(bytes, { stream: true }) : dec.decode();
       if (pendingCR) { text = "\r" + text; pendingCR = false; }
       if (!done && text.endsWith("\r")) { pendingCR = true; text = text.slice(0, -1); }
       return text.replace(/\r\n?/g, "\n");
     }
     try {
     for (;;) {
-      var r = await reader.read();
+      const r = await reader.read();
       buf += decodeChunk(r.value, r.done);
       if (r.done) break;
       if (!mode) mode = sniffStreamMode(buf);
       if (mode === "sse") {
-        var idx;
+        let idx;
         while ((idx = buf.indexOf("\n\n")) !== -1) {
           parseSSEFrame(url, buf.slice(0, idx), context);
           buf = buf.slice(idx + 2);
         }
       } else if (mode === "ndjson") {
-        var nl;
+        let nl;
         while ((nl = buf.indexOf("\n")) !== -1) {
-          var line = buf.slice(0, nl).trim();
+          const line = buf.slice(0, nl).trim();
           buf = buf.slice(nl + 1);
           parseNDJSONLine(url, line, context);
         }
       } else if (mode === "rsc") {
-        var nl;
+        let nl;
         while ((nl = buf.indexOf("\n")) !== -1) {
-          var line = buf.slice(0, nl).trim();
+          const line = buf.slice(0, nl).trim();
           buf = buf.slice(nl + 1);
           parseRSCLine(url, line, context);
         }
@@ -215,15 +215,15 @@
   /* ---------- response dispatch ---------- */
 
   function emitSessionHint(url, context) {
-    var m = REALTIME_OUT_RE.exec(url) || CHAT_ID_RE.exec(url);
+    const m = REALTIME_OUT_RE.exec(url) || CHAT_ID_RE.exec(url);
     if (m) emit({ kind: "session_hint", sessionId: m[1], url: url }, context);
   }
 
   function handleResponse(url, res, context) {
     if (!isCaptureUrl(url)) return;
-    var ct = "";
+    let ct = "";
     try { ct = (res.headers.get("content-type") || "").toLowerCase(); } catch (e) {}
-    var headers = typeof AE !== "undefined" && AE.safeTransportHeaders ? AE.safeTransportHeaders(res.headers) : {};
+    const headers = typeof AE !== "undefined" && AE.safeTransportHeaders ? AE.safeTransportHeaders(res.headers) : {};
     emit({ kind: "endpoint", url: url, status: res.status, contentType: ct, headers: headers }, context);
     if (res.status >= 400) {
       res.clone().text().then(function (text) {
@@ -234,8 +234,8 @@
     emitSessionHint(url, context);
     function streamError(err) { emit({ kind: "stream_error", url: url, error: String(err.message || err), aborted: err.name === "AbortError" }, context); }
     try {
-      var isRealtimeOut = REALTIME_OUT_RE.test(url);
-      var isEvaluationStream = EVALUATION_STREAM_RE.test(url);
+      const isRealtimeOut = REALTIME_OUT_RE.test(url);
+      const isEvaluationStream = EVALUATION_STREAM_RE.test(url);
       if (isEvaluationStream) {
         consumeEvalStream(url, res.clone(), context).catch(streamError);
       } else if (ct.indexOf("text/event-stream") !== -1 || ct.indexOf("text/x-component") !== -1 || isRealtimeOut) {
@@ -278,18 +278,18 @@
     }, context);
   }
 
-  var origFetch = window.fetch;
+  const origFetch = window.fetch;
   window.fetch = function (input, init) {
-    var url = "";
-    var method = "GET";
+    let url = "";
+    let method = "GET";
     try {
       url = typeof input === "string" ? input : (input && input.url) || "";
       method = (init && init.method) || (typeof input === "object" && input && input.method) || "GET";
     } catch (e) {}
-    var context = contextFor(method);
+    const context = contextFor(method);
     try {
       if (RELEVANT_REQ_RE.test(url) && isArenaUrl(url)) {
-        var hasInitBody = !!(init && init.body != null);
+        const hasInitBody = !!(init && init.body != null);
         if (hasInitBody) {
           emitRequestCapture(url, method, bodyText(init.body), context);
         } else if (input && typeof input.clone === "function") {
@@ -309,7 +309,7 @@
         }
       }
     } catch (e) { /* ignore */ }
-    var p = origFetch.apply(this, arguments);
+    const p = origFetch.apply(this, arguments);
     p.then(function (res) {
       try { handleResponse(url, res, context); } catch (e) {}
     }, function (err) {
@@ -320,9 +320,9 @@
 
   /* ---------- XHR hook ---------- */
 
-  var XP = XMLHttpRequest.prototype;
-  var origOpen = XP.open;
-  var origSend = XP.send;
+  const XP = XMLHttpRequest.prototype;
+  const origOpen = XP.open;
+  const origSend = XP.send;
 
   XP.open = function (method, url) {
     try { this.__aeUrl = String(url); this.__aeMethod = String(method); } catch (e) {}
@@ -330,11 +330,11 @@
   };
 
   XP.send = function (payload) {
-    var xhr = this;
-    var context = contextFor(xhr.__aeMethod);
+    const xhr = this;
+    const context = contextFor(xhr.__aeMethod);
     try {
       if (RELEVANT_REQ_RE.test(xhr.__aeUrl || "") && isArenaUrl(xhr.__aeUrl || "")) {
-        var xhrBody = null;
+        let xhrBody = null;
         if (typeof payload === "string") xhrBody = payload;
         else if (payload && typeof payload === "object") { try { xhrBody = JSON.stringify(payload); } catch (e) {} }
         emitRequestCapture(xhr.__aeUrl, xhr.__aeMethod || "POST", xhrBody, context);
@@ -343,11 +343,11 @@
     try {
       xhr.addEventListener("load", function () {
         try {
-          var url = xhr.__aeUrl || "";
+          const url = xhr.__aeUrl || "";
           if (!isCaptureUrl(url)) return;
-          var ct = (xhr.getResponseHeader("content-type") || "").toLowerCase();
-          var headers = {};
-          ["x-session-settled", "x-stream-version", "x-arena-chat-id"].forEach(function (name) { var v = xhr.getResponseHeader(name); if (v) headers[name] = v; });
+          const ct = (xhr.getResponseHeader("content-type") || "").toLowerCase();
+          const headers = {};
+          ["x-session-settled", "x-stream-version", "x-arena-chat-id"].forEach(function (name) { const v = xhr.getResponseHeader(name); if (v) headers[name] = v; });
           emit({ kind: "endpoint", url: url, status: xhr.status, contentType: ct, headers: headers }, context);
           if (xhr.status >= 400) {
             emit({ kind: "request_error", url: url, status: xhr.status, error: safeText(xhr.responseText).slice(0, 4000) }, context);
@@ -378,7 +378,7 @@
   /* ---------- sendBeacon hook (some vote/telemetry calls use beacons) ---- */
 
   if (navigator.sendBeacon) {
-    var origBeacon = navigator.sendBeacon.bind(navigator);
+    const origBeacon = navigator.sendBeacon.bind(navigator);
     navigator.sendBeacon = function (url, data) {
       try {
         if (isCaptureUrl(url)) {
@@ -391,11 +391,11 @@
 
   /* ---------- WebSocket hook (insurance: if realtime ever moves to WS) ---- */
 
-  var OrigWS = window.WebSocket;
+  const OrigWS = window.WebSocket;
   if (OrigWS) {
     function HookedWS(url, protocols) {
-      var ws = protocols !== undefined ? new OrigWS(url, protocols) : new OrigWS(url);
-      var context = contextFor("WS");
+      const ws = protocols !== undefined ? new OrigWS(url, protocols) : new OrigWS(url);
+      const context = contextFor("WS");
       try {
         ws.addEventListener("message", function (ev) {
           try {
