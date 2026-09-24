@@ -62,7 +62,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       if (stateReady) handleEvent(msg.evt, sender);
       else pendingEvents.push({ evt: msg.evt, sender: sender });
     } catch (error) {
-      AE.recordIssue("capture", "event_failed");
+      if (AE.recordIssue) AE.recordIssue("capture", "event_failed");
       sendResponse({ ok: false, error: "Capture event failed. Export diagnostics from the extension workspace." });
       AE.notifyUI();
       return;
