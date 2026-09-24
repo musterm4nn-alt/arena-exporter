@@ -1,11 +1,17 @@
 {
   "name": "arena-exporter",
-  "version": "2.1.3",
+  "version": "2.2.1",
   "private": true,
   "description": "Your Arena conversations, kept. Capture, export and archive every turn, with optional private GitHub backup.",
   "scripts": {
     "test": "node tools/run-tests.mjs",
     "build": "node tools/build-release.mjs",
+    "check:project": "node tools/check-project.mjs",
+    "schema:check": "node tools/validate-schema.mjs",
+    "lint": "node tools/lint.mjs",
+    "verify": "npm test && npm run lint",
+    "acceptance:preview": "node tools/acceptance.mjs",
+    "release:local": "node tools/release-local.mjs",
     "preview": "node tools/preview.mjs"
   },
   "engines": {

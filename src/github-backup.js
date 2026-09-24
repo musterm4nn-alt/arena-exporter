@@ -4,6 +4,7 @@ var AE = AE || {};
 (function () {
   "use strict";
   var CONFIG = "ae_github_config", STATUS = "ae_github_status";
+  var MAX_BACKUP_FILE_BYTES = 32 * 1024 * 1024;
   var ALARM = "arena-github-backup", lock = Promise.resolve(), running = false;
   function storageGet(key) {
     return new Promise(function (resolve, reject) {
@@ -80,7 +81,11 @@ var AE = AE || {};
     var encoded = AE.nativeEncodeFile(safePath(file.path), file.content, file.encoding);
     if (!encoded.ok) throw new Error("Backup file could not be encoded: " + encoded.error);
     var value = encoded.file;
+    if (value.encoding === "base64" && value.content.length > Math.ceil(MAX_BACKUP_FILE_BYTES * 4 / 3) + 8) {
+      throw new Error("Backup file exceeds the 32 MiB limit: " + file.path);
+    }
     var bytes = value.encoding === "base64" ? Uint8Array.from(atob(value.content), function (c) { return c.charCodeAt(0); }) : new TextEncoder().encode(value.content);
+    if (bytes.byteLength > MAX_BACKUP_FILE_BYTES) throw new Error("Backup file exceeds the 32 MiB limit: " + file.path);
     var header = new TextEncoder().encode("blob " + bytes.length + "\0");
     var data = new Uint8Array(header.length + bytes.length);
     data.set(header); data.set(bytes, header.length);
@@ -157,7 +162,7 @@ var AE = AE || {};
       var session = payload.session || {}, key = session.conversation_key || session.session_id;
       var index = await AE.archiveIndexLoad(), source = index[key] || {};
       var entry = { rel: result.rel };
-      ["mode", "subtype", "title", "url", "models", "models_pending", "updated_at", "turns"].forEach(function (field) { entry[field] = source[field]; });
+      ["mode", "subtype", "title", "url", "models", "models_pending", "updated_at", "turns", "completeness", "completeness_detail", "files_expected", "files_with_bytes", "encrypted", "encryption_format"].forEach(function (field) { entry[field] = source[field]; });
       result.backup = await AE.githubEnqueue(key, result.rel, files, entry);
     } catch (error) {
       result.backup = { queued: false, error: "Could not queue the GitHub backup. Retry Write to archive now." };

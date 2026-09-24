@@ -553,23 +553,10 @@ AE.dom = {};
    * this DOM pass handles exports made after a reload and maps revealed model
    * names / green result cards to lanes. */
 
-  function normalizeVoteChoice(value) {
-    var t = String(value == null ? "" : value).replace(/\s+/g, " ").trim().toLowerCase();
-    if (!t) return null;
-    if (/\bneither\b|\bnone\s+(?:are|is)\s+good\b/.test(t)) return "neither_good";
-    if (/\bboth\b.*\b(?:good|great|fine|acceptable|better)\b/.test(t) || /\bboth\s+are\s+good\b/.test(t)) return "both_good";
-    if (/(?:^|\b)(?:model\s*)?a(?:\b|\s).*(?:\bbetter\b|\bwin(?:s|ner)?\b|\bprefer(?:red)?\b)/.test(t) ||
-        /(?:^|\b)(?:choose|select|vote\s+for)\s+(?:model\s*)?a\b/.test(t)) return "A";
-    if (/(?:^|\b)(?:model\s*)?b(?:\b|\s).*(?:\bbetter\b|\bwin(?:s|ner)?\b|\bprefer(?:red)?\b)/.test(t) ||
-        /(?:^|\b)(?:choose|select|vote\s+for)\s+(?:model\s*)?b\b/.test(t)) return "B";
-    if (/^(?:vote|choice|option|model)[ _-]*a(?:[_ -]?(?:better|winner|win))?$/.test(t)) return "A";
-    if (/^(?:vote|choice|option|model)[ _-]*b(?:[_ -]?(?:better|winner|win))?$/.test(t)) return "B";
-    if (/^a$/.test(t)) return "A";
-    if (/^b$/.test(t)) return "B";
-    if (/^both(?:[_ -]good)?$/.test(t)) return "both_good";
-    if (/^(?:neither|none)(?:[_ -]good)?$/.test(t)) return "neither_good";
-    return null;
-  }
+  /* Vote-label parsing lives in src/lib/vote.js and is shared with the
+   * background battle reconstruction. normalizeVoteChoice here resolves to
+   * that module's global; this file only re-exports it on AE.dom (which this
+   * module resets above, so the assignment cannot live in vote.js alone). */
 
   AE.dom.normalizeVoteChoice = normalizeVoteChoice;
 

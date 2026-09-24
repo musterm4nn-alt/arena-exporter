@@ -26,6 +26,14 @@ function zipEntries(file) {
   return result;
 }
 
+function walk(relative) {
+  const directory = path.join(root, relative);
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const child = path.posix.join(relative, entry.name);
+    return entry.isDirectory() ? walk(child) : [child];
+  });
+}
+
 (async () => {
   const chrome = require("../manifest.json");
   const firefox = require("../firefox/manifest.json");
@@ -43,6 +51,9 @@ function zipEntries(file) {
   const imported = [...fs.readFileSync(path.join(root, chrome.background.service_worker), "utf8").match(/importScripts\(([^]*?)\);/)[1].matchAll(/"([^"]+)"/g)].map(match => "src/" + match[1]);
   assert.deepEqual(firefox.background.scripts.slice(0, -1), imported);
   for (const script of firefox.background.scripts) assert.ok(fs.statSync(path.join(root, "firefox", script)).isFile(), script);
+  for (const file of [...walk("src"), ...walk("schemas")]) {
+    assert.deepEqual(fs.readFileSync(path.join(root, file)), fs.readFileSync(path.join(root, "firefox", file)), file);
+  }
   for (const file of ["src/interceptor.js", "src/content.js", "src/lib/privacy.js", "src/lib/page-data.js", "icons/icon128.png"]) {
     assert.deepEqual(fs.readFileSync(path.join(root, file)), fs.readFileSync(path.join(root, "firefox", file)), file);
   }

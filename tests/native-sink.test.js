@@ -235,6 +235,24 @@ function check(name, cond) {
     check("81 files split 80+1", posted.length === 2 && posted[0] === 80 && posted[1] === 1);
   }
 
+  console.log("Byte-bounded batches:");
+  {
+    const { AE } = loadSinkNoHost();
+    const posted = [];
+    const session = {
+      request(op, extra) {
+        posted.push(extra.files.length);
+        return Promise.resolve({ ok: true, written: extra.files.length });
+      }
+    };
+    const content = "x".repeat(5 * 1024 * 1024);
+    await AE.writeNativeJobs(session, [
+      { path: "a.bin", full: "agent/x/a.bin", content, encoding: "utf8" },
+      { path: "b.bin", full: "agent/x/b.bin", content, encoding: "utf8" }
+    ]);
+    check("large payloads are split by bytes", posted.length === 2 && posted.every(n => n === 1));
+  }
+
   console.log("hello ok + write ok:");
   {
     const { AE, writes, nativePosted, nativeFiles } = loadSink();
@@ -259,7 +277,7 @@ function check(name, cond) {
     const p = payloadFor("c:miss", "Miss", 1, ["m1", "m2"]);
     const native = await AE.writeArchiveNative(p, [{ path: "conversation.json", content: "{}" }]);
     check("native reports fallback", native.fallback === true && native.error === "host-missing");
-    check("hint tells user to open the app", /open arena archive and pick a folder/i.test(native.hint || ""));
+    check("hint tells user to open the app", /open arena archive and choose a folder/i.test(native.hint || ""));
     check("no downloads from native helper itself", writes.length === 0);
 
     const status = await AE.nativeStatus();

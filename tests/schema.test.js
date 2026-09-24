@@ -1,0 +1,31 @@
+"use strict";
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
+const root = path.join(__dirname, "..");
+const schema = JSON.parse(fs.readFileSync(path.join(root, "schemas/export-2.1.schema.json"), "utf8"));
+const streamSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas/streaming-2.1.schema.json"), "utf8"));
+assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
+assert.equal(schema.properties.schema_version.const, "2.1");
+assert.ok(schema.required.includes("messages"));
+assert.ok(schema.required.includes("battles"));
+assert.ok(schema.$defs.block && schema.$defs.battle && schema.$defs.attributionSample);
+assert.ok(streamSchema.oneOf && streamSchema.$defs.footer);
+
+const result = spawnSync(process.execPath, [path.join(root, "tools/validate-schema.mjs")], { cwd: root, encoding: "utf8" });
+assert.equal(result.status, 0, result.stdout + result.stderr);
+assert.match(result.stdout, /Schema validation passed/);
+const invalid = path.join(os.tmpdir(), `arena-schema-invalid-${process.pid}.json`);
+fs.writeFileSync(invalid, JSON.stringify({ schema_version: "2.1" }), "utf8");
+const rejected = spawnSync(process.execPath, [path.join(root, "tools/validate-schema.mjs"), invalid], { cwd: root, encoding: "utf8" });
+fs.unlinkSync(invalid);
+assert.notEqual(rejected.status, 0, "schema checker accepted an incomplete export");
+const invalidJsonl = path.join(os.tmpdir(), `arena-schema-invalid-${process.pid}.jsonl`);
+fs.writeFileSync(invalidJsonl, JSON.stringify({ type: "message" }) + "\n", "utf8");
+const rejectedJsonl = spawnSync(process.execPath, [path.join(root, "tools/validate-schema.mjs"), invalidJsonl], { cwd: root, encoding: "utf8" });
+fs.unlinkSync(invalidJsonl);
+assert.notEqual(rejectedJsonl.status, 0, "schema checker accepted an invalid JSONL record");
+console.log("Versioned export/JSONL schemas, generated payload validation, and invalid-payload rejection passed.");

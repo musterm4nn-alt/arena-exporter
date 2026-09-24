@@ -27,6 +27,11 @@ AE.ROLES = ["user", "assistant", "system", "tool"];
 /* Canonical battle-vote choices. A/B identify a single preferred lane;
  * both_good and neither_good preserve the two non-singular ballot outcomes. */
 AE.BATTLE_VOTE_CHOICES = ["A", "B", "both_good", "neither_good"];
+AE.BATTLE_OUTCOMES = ["pending", "a_wins", "b_wins", "both_good", "neither_good", "not_applicable"];
+
+AE.normalizeBattleOutcome = function (value) {
+  return value === "both_bad" ? "neither_good" : (AE.BATTLE_OUTCOMES.includes(value) ? value : "pending");
+};
 
 AE.isPlaceholderModel = function (name) {
   var t = String(name == null ? "" : name).replace(/\s+/g, " ").trim();
@@ -37,36 +42,121 @@ AE.isPlaceholderModel = function (name) {
 
 ;
 // Source: src/lib/privacy.js
-/* Credential filtering shared by capture, history and export. Never sample or
- * truncate an unfiltered body: that can turn valid JSON into an unredactable fragment. */
+/* Credential filtering shared by capture, history, persistence, and export.
+ *
+ * The extension intentionally preserves conversation content. This module is
+ * only responsible for preventing credentials and transport secrets from being
+ * copied into durable state. It is deliberately structural: values are walked
+ * before bounded samples are taken, and JSON embedded in strings is parsed when
+ * possible. Raw Arena stream grammars must remain byte-for-byte unchanged when
+ * they contain no credential-shaped value.
+ */
 var AE = AE || {};
 (function () {
   "use strict";
-  var SECRET_NAMES = /^(?:recaptcha.*|grecaptcha.*|captcha.*|authorization|proxyauthorization|cookie|setcookie|apikey|secret|clientsecret|password|passwd|token|accesstoken|publicaccesstoken|refreshtoken|idtoken|sessiontoken|authtoken|bearertoken|jwt|credentials|privatekey)$/i;
-  function secretName(name) { return SECRET_NAMES.test(String(name || "").replace(/[^a-z0-9]/gi, "")); }
-  var FIELD = "(?:recaptcha[a-z0-9_-]*|g-recaptcha[a-z0-9_-]*|captcha[a-z0-9_-]*|authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|client[-_]?secret|secret|password|passwd|(?:public[-_]?)?access[-_]?token|refresh[-_]?token|id[-_]?token|session[-_]?token|auth[-_]?token|bearer[-_]?token|token|jwt|credentials|private[-_]?key)";
+
+  var SECRET_NAMES = /^(?:recaptcha.*|grecaptcha.*|captcha.*|authorization|proxyauthorization|cookie|setcookie|apikey|xapikey|secret|clientsecret|password|passwd|token|accesstoken|publicaccesstoken|refreshtoken|idtoken|sessiontoken|authtoken|bearertoken|oauthtoken|oauth2token|githubtoken|personalaccesstoken|pat|jwt|credentials|privatekey|privatekeypem|secretkey|signingkey)$/i;
+  var FIELD = "(?:recaptcha[a-z0-9_-]*|g-recaptcha[a-z0-9_-]*|captcha[a-z0-9_-]*|authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x[-_]?api[-_]?key|client[-_]?secret|secret|password|passwd|(?:public[-_]?)?access[-_]?token|refresh[-_]?token|id[-_]?token|session[-_]?token|auth[-_]?token|bearer[-_]?token|oauth2?[-_]?token|github[-_]?token|personal[-_]?access[-_]?token|token|jwt|credentials|private[-_]?key)";
   var FIELD_VALUE = new RegExp("((?:[\\\"']?" + FIELD + "[\\\"']?)\\s*[:=]\\s*)(?:\\\"(?:\\\\.|[^\\\"\\\\])*(?:\\\"|$)|'(?:\\\\.|[^'\\\\])*(?:'|$)|[^&\\s,;}\\]]+)", "gi");
   var QUERY_SECRET = new RegExp("([?&]" + FIELD + "=)[^&#\\s]*", "gi");
+  var PEM_PRIVATE = /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/g;
+  var OPENSSH_PRIVATE = /-----BEGIN OPENSSH PRIVATE KEY-----[\s\S]*?-----END OPENSSH PRIVATE KEY-----/g;
+
+  function normalizedName(name) {
+    return String(name == null ? "" : name).replace(/[^a-z0-9]/gi, "");
+  }
+
+  function secretName(name) {
+    return SECRET_NAMES.test(normalizedName(name));
+  }
+
+  function scrubFragment(fragment) {
+    var raw = String(fragment || "");
+    if (raw.charAt(0) !== "#" || raw.indexOf("=") === -1) return null;
+    try {
+      var params = new URLSearchParams(raw.slice(1));
+      var changed = false;
+      Array.from(params.keys()).forEach(function (key) {
+        if (!secretName(key)) return;
+        params.set(key, "[REDACTED]");
+        changed = true;
+      });
+      return changed ? "#" + params.toString() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /* Return the original string unless a credential-shaped URL component needs
+   * changing. This is important for raw evaluation frames, where normalizing a
+   * harmless citation URL can make an otherwise valid frame unparseable. */
+  AE.scrubCredentialUrl = function (value) {
+    var text = String(value == null ? "" : value);
+    try {
+      var url = new URL(text);
+      var changed = false;
+      if (url.username || url.password) {
+        url.username = "";
+        url.password = "";
+        changed = true;
+      }
+      Array.from(url.searchParams.keys()).forEach(function (key) {
+        if (!secretName(key)) return;
+        url.searchParams.set(key, "[REDACTED]");
+        changed = true;
+      });
+      var fragment = scrubFragment(url.hash);
+      if (fragment !== null) {
+        url.hash = fragment;
+        changed = true;
+      }
+      return changed ? url.toString() : text;
+    } catch (_) {
+      return text.replace(QUERY_SECRET, "$1[REDACTED]");
+    }
+  };
+
+  function scrubEmbeddedUrls(text) {
+    return String(text || "").replace(/\bhttps?:\/\/[^\s<>"']+/gi, function (candidate) {
+      var trailing = "";
+      while (/[),.;\]}]$/.test(candidate)) {
+        trailing = candidate.slice(-1) + trailing;
+        candidate = candidate.slice(0, -1);
+      }
+      return AE.scrubCredentialUrl(candidate) + trailing;
+    });
+  }
+
   AE.redactSecretText = function (text) {
-    return String(text || "")
+    var redacted = String(text == null ? "" : text)
+      .replace(PEM_PRIVATE, "[REDACTED_PRIVATE_KEY]")
+      .replace(OPENSSH_PRIVATE, "[REDACTED_PRIVATE_KEY]")
       .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*)?/g, "[REDACTED_JWT]")
       .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+\/_-]+=*/gi, "[REDACTED_AUTH]")
+      .replace(/\b(?:github_pat_|gh[pousr]_)[A-Za-z0-9_]{12,}/gi, "[REDACTED_GITHUB_TOKEN]")
       .replace(/\bsk-[A-Za-z0-9_-]{16,}/g, "[REDACTED_KEY]")
       .replace(/^((?:proxy-)?authorization|cookie|set-cookie)(\s*:\s*)[^\r\n]*/gim, "$1$2[REDACTED]")
       .replace(QUERY_SECRET, "$1[REDACTED]")
       .replace(FIELD_VALUE, '$1"[REDACTED]"');
+    return scrubEmbeddedUrls(redacted);
   };
+
   AE.scrubSecrets = function (value) {
     function walk(v, depth) {
       if (typeof v === "string") {
-        // Trigger records and websocket frames often contain JSON inside JSON.
-        if (depth < 12 && /^[\s]*[\[{]/.test(v)) {
-          try { return JSON.stringify(walk(JSON.parse(v), depth + 1)); } catch (e) { /* raw or truncated frame */ }
+        if (depth < 16 && /^\s*[\[{]/.test(v)) {
+          try {
+            return JSON.stringify(walk(JSON.parse(v), depth + 1));
+          } catch (_) {
+            // Raw or truncated stream frames still receive textual filtering.
+          }
         }
         return AE.redactSecretText(v);
       }
       if (Array.isArray(v)) {
-        if (v.length === 2 && typeof v[0] === "string" && secretName(v[0])) return [v[0], "[REDACTED]"];
+        if (v.length === 2 && typeof v[0] === "string" && secretName(v[0])) {
+          return [v[0], "[REDACTED]"];
+        }
         return v.map(function (item) { return walk(item, depth + 1); });
       }
       if (!v || typeof v !== "object") return v;
@@ -79,6 +169,7 @@ var AE = AE || {};
     }
     return walk(value, 0);
   };
+
   AE.safeTransportHeaders = function (headers) {
     var out = {};
     ["x-session-settled", "x-stream-version", "x-arena-chat-id"].forEach(function (name) {
@@ -207,6 +298,46 @@ var AE = AE || {};
     return AE.pageDataFromObjects(objects, url, references);
   };
 })();
+
+;
+// Source: src/lib/vote.js
+/* Shared battle-vote normalization.
+ *
+ * Single source for ballot-label parsing, used by the background battle
+ * reconstruction (src/battles.js) and the isolated-world DOM extractor
+ * (src/lib/dom-extract.js). Both worlds must agree exactly: a loose matcher
+ * turns page prose into fabricated votes, a strict one drops real ballots.
+ * Classic-script globals — loaded via importScripts / content bundle, and
+ * before src/battles.js and src/lib/dom-extract.js wherever they run.
+ */
+var AE = AE || {};
+AE.dom = AE.dom || {};
+
+function normalizeVoteChoice(value) {
+  var t = String(value == null ? "" : value).replace(/\s+/g, " ").trim().toLowerCase();
+  if (!t) return null;
+  if (/\bneither\b|\bnone\s+(?:are|is)\s+good\b/.test(t)) return "neither_good";
+  if (/\bboth\b.*\b(?:good|great|fine|acceptable|better)\b/.test(t) || /\bboth\s+are\s+good\b/.test(t)) return "both_good";
+  if (/(?:^|\b)(?:model\s*)?a(?:\b|\s).*(?:\bbetter\b|\bwin(?:s|ner)?\b|\bprefer(?:red)?\b)/.test(t) ||
+      /(?:^|\b)(?:choose|select|vote\s+for)\s+(?:model\s*)?a\b/.test(t)) return "A";
+  if (/(?:^|\b)(?:model\s*)?b(?:\b|\s).*(?:\bbetter\b|\bwin(?:s|ner)?\b|\bprefer(?:red)?\b)/.test(t) ||
+      /(?:^|\b)(?:choose|select|vote\s+for)\s+(?:model\s*)?b\b/.test(t)) return "B";
+  if (/^(?:vote|choice|option|model)[ _-]*a(?:[_ -]?(?:better|winner|win))?$/.test(t)) return "A";
+  if (/^(?:vote|choice|option|model)[ _-]*b(?:[_ -]?(?:better|winner|win))?$/.test(t)) return "B";
+  if (/^a$/.test(t)) return "A";
+  if (/^b$/.test(t)) return "B";
+  if (/^both(?:[_ -]good)?$/.test(t)) return "both_good";
+  if (/^(?:neither|none)(?:[_ -]good)?$/.test(t)) return "neither_good";
+  return null;
+}
+
+function normalizeBattleVoteChoice(value) {
+  return normalizeVoteChoice(value);
+}
+
+AE.normalizeVoteChoice = normalizeVoteChoice;
+AE.normalizeBattleVoteChoice = normalizeBattleVoteChoice;
+AE.dom.normalizeVoteChoice = normalizeVoteChoice;
 
 ;
 // Source: src/interceptor.js

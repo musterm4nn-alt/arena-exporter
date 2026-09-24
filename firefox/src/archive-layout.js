@@ -6,7 +6,7 @@ AE.ARCHIVE_INDEX = "_index.json";
 
 AE.safeArchivePath = function (rel) {
   var p = String(rel || "").replace(/\\/g, "/").replace(/^\/+/, "");
-  if (!p || p.indexOf("\0") !== -1) return null;
+  if (!p || /[\x00-\x1f]/.test(p)) return null;
   var parts = p.split("/");
   var out = [];
   for (var i = 0; i < parts.length; i++) {

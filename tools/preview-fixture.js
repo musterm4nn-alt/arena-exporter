@@ -2,6 +2,7 @@
 (function(){
   const query=new URLSearchParams(location.search),fixture=query.get('fixture'),listeners=[],storageListeners=[];
   const data={ae_preferences:{autoArchive:true},ae_silent_writes:false};
+  let encryption={enabled:false,unlocked:false,format:'arena-encrypted-archive',version:2};
   let backup={ok:true,enabled:false,connected:false,pending:0,lastSuccess:null,error:null,repo:'',branch:'main',folder:'arena-archive'};
   const rows=[
     ['Designing a small, useful weather app','agent','code',12,[], '2026-09-05T09:41:00Z'],
@@ -19,8 +20,11 @@
     if(m.type==='AE_LIBRARY')return {ok:true,entries};
     if(m.type==='AE_GET_STATE')return {ok:true,state};
     if(m.type==='AE_GITHUB_STATUS')return backup;
-    if(m.type==='AE_PREFERENCES')return {ok:true,preferences:data.ae_preferences};
-    if(m.type==='AE_SET_PREFERENCES'){data.ae_preferences=m.preferences;notify();return {ok:true,preferences:m.preferences};}
+    if(m.type==='AE_PREFERENCES')return {ok:true,preferences:{...data.ae_preferences,archiveEncryption:{enabled:encryption.enabled}},encryption};
+    if(m.type==='AE_SET_PREFERENCES'){data.ae_preferences={...data.ae_preferences,...m.preferences};notify();return {ok:true,preferences:data.ae_preferences};}
+    if(m.type==='AE_SET_ARCHIVE_ENCRYPTION'){encryption={...encryption,enabled:!!m.enabled,unlocked:!!m.enabled};notify();return {ok:true,encryption,preferences:{...data.ae_preferences,archiveEncryption:{enabled:encryption.enabled}}};}
+    if(m.type==='AE_UNLOCK_ARCHIVE_ENCRYPTION'){encryption={...encryption,unlocked:true};notify();return {ok:true,encryption,preferences:{...data.ae_preferences,archiveEncryption:{enabled:true}}};}
+    if(m.type==='AE_LOCK_ARCHIVE_ENCRYPTION'){encryption={...encryption,unlocked:false};notify();return {ok:true,encryption,preferences:{...data.ae_preferences,archiveEncryption:{enabled:encryption.enabled}}};}
     if(m.type==='AE_GITHUB_CONFIGURE'){
       if(!/^[\w.-]+\/[\w.-]+$/.test(m.config.repo))return {ok:false,error:'Enter a repository as owner/name.'};
       backup={...backup,...m.config,token:undefined,enabled:true,connected:true,pending:0};notify();return backup;
@@ -35,10 +39,10 @@
     if(m.type==='AE_TEST_ARCHIVE')return {ok:true,resolved:'Downloads/arena-archive/_selftest.txt'};
     if(m.type==='AE_SET_MANUAL_VOTE')return {ok:true,state};
     if(m.type==='AE_HISTORY_BACKFILL')return {ok:true,written:6,skipped:0,failed:0};
-    if(m.type==='AE_DIAGNOSTICS')return {ok:true,diagnostics:{version:'2.1.0',schema:'2.1',created_at:'2026-09-05T10:00:00Z',capture:{sessions:6,events:1824,storage_errors:0},auto_archive:data.ae_preferences.autoArchive,issues:[],privacy:'Synthetic preview. No conversation content, URLs or credentials.'}};
+    if(m.type==='AE_DIAGNOSTICS')return {ok:true,diagnostics:{version:'2.2.0',schema:'2.1',created_at:'2026-09-05T10:00:00Z',capture:{sessions:6,events:1824,storage_errors:0},auto_archive:data.ae_preferences.autoArchive,archive_encryption:encryption,issues:[],privacy:'Synthetic preview. No conversation content, URLs or credentials.'}};
     return {ok:false,error:'Unsupported preview action: '+m.type};
   };
-  window.chrome={runtime:{id:'preview',lastError:null,getManifest:()=>({version:'2.1.0'}),getURL:file=>location.origin+'/'+file,onMessage:{addListener:fn=>listeners.push(fn)},sendMessage:(m,cb)=>respond(m).then(r=>cb&&cb(r))},
+  window.chrome={runtime:{id:'preview',lastError:null,getManifest:()=>({version:'2.2.0'}),getURL:file=>location.origin+'/'+file,onMessage:{addListener:fn=>listeners.push(fn)},sendMessage:(m,cb)=>respond(m).then(r=>cb&&cb(r))},
     storage:{local:{get:(keys,cb)=>{let r={};keys.forEach(k=>r[k]=data[k]);if(cb)cb(r);else return Promise.resolve(r);},set:async o=>Object.assign(data,o)},onChanged:{addListener:fn=>storageListeners.push(fn)}},
     permissions:{request:(_p,cb)=>cb(true)},downloads:{setUiOptions:()=>{}},tabs:{query:async()=>[tab],create:async o=>{if(o.url.startsWith(location.origin))location.href=o.url;return {id:8};},sendMessage:(_id,m,cb)=>cb(m.type==='AE_DOM_SNAPSHOT'?{url:tab.url,messages:[],pageData:null}:m.type==='AE_DOM_DEBUG'?{redacted:true}:{ok:true})}};
   document.addEventListener('DOMContentLoaded',()=>{const badge=document.createElement('div');badge.textContent='DESIGN PREVIEW · SYNTHETIC DATA';badge.style.cssText='font:9px monospace;position:fixed;bottom:3px;right:8px;color:#819790;z-index:99;pointer-events:none';document.body.appendChild(badge);});

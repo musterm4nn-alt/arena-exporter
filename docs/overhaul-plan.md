@@ -1,4 +1,6 @@
-# Arena Exporter 2.1.0 implementation plan
+# Arena Exporter 2.1.0 implementation plan (historical)
+
+The 2.2 local overhaul is tracked in [`overhaul-2026-plan.md`](overhaul-2026-plan.md). This document preserves the original 2.1 implementation record.
 
 ## Outcome
 

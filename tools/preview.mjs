@@ -6,9 +6,13 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(fileURLToPath(new URL('..',import.meta.url)));
 const server=http.createServer((req,res)=>{
-  const url=new URL(req.url,'http://localhost'), rel=decodeURIComponent(url.pathname==='/'?'/src/options.html':url.pathname).slice(1);
-  const file=path.resolve(root,rel);
-  if(!file.startsWith(root+path.sep)||!(/^(src\/|tools\/preview-fixture\.js$)/.test(rel))||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
+  let decoded;
+  try { decoded=decodeURIComponent(new URL(req.url,'http://localhost').pathname); } catch (_) { res.writeHead(400); res.end(); return; }
+  const rel=decoded==='/'?'src/options.html':decoded.replace(/^\/+/,'');
+  const normalized=path.posix.normalize(rel);
+  const allowed=(normalized.startsWith('src/')||normalized==='src'||normalized==='tools/preview-fixture.js') && normalized===rel;
+  const file=path.resolve(root,normalized);
+  if(!allowed||!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
   let bytes=fs.readFileSync(file);
   if(file.endsWith('.html'))bytes=Buffer.from(bytes.toString().replace('</head>','<script src="/tools/preview-fixture.js"></script></head>'));
   res.setHeader('Cache-Control','no-store');

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ArchiveKit
 
 @main
@@ -41,6 +42,24 @@ final class ArchiveViewModel: ObservableObject {
         }
     }
 
+    func chooseRoot() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Arena Archive folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url, let self else { return }
+            do {
+                try self.store.setRoot(url.path)
+                self.selectedKey = nil
+                self.reload()
+            } catch {
+                NSAlert(error: error).runModal()
+            }
+        }
+    }
+
     func select(key: String) {
         selectedKey = key
         if let entry = store.resolve(key) {
@@ -49,9 +68,14 @@ final class ArchiveViewModel: ObservableObject {
     }
 
     func loadMarkdown(rel: String) {
-        let url = store.root.appendingPathComponent(rel).appendingPathComponent("conversation.md")
+        guard let url = try? store.safeRelpath(rel + "/conversation.md") else {
+            markdown = "(archive path unavailable)\n\(rel)"
+            return
+        }
         if let text = try? String(contentsOf: url, encoding: .utf8) {
             markdown = text
+        } else if let encryptedURL = try? store.safeRelpath(rel + "/conversation.enc"), FileManager.default.fileExists(atPath: encryptedURL.path) {
+            markdown = "(encrypted archive bundle)\nUse tools/decrypt-archive.mjs with the archive password to recover its files."
         } else {
             markdown = "(no conversation.md yet)\n\(rel)"
         }
@@ -98,6 +122,9 @@ struct ContentView: View {
             .ignoresSafeArea()
         }
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button("Choose Folder…") { model.chooseRoot() }
+            }
             ToolbarItem(placement: .automatic) {
                 Button("Reload") { model.reload() }
             }

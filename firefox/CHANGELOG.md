@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.2.1 — 2026-09-24
+
+Fork code-quality release: shared vote/stamp modules, lint gate, and dedupe regression tests. No behavior, schema, storage, or UI changes.
+
+- Extracted the duplicated ballot-label parser into `src/lib/vote.js`, shared by background battle reconstruction and the DOM extractor.
+- Extracted the duplicated export filename timestamp into `src/lib/format.js` (`AE.buildStamp`).
+- Added a dependency-free `tools/lint.mjs` gate (`npm run lint`, wired into `npm run verify`): no `eval`, no work markers, no debug logging or raw HTML sinks in extension source.
+- Added `tests/code-quality.test.js` covering the shared modules and guarding against re-duplication.
+- Bumped to 2.2.1 with no behavior, schema, storage, or UI changes.
+
+## 2.2.0 — 2026-09-23
+
+- Reworked the popup and archive workspace into a responsive local-first visual system with clearer capture, export, archive, backup, and diagnostics states.
+- Scoped semantic replay suppression to individual assistant messages so repeated artifacts/actions in later turns survive.
+- Hardened privacy filtering for nested JSON, URL credentials/fragments, GitHub token forms, and PEM/OpenSSH private keys while preserving harmless raw URLs.
+- Canonicalized the Battle `neither_good` outcome and retained legacy input compatibility.
+- Added architecture/security documentation, project checks, and a dedicated overhaul regression suite.
+- Hardened callback/Promise storage compatibility, native-host timeouts, history-request timeouts, archive size diagnostics, and macOS archive path/layout handling.
+- Added the `ArenaArchiveHost` Swift executable, protocol core tests, a native-host manifest installer, and byte-bounded native write batching.
+- Added optional AES-GCM/PBKDF2 encrypted `conversation.enc` bundles (format v2) with separate non-persisted keys, verifier-only storage, explicit locked states, migration refusal, and a local recovery CLI that accepts legacy v1 bundles.
+- Added JSONL streaming exports, Draft 2020-12 export/JSONL schema validation, browser acceptance tooling, and a local build/checksum/manifest pipeline.
+- Preserved the Chrome public key, Firefox ID, schema 2.1, storage keys, archive layout, and existing runtime message contracts.
+
 ## 2.1.3 — 2026-09-12
 
 - Battle lanes now prefer Arena's visible tab labels over request-to-catalog joins. The public catalog remains a fallback for lanes the page has not named yet, so a catalog `publicName` that disagrees with the preview tabs no longer overrides what the page shows.

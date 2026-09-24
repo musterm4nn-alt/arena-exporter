@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Arena Exporter",
-  "version": "2.1.3",
+  "version": "2.2.1",
   "description": "Your Arena conversations, kept. Capture, export and archive every turn, with optional private GitHub backup.",
   "icons": {
     "16": "icons/icon16.png",
@@ -46,9 +46,12 @@
     "scripts": [
       "src/lib/schema.js",
       "src/lib/privacy.js",
+      "src/encrypted-archive.js",
       "src/lib/page-data.js",
       "src/lib/normalize.js",
       "src/lib/evaluation-stream.js",
+      "src/lib/vote.js",
+      "src/lib/format.js",
       "src/session-store.js",
       "src/request-capture.js",
       "src/battles.js",
@@ -56,6 +59,7 @@
       "src/archive-layout.js",
       "src/capture-health.js",
       "src/markdown.js",
+      "src/streaming-export.js",
       "src/downloads-sink.js",
       "src/native-sink.js",
       "src/backup-store.js",

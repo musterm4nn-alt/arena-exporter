@@ -12,8 +12,9 @@ var AE = AE || {};
 
   AE.NATIVE_HOST = "com.arenaarchive.host";
   AE.NATIVE_BATCH = 80;
+  AE.NATIVE_BATCH_BYTES = 8 * 1024 * 1024;
   AE.NATIVE_MAX_BYTES = 32 * 1024 * 1024;
-  AE.NATIVE_HINT = "Open Arena Archive and pick a folder";
+  AE.NATIVE_HINT = "Open Arena Archive and choose a folder, or use its default Downloads folder";
 
   var HELLO_MS = 4000;
   var WRITE_MS = 20000;
@@ -48,7 +49,7 @@ var AE = AE || {};
    * letters, and any `..` segment — never send those on the wire. */
   AE.nativeSafeRel = function (rel) {
     var p = String(rel == null ? "" : rel).replace(/\\/g, "/");
-    if (!p || p.indexOf("\0") !== -1) return null;
+    if (!p || /[\x00-\x1f]/.test(p)) return null;
     if (p.charAt(0) === "/" || p.charAt(0) === "~") return null;
     if (/^[a-zA-Z]:/.test(p)) return null;
     if (p.indexOf("://") !== -1) return null;
@@ -144,21 +145,22 @@ var AE = AE || {};
     var pending = {};
     var closed = false;
 
+    function settle(id, value, error) {
+      var p = pending[id];
+      if (!p) return false;
+      delete pending[id];
+      if (p.timer) clearTimeout(p.timer);
+      if (error) p.reject(error); else p.resolve(value);
+      return true;
+    }
+
     function rejectAll(err) {
-      var keys = Object.keys(pending);
-      for (var i = 0; i < keys.length; i++) {
-        var p = pending[keys[i]];
-        delete pending[keys[i]];
-        p.reject(err);
-      }
+      Object.keys(pending).forEach(function (id) { settle(id, null, err); });
     }
 
     port.onMessage.addListener(function (msg) {
       if (!msg || msg.id == null) return;
-      var p = pending[msg.id];
-      if (!p) return;
-      delete pending[msg.id];
-      p.resolve(msg);
+      settle(msg.id, msg);
     });
     port.onDisconnect.addListener(function () {
       closed = true;
@@ -178,18 +180,16 @@ var AE = AE || {};
         }
         var id = nextId();
         var msg = Object.assign({ id: id, op: op }, extra || {});
-        pending[id] = { resolve: resolve, reject: reject };
+        var entry = { resolve: resolve, reject: reject, timer: null };
+        pending[id] = entry;
         try {
           port.postMessage(msg);
         } catch (e) {
-          delete pending[id];
-          reject(e);
+          settle(id, null, e);
           return;
         }
-        setTimeout(function () {
-          if (!pending[id]) return;
-          delete pending[id];
-          reject(new Error("timeout"));
+        entry.timer = setTimeout(function () {
+          settle(id, null, new Error("timeout"));
         }, timeoutMs || WRITE_MS);
       });
     }
@@ -321,10 +321,19 @@ var AE = AE || {};
       jobForRel[enc.file.rel] = job;
     });
 
-    var batches = [];
-    for (var i = 0; i < files.length; i += AE.NATIVE_BATCH) {
-      batches.push(files.slice(i, i + AE.NATIVE_BATCH));
-    }
+    var batches = [], current = [], currentBytes = 0;
+    files.forEach(function (file) {
+      var content = file.content || "";
+      var bytes = file.encoding === "base64" ? Math.ceil(content.length * 3 / 4) : new TextEncoder().encode(content).byteLength;
+      if (current.length && (current.length >= AE.NATIVE_BATCH || currentBytes + bytes > AE.NATIVE_BATCH_BYTES)) {
+        batches.push(current);
+        current = [];
+        currentBytes = 0;
+      }
+      current.push(file);
+      currentBytes += bytes;
+    });
+    if (current.length) batches.push(current);
 
     var chain = Promise.resolve();
     batches.forEach(function (batch) {

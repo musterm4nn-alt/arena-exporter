@@ -6,6 +6,7 @@ const path = require("path");
 const vm = require("vm");
 
 const ctx = vm.createContext({ console, Promise, setTimeout, clearTimeout, JSON, Object, Array, String });
+vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "src", "lib", "vote.js"), "utf8"), ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "src", "lib", "dom-extract.js"), "utf8"), ctx);
 const AE = ctx.AE;
 

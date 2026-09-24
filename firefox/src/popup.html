@@ -6,53 +6,65 @@
 </head>
 <body class="popup-page">
   <header class="topbar">
-    <a class="brand" href="options.html" target="_blank" title="Open archive library"><span class="brand-mark" aria-hidden="true">✳</span><span>ARENA<span class="brand-sub">EXPORTER</span></span></a>
-    <div class="header-actions"><span id="version-badge" class="version">2.1.0</span><button id="btn-settings" class="icon-button" title="Open preferences" aria-label="Open preferences"><span aria-hidden="true">⚙</span></button></div>
+    <a class="brand" href="options.html" target="_blank" title="Open archive workspace">
+      <span class="brand-mark" aria-hidden="true">✳</span>
+      <span>ARENA<span class="brand-sub">EXPORTER</span></span>
+    </a>
+    <div class="header-actions"><span id="version-badge" class="version">v2.2.1</span><button id="btn-settings" class="icon-button" title="Open preferences" aria-label="Open preferences"><span aria-hidden="true">⚙</span></button></div>
   </header>
   <main class="popup-main">
     <section class="conversation" aria-labelledby="conversation-title">
       <div class="eyebrow-line"><span class="eyebrow">CURRENT CONVERSATION</span><span id="capture-label" class="status-label"><i id="status-dot" class="dot idle"></i><span id="capture-text">Checking</span></span></div>
       <h1 id="conversation-title">Finding your conversation…</h1>
       <p id="context-msg" class="muted context-note">Select an Arena tab to capture and export.</p>
-      <div id="conversation-meta" class="metadata hidden"><span id="mode-tag" class="tag">AGENT</span><span id="conversation-id" class="muted small"></span></div>
+      <div id="conversation-meta" class="conversation-meta hidden"><span id="mode-tag" class="tag">AGENT</span><span id="conversation-id" class="muted small"></span></div>
+      <div id="conversation-signals" class="signal-strip hidden"><div><span>REQUEST</span><strong id="request-state">—</strong></div><div><span>CAPTURE</span><strong id="capture-detail">—</strong></div></div>
     </section>
+
     <section id="empty-state" class="empty-popup hidden">
-      <div class="empty-symbol" aria-hidden="true">[ ↗ ]</div><h2>Your next conversation starts here.</h2>
-      <p>Open an Arena chat. Your answers, reasoning and files will appear as they are captured.</p>
+      <div class="empty-symbol" aria-hidden="true">[ ↗ ]</div>
+      <h2>Your next conversation starts here.</h2>
+      <p>Open an Arena chat. Your answers, reasoning, tools, and files will appear as they are captured.</p>
       <button id="btn-arena" class="primary wide">Open Arena <span aria-hidden="true">↗</span></button>
       <button id="btn-library-empty" class="text-button">Browse saved conversations</button>
     </section>
+
     <div id="active-content" class="hidden">
       <section id="stats" class="metrics" aria-label="Captured content">
-        <div><strong id="stat-messages">0</strong><span>Messages</span></div><div><strong id="stat-thinking">0</strong><span>Reasoning</span></div>
-        <div><strong id="stat-tools">0</strong><span>Tool calls</span></div><div><strong id="stat-artifacts">0</strong><span>Files</span></div>
+        <div><strong id="stat-messages">0</strong><span>Messages</span></div>
+        <div><strong id="stat-thinking">0</strong><span>Reasoning</span></div>
+        <div><strong id="stat-tools">0</strong><span>Tool calls</span></div>
+        <div><strong id="stat-artifacts">0</strong><span>Files</span></div>
       </section>
-      <section id="actions" class="export-panel">
-        <div class="section-heading"><h2><span class="section-number">01</span> Export</h2><span class="muted small">YOURS TO KEEP</span></div>
+
+      <section class="export-panel" aria-labelledby="export-heading">
+        <div class="section-heading"><h2 id="export-heading"><span class="section-number">01</span> Export</h2><span class="muted small">YOURS TO KEEP</span></div>
         <fieldset class="scope-control"><legend class="sr-only">Export scope</legend>
           <label><input type="radio" name="scope" value="full_history" checked><span>Full conversation</span></label>
           <label><input type="radio" name="scope" value="last_message"><span>Last answer</span></label>
         </fieldset>
-        <div class="export-controls"><label class="format-label" for="export-format">Format</label><select id="export-format"><option value="json">JSON · structured</option><option value="markdown">Markdown · readable</option></select></div>
+        <div class="export-controls"><label class="format-label" for="export-format">Format</label><select id="export-format"><option value="json">JSON · structured</option><option value="jsonl">JSONL · streamable</option><option value="markdown">Markdown · readable</option></select></div>
         <div class="export-button-row"><button id="btn-full" class="primary grow"><span aria-hidden="true">↓</span> <span id="export-label">Export JSON</span></button><button id="btn-copy" class="secondary" title="Copy the selected export to clipboard">Copy</button></div>
-        <p id="scope-hint" class="small muted hint">Includes messages, reasoning, tools and files.</p>
+        <p id="scope-hint" class="small muted hint">Includes messages, reasoning, tools and available files.</p>
       </section>
-      <section class="archive-panel">
-        <div class="section-heading"><h2><span class="section-number">02</span> Archive</h2><label class="switch-label small">Auto <input id="auto-archive" type="checkbox" class="switch" aria-label="Automatically archive completed turns"></label></div>
+
+      <section class="archive-panel" aria-labelledby="archive-heading">
+        <div class="section-heading"><h2 id="archive-heading"><span class="section-number">02</span> Archive</h2><label class="switch-label small">Auto <input id="auto-archive" type="checkbox" class="switch" aria-label="Automatically archive completed turns"></label></div>
         <div class="archive-buttons"><button id="btn-sync" class="secondary grow">Save now</button><button id="btn-folder" class="secondary grow">Open folder <span aria-hidden="true">↗</span></button></div>
         <div class="storage-line"><i id="archive-dot" class="dot idle"></i><span id="sink-status">Downloads / arena-archive</span></div>
         <div class="storage-line"><i id="backup-dot" class="dot idle"></i><button id="backup-status" class="inline-link">Checking GitHub backup…</button></div>
       </section>
+
       <details id="warnings" class="notice warning hidden"><summary id="warnings-summary">Capture notes</summary><ul id="warning-list"></ul></details>
       <details class="advanced"><summary>Conversation tools <span aria-hidden="true">+</span></summary><div class="advanced-body">
-        <div id="vote-tools"><p class="small muted">Correct a missed Battle vote</p><div class="vote-grid"><button id="vote-a">A wins</button><button id="vote-b">B wins</button><button id="vote-tie">Both good</button><button id="vote-bad">Both bad</button><button id="vote-clear">Clear</button></div></div>
+        <div id="vote-tools"><p class="small muted">Correct a missed Battle vote</p><div class="vote-grid"><button id="vote-a">A wins</button><button id="vote-b">B wins</button><button id="vote-tie">Both good</button><button id="vote-bad">Neither good</button><button id="vote-clear">Clear</button></div></div>
         <div class="row"><button id="btn-domdebug">Save page diagnostics</button><button id="btn-clear" class="danger-quiet">Reset capture</button></div>
         <div id="reset-confirm" class="notice warning hidden"><p>Clear this conversation's captured data? Saved archive files stay available.</p><div class="row"><button id="confirm-clear" class="danger">Clear capture</button><button id="cancel-clear">Cancel</button></div></div>
       </div></details>
     </div>
     <p id="progress-msg" class="feedback" role="status" aria-live="polite"></p>
   </main>
-  <footer class="popup-footer"><button id="btn-library" class="inline-link">Open archive library <span aria-hidden="true">↗</span></button><span class="muted small">LOCAL FIRST.</span></footer>
+  <footer class="popup-footer"><button id="btn-library" class="inline-link">Open archive workspace <span aria-hidden="true">↗</span></button><span class="muted small">LOCAL FIRST.</span></footer>
   <script src="ui-model.js"></script><script src="ui-common.js"></script><script src="popup.js"></script>
 </body>
 </html>

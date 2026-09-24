@@ -86,24 +86,54 @@ public final class ArchiveStore {
     }
 
     public func safeRelpath(_ rel: String) throws -> URL {
-        if rel.contains("..") || rel.hasPrefix("/") || rel.contains("\0") {
+        let candidate = String(rel)
+        if candidate.isEmpty || candidate.hasPrefix("/") || candidate.contains("\0") {
             throw NSError(domain: "ArchiveKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "illegal path"])
         }
-        let url = root.appendingPathComponent(rel).standardizedFileURL
-        let rootPath = root.standardizedFileURL.path
-        let destPath = url.path
-        if destPath == rootPath { return url }
+        let parts = candidate.replacingOccurrences(of: "\\", with: "/").split(separator: "/").map(String.init)
+        if parts.isEmpty || parts.contains("..") || parts.contains(".") {
+            throw NSError(domain: "ArchiveKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "illegal path"])
+        }
+        let rootURL = root.standardizedFileURL.resolvingSymlinksInPath()
+        let url = root.appendingPathComponent(parts.joined(separator: "/")).standardizedFileURL
+        let resolvedURL = url.resolvingSymlinksInPath()
+        let rootPath = rootURL.path
+        let destPath = resolvedURL.path
+        if FileManager.default.fileExists(atPath: url.path),
+           let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let type = attributes[.type] as? FileAttributeType, type == .typeSymbolicLink {
+            throw NSError(domain: "ArchiveKit", code: 6, userInfo: [NSLocalizedDescriptionKey: "symbolic-link output is not allowed"])
+        }
+        if destPath == rootPath { return resolvedURL }
         let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
         if !destPath.hasPrefix(prefix) {
             throw NSError(domain: "ArchiveKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "path escapes archive root"])
         }
-        return url
+        return resolvedURL
     }
 
     public func writeUTF8(rel: String, content: String) throws {
         let url = try safeRelpath(rel)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(content.utf8).write(to: url, options: .atomic)
+    }
+
+    public func writeEncodedFile(rel: String, content: String, encoding: String) throws {
+        let value: Data
+        if encoding == "base64" {
+            guard let decoded = Data(base64Encoded: content, options: .ignoreUnknownCharacters) else {
+                throw NSError(domain: "ArchiveKit", code: 4, userInfo: [NSLocalizedDescriptionKey: "invalid base64 file"])
+            }
+            value = decoded
+        } else {
+            value = Data(content.utf8)
+        }
+        guard value.count <= 32 * 1024 * 1024 else {
+            throw NSError(domain: "ArchiveKit", code: 5, userInfo: [NSLocalizedDescriptionKey: "file exceeds 32 MiB"])
+        }
+        let url = try safeRelpath(rel)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try value.write(to: url, options: .atomic)
     }
 
     public func sync(chat: [String: Any], files: [[String: Any]]) throws -> (rel: String, written: [String]) {
@@ -124,17 +154,23 @@ public final class ArchiveStore {
             rel = existing.rel
         } else {
             let slug = Self.slug(title: title, key: key)
-            if mode == "battle" {
-                rel = "battle/\(subtype ?? "text")/\(slug)"
-            } else {
+            let root: String
+            if mode.hasPrefix("direct") { root = "direct" }
+            else if mode == "side-by-side" { root = "side-by-side" }
+            else if mode == "battle" { root = "battle" }
+            else { root = "agent" }
+            if root == "agent" {
                 rel = "agent/\(slug)"
+            } else {
+                rel = "\(root)/\(subtype ?? "text")/\(slug)"
             }
         }
         var written: [String] = []
         for file in files {
             guard let path = file["path"] as? String,
                   let content = file["content"] as? String else { continue }
-            try writeUTF8(rel: "\(rel)/\(path)", content: content)
+            let encoding = (file["encoding"] as? String) ?? "utf8"
+            try writeEncodedFile(rel: "\(rel)/\(path)", content: content, encoding: encoding)
             written.append(path)
         }
         let models = (chat["models"] as? [String]) ?? []
@@ -167,9 +203,8 @@ public final class ArchiveStore {
         let clipped = String(base.prefix(60))
         let id = key.replacingOccurrences(of: "^[cs]:", with: "", options: .regularExpression)
             .replacingOccurrences(of: "[^a-zA-Z0-9]", with: "", options: .regularExpression)
-        let short = String(id.prefix(8))
         let head = clipped.isEmpty ? "chat" : clipped
-        return short.isEmpty ? head : "\(head)--\(short)"
+        return id.isEmpty ? head : "\(head)--\(id)"
     }
 }
 

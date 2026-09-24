@@ -1,6 +1,6 @@
 # GitHub backups
 
-Open the extension popup, then **Open archive library → GitHub backup**.
+Open the extension popup, then **Open archive workspace → GitHub backup**.
 
 1. Create a private repository for your conversations, separate from the extension's source code.
 2. Create a [fine-grained GitHub token](https://github.com/settings/personal-access-tokens/new). Select only that archive repository and grant **Contents: read and write**. Choose an expiration you can renew when needed.
@@ -24,7 +24,7 @@ Updates arriving during an upload remain queued until their own snapshot is back
 
 The folder picker imports conversation folders that contain `conversation.json`, preserving their original bytes. It does not watch that folder afterwards; automatic backups track writes made by this extension. The browser cannot silently read pre-existing files elsewhere on your disk.
 
-Individual automatic-backup files are limited to 32 MiB. Folder import is limited to 32 MiB per conversation to stay within browser messaging limits. An oversized file or a full local queue is reported rather than silently dropped. GitHub permission failures, protected branches, public repositories and truncated repository trees stop an upload and leave it queued for retry. Local archiving continues even if GitHub is unavailable.
+Individual automatic-backup files are limited to 32 MiB, including files produced by archive writes. Folder import is limited to 32 MiB per conversation to stay within browser messaging limits. An oversized file or a full local queue is reported rather than silently dropped. GitHub permission failures, protected branches, public repositories and truncated repository trees stop an upload and leave it queued for retry. Local archiving continues even if GitHub is unavailable.
 
 ## Open the current conversation's folder
 

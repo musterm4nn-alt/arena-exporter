@@ -2,6 +2,29 @@
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (!msg || typeof msg.type !== "string" || msg.type.indexOf("AE_") !== 0) return;
 
+  function isExtensionPage() {
+    // A few legacy Node harnesses omit runtime.getURL/id. Real extension
+    // messages always provide both, so this fallback cannot widen browser
+    // authorization.
+    if (!chrome.runtime || typeof chrome.runtime.getURL !== "function") return !!sender && sender.id == null;
+    var page = String(sender && sender.url || "").split(/[?#]/)[0];
+    return !!sender && sender.id === chrome.runtime.id && [chrome.runtime.getURL("src/options.html"), chrome.runtime.getURL("src/popup.html")].includes(page);
+  }
+  if (msg.type === "AE_EVENT") {
+    if (typeof isArenaSender !== "function" || !isArenaSender(sender)) {
+      sendResponse({ ok: false, error: "ignored" });
+      return;
+    }
+  } else if (msg.type === "AE_HISTORY_PROGRESS") {
+    if (typeof isArenaSender !== "function" || !isArenaSender(sender)) {
+      sendResponse({ ok: false, error: "ignored" });
+      return;
+    }
+  } else if (!isExtensionPage()) {
+    sendResponse({ ok: false, error: "Open this action from Arena Exporter." });
+    return;
+  }
+
   if (AE.handleWorkspaceMessage && AE.handleWorkspaceMessage(msg, sender, sendResponse)) return true;
 
   if (msg.type.indexOf("AE_GITHUB_") === 0 || msg.type === "AE_OPEN_FOLDER") {
@@ -110,6 +133,14 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         if (AE.applyCompletenessMeta) AE.applyCompletenessMeta(payload);
         payload = AE.scrubSecrets(payload);
         var json = JSON.stringify(payload, null, 2);
+        if (msg.format === "jsonl" && AE.renderJsonl) {
+          var jsonl = AE.renderJsonl(payload), jsonlFilename = out.filename.replace(/\.json$/, ".jsonl");
+          if (!msg.save) { sendResponse({ ok: true, text: jsonl, filename: jsonlFilename, streamed: true }); return; }
+          downloadTextFile(jsonlFilename, jsonl, "application/x-ndjson;charset=utf-8", true).then(function (result) {
+            sendResponse(Object.assign({}, result, { filename: jsonlFilename, streamed: true }));
+          });
+          return;
+        }
         if (msg.format === "markdown") {
           var markdown = AE.renderMarkdown(payload), filename = out.filename.replace(/\.json$/, ".md");
           if (!msg.save) { sendResponse({ ok: true, text: markdown, filename: filename }); return; }
@@ -122,11 +153,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
           sendResponse({ ok: true, json: json, filename: out.filename, payload: null });
           return;
         }
-        var stamp = (function () {
-          var d = new Date();
-          var p = function (n) { return String(n).padStart(2, "0"); };
-          return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
-        })();
+        var stamp = AE.buildStamp();
         var dir = "arena-exporter-attachments/" + stamp + "/";
         var downloads = [];
         if (AE.decorateInlineArtifacts) {

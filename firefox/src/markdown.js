@@ -7,7 +7,7 @@ function fence(lang, text) {
   return "```" + (lang || "") + "\n" + body + "\n```";
 }
 
-AE.renderMarkdown = function (payload) {
+AE.iterateMarkdownChunks = function (payload) {
   payload = payload || {};
   var session = payload.session || {};
   var battles = payload.battles || [];
@@ -110,5 +110,21 @@ AE.renderMarkdown = function (payload) {
     lines.push("");
   }
 
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+  var meta = payload.meta || {};
+  var warnings = Array.isArray(meta.warnings) ? meta.warnings : [];
+  if (warnings.length || meta.completeness_detail) {
+    lines.push("## Capture notes", "");
+    if (meta.completeness) lines.push("- Completeness: " + meta.completeness);
+    if (meta.completeness_detail && meta.completeness_detail.reasons) {
+      meta.completeness_detail.reasons.forEach(function (reason) { lines.push("- " + reason); });
+    }
+    warnings.forEach(function (warning) { lines.push("- " + warning); });
+    lines.push("");
+  }
+
+  return lines;
+};
+
+AE.renderMarkdown = function (payload) {
+  return AE.iterateMarkdownChunks(payload).join("\n").replace(/\n{3,}/g, "\n\n");
 };

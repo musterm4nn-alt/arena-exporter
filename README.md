@@ -1,73 +1,88 @@
 # Arena Exporter
 
-Version **2.1.3** is a Manifest V3 extension for exporting arena.ai **Agent**, **Battle**, **Direct**, and **Side-by-Side** conversations as structured JSON and readable Markdown. It records streamed text, reasoning, tools, files, transport outcomes, and model label provenance.
+**Version 2.2.1** is a local-first Manifest V3 extension for exporting [arena.ai](https://arena.ai) Agent, Battle, Direct, and Side-by-Side conversations as structured JSON and readable Markdown.
 
-## The 2.1 overhaul
+Arena Exporter records streamed text, reasoning and tool evidence, files, request outcomes, transport metadata, and model-label provenance. It keeps the page's own response intact and never treats a failed request as an assistant answer.
 
-A new Departure Mono popup puts the current conversation, export scope, format, local save and backup status together. The full-page workspace adds a searchable archive library with mode filters, sorting, pagination and direct Arena/folder actions, plus dedicated GitHub backup, preferences and diagnostics views.
+## What changed in 2.2
 
-The runtime retains the tested 1.18.0 capture, history, native archive and GitHub queue components, with separated capture/export/router files, explicit export sessions, serialized persistence, a working evaluation parse cache and event-driven UI updates. It replaces the experimental 2.0.0 implementation. Storage keys, the Chrome extension identity, Firefox ID and export schema 2.1 remain compatible with v1.
-
-See the [implementation plan](docs/overhaul-plan.md), [release notes](CHANGELOG.md) and [verification scope](docs/verification.md). Chrome live checks exercised the popup, Battle capture, native archive saving and JSON/Markdown downloads. See the verification notes for remaining capture limitations.
-
-## GitHub backups and conversation folders
-
-Use **Open archive library → GitHub backup** to connect a private repository. New archive writes upload automatically, with a persistent retry queue, visible status and existing-folder import. Use **Open folder** for Downloads archives. For the native archive app, **Folder path** shows the path to paste into your file manager. See [setup, permissions and restore instructions](docs/github-backup.md).
+- Rebuilt the popup and archive workspace around a responsive ink/mint visual system with clearer capture-health, export, archive, backup, and diagnostics hierarchy.
+- Scoped semantic replay suppression to one assistant message, preserving identical artifacts and actions in later turns.
+- Hardened credential filtering for nested JSON, URL credentials and fragments, GitHub token forms, and PEM/OpenSSH private keys while preserving harmless raw URLs.
+- Normalized the exported Battle outcome to the documented `neither_good` value.
+- Added architecture/security documentation, project checks, and regression coverage for the overhaul.
+- Kept the Chrome extension key, Firefox add-on ID, export schema 2.1, storage keys, archive layout, and existing message contracts compatible.
 
 ## Install
 
-### Chrome
+### Chrome / Chromium
 
-1. Open `chrome://extensions` and enable Developer mode.
-2. Choose **Load unpacked** and select the repository root, or unzip `dist/Arena-Agent-Exporter-2.1.3-chrome.zip` and select that folder.
-3. Reload the Arena tab. After updating the source, also press **Reload** on the extension card.
+1. Open `chrome://extensions` and enable **Developer mode**.
+2. Choose **Load unpacked** and select this repository root, or build and unzip `dist/Arena-Agent-Exporter-2.2.1-chrome.zip`.
+3. Reload the extension and the Arena tab.
 
-The manifest keeps the same public key across releases to preserve the unpacked extension ID.
+The manifest public key is retained so an unpacked installation keeps its identity.
 
 ### Firefox
 
-Firefox uses its own complete build under `firefox/`, with an ordered `background.scripts` manifest. Use this build when loading the add-on in Firefox.
+Firefox uses the generated tree under `firefox/`:
 
 1. Open `about:debugging#/runtime/this-firefox`.
-2. Choose **Load Temporary Add-on** and select `firefox/manifest.json`, or select the manifest in the extracted `dist/Arena-Agent-Exporter-2.1.3-firefox.zip`.
+2. Choose **Load Temporary Add-on** and select `firefox/manifest.json`, or use the generated Firefox ZIP.
 3. Reload the Arena tab.
 
-The Firefox build requires Firefox 140 or later. A temporary add-on must be loaded again after Firefox restarts. Its download UI is not suppressed.
+Firefox requires version 140 or later. Temporary add-ons must be loaded again after a browser restart.
 
 ## Capture and export
 
-The interceptor starts at `document_start`. Open an Arena conversation and use the popup:
+The interceptor starts at `document_start`. Open an Arena conversation, then use the popup:
 
-- **Save now** writes the active tab's current conversation.
-- Choose **Full conversation** or **Last answer**, then JSON or Markdown, and export.
-- **Last answer** includes the triggering user prompt for context and excludes older raw transport samples.
-- **Copy** copies the selected scope and format.
-- **Conversation tools** contains Battle vote correction, redacted page diagnostics and capture reset.
-- **Open archive library** opens search, history import, backup, preferences and diagnostics.
+- **Full conversation** or **Last answer** export scope
+- JSON or Markdown download
+- Copy to clipboard
+- JSONL provides newline-delimited records for large conversations and streaming consumers. See [docs/streaming-exports.md](docs/streaming-exports.md).
+- **Save now** for an immediate archive write
+- Automatic archive of completed turns
+- Archive folder reveal/recovery
+- Battle vote correction
+- Redacted page diagnostics
 
-A logical stream finish or `turn-complete` control record schedules an automatic archive write. Request attempts remain separate across CAPTCHA challenges, selection rejections, network failures, and successful retries. A failed request never creates a synthetic assistant answer.
+A logical stream completion or `turn-complete` record schedules an archive write. Retries remain separate across CAPTCHA challenges, selection rejection, network failures, and successful retries. Tabs and late responses remain associated with the conversation that initiated them.
 
-The extension correlates each request and stream by request ID and keeps each browser tab in a separate session. Late responses remain attached to the conversation that initiated them after tab navigation. Replayed realtime batches are deduplicated without relying solely on a small rolling window.
+## Model identity
 
-### Model identity
+Model UUIDs, page catalog labels, message IDs, and transport IDs are intentionally distinct.
 
-Model IDs, page catalog labels, message/node IDs, and transport/session IDs are distinct fields.
+- Battle labels are marked verified only after Arena reveals them.
+- Direct and Side-by-Side selection labels may come from the public page catalog and remain unverified.
+- Agent orchestrator identity remains unknown unless Arena explicitly reveals it.
+- Incidental UUIDs, selector flags, tool arguments, and leaderboard data never become model identity.
 
-- Battle model names are verified only after Arena reveals them.
-- Direct and Side-by-Side selections can be joined to the page's public model catalog. These labels use `model_source: "request_catalog"` and `model_identity_verified: false` because a selection label does not prove the serving backend.
-- Agent orchestrator identity remains `null` with source `not_revealed` unless Arena explicitly reveals it. Tool arguments, network hints, selector flags, leaderboard statistics, and UUID-shaped identifiers never become the Agent model name.
+See [docs/export-schema.md](docs/export-schema.md) for the schema contract and [`schemas/export-2.1.schema.json`](schemas/export-2.1.schema.json) for the machine-readable contract. [docs/architecture.md](docs/architecture.md) documents runtime boundaries.
 
-See [docs/export-schema.md](docs/export-schema.md) for the additive schema 2.1 fields and their interpretation.
+## Privacy
 
-### Privacy
+The extension filters known credential keys, authorization headers, cookies, CAPTCHA values, API keys, access/refresh/session tokens, JWTs, GitHub token forms, private-key blocks, and credential-bearing URLs before persistence and export. Only three bounded diagnostic response headers are retained:
 
-Before an event is stored or exported, the extension filters authorization headers, cookies, CAPTCHA values, API keys, credentials, access/refresh/session tokens, private keys, JSON nested inside strings, common JWTs, and raw Bearer or Basic credentials. Only the diagnostic response headers `x-session-settled`, `x-stream-version`, and `x-arena-chat-id` are retained.
+- `x-session-settled`
+- `x-stream-version`
+- `x-arena-chat-id`
 
-DOM debug dumps redact all non-empty page text, text-bearing attributes, URL query strings, and comments. They preserve bounded structure and selected state attributes. Exports still contain conversation content and files; credential filtering is not general anonymization.
+Conversation exports intentionally contain conversation content and files. Credential filtering is not general anonymization. See [docs/security.md](docs/security.md).
 
-## Archive
+## Archive layout
 
-Without the optional native app, `chrome.downloads` writes below `Downloads/arena-archive/`. The first successful write pins a conversation to one folder. The index tracks content hashes separately for Downloads and for every native archive root, so changing destinations writes a complete copy and switching back preserves the other destination's cache.
+Archive encryption is opt-in from **Preferences → Private archives**. It derives separate AES-GCM key and verifier values with PBKDF2-SHA-256, stores no password or AES key, and pauses new saves when locked. Encrypted conversations are written as a `conversation.enc` bundle. Disabling encryption requires the current password; known plaintext archive files cause a migration warning instead of being silently mixed with sealed files. Native-host bundles remain subject to the documented 32 MiB per-file limit. Use the recovery tool for sealed bundles:
+
+```bash
+# PowerShell (or use ARENA_ARCHIVE_PASSWORD=... on POSIX shells)
+$env:ARENA_ARCHIVE_PASSWORD="your-password"
+node tools/decrypt-archive.mjs path/to/conversation.enc --out path/to/recovered
+```
+
+Archive index metadata such as titles and URLs remains visible in the local index; the sealed bundle protects conversation files and attachments.
+
+Without the optional native app, `chrome.downloads` writes below `Downloads/arena-archive/`:
 
 ```text
 agent/<slug>/
@@ -83,39 +98,49 @@ battle/<subtype>/<slug>/
   battle-01/B/
 ```
 
-Subtypes are `text`, `code`, `web-search`, `image`, or `video`. Folder names contain the complete Arena conversation ID to avoid collisions. Direct has one contestant lane, Side-by-Side has two, and Battle retains its vote outcome. Agent workspace ZIP capture is requested only for Agent conversations; files on unsupported preview hosts remain URL references with a capture warning.
+The first successful write pins a conversation to one folder. The index tracks content hashes separately for Downloads and each native root, so switching destinations writes a complete copy without corrupting the other destination's cache.
 
-To expose the default archive elsewhere on macOS or Linux, link from the target location to the real Downloads directory:
+The Downloads data-URL fallback is intentionally bounded. Large attachments may require the optional native archive app, which has a larger per-file limit.
 
-```bash
-mkdir -p ~/Downloads/arena-archive
-ln -s ~/Downloads/arena-archive ~/Documents/arena-archive
-```
+## Optional Arena Archive app
 
-The browser still writes to the real directory below Downloads; readers and Git can use the link.
-
-### Arena Archive native app
-
-If the Arena Archive desktop app is installed, automatic and manual archive writes use the native host `com.arenaarchive.host` and its selected root. Missing host, failed handshake, or no selected folder falls back to Downloads. JSON export and copy remain available independently.
-
-The optional macOS reader is under `macos/ArenaArchive`:
+The browser extension can use the native host `com.arenaarchive.host` when installed. Missing host, failed handshake, or no selected folder falls back to Downloads. Build the local macOS reader and host:
 
 ```bash
 cd macos/ArenaArchive
-swift build --product ArenaArchive
+swift build -c release
 swift run ArenaArchive
 swift test
 ```
 
-## Build and test
-
-The release builder regenerates the full Firefox tree, complete unpacked Chrome and Firefox folders, and reproducible ZIP files:
+Install the local host manifest without contacting a remote service:
 
 ```bash
-node tools/build-release.mjs
-node tools/run-tests.mjs
+node tools/install-native-host.mjs --host "$PWD/macos/ArenaArchive/.build/release/ArenaArchiveHost" --browser chrome
+node tools/install-native-host.mjs --host "$PWD/macos/ArenaArchive/.build/release/ArenaArchiveHost" --browser firefox
 ```
 
-`bash tools/run-tests.sh` runs the same JavaScript build and test gate, followed by the optional Swift checks when the local toolchain supports them. `bash tools/deploy.sh` builds and copies the Chrome package to `../arena-exporter-dist`; pass `--force` to remove stale files there.
+## GitHub backup
 
-The tests cover stream framing, arbitrary part IDs, retries and rejection outcomes, credential filtering, Flight metadata, Direct capture, Agent completion, session isolation, archive concurrency, destination switching, and both browser manifests. Browser APIs are simulated in the JavaScript suites; they do not replace a live Arena acceptance check.
+Open **Archive workspace → GitHub backup** to connect a private repository. New archive writes enter a durable IndexedDB outbox, upload changed files only, preserve remote history, retry transient failures, and use non-forced ref updates. Tokens stay in trusted extension storage and never enter exports or the outbox.
+
+Use a fine-grained token limited to the archive repository with **Contents: read and write**. Existing folders can be imported through the folder picker. See [docs/github-backup.md](docs/github-backup.md).
+
+## Build and verify
+
+Requires Node.js 20 or newer. The project has no runtime npm dependencies.
+
+```bash
+npm test                 # build both packages and run all JavaScript suites
+npm run build            # generate Chrome/Firefox folders and reproducible ZIPs
+npm run check:project    # validate manifests, local assets, and accessibility hooks
+npm run schema:check     # validate a generated export against schema 2.1
+npm run verify           # test + project check + schema check
+npm run acceptance:preview # HTTP smoke; real Chromium when Playwright is installed
+npm run release:local    # build, checksum, and write a local release manifest
+npm run preview          # synthetic local UI preview; never live capture
+```
+
+`tools/build-release.mjs` regenerates `src/injected-main.js`, `src/injected-content.js`, and the complete `firefox/` tree. Do not hand-edit those generated files.
+
+The automated suites simulate browser APIs and storage. They do not replace a live Arena acceptance check, installed Firefox check, native macOS helper check, or real GitHub network transaction. `docs/verification.md` records those limits honestly. See [docs/release-local.md](docs/release-local.md) for the local artifact pipeline and [docs/streaming-exports.md](docs/streaming-exports.md) for JSONL.

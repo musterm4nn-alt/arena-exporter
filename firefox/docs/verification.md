@@ -1,36 +1,79 @@
-# 2.1.2 verification
+# 2.2.1 verification
 
-The September 7 permissions fix was verified with Chrome's `browser` namespace present, Firefox data-consent enforcement, and thrown permission requests. It preserves the 2.1.1 capture and icon fixes. Chrome's retained error list included the old standalone `src/content.js:184` implementation; 2.1.1 and later load `src/injected-content.js` instead. Old error entries alone do not establish a new failure.
-
-References: [Chrome browser namespace](https://developer.chrome.com/docs/extensions/develop/concepts/browser-namespace), [Firefox permissions.request](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/permissions/request).
+The local 2.2 overhaul is verified with the repository's deterministic JavaScript harness and project checks. The harness uses synthetic browser APIs; it is not evidence of live Arena capture.
 
 ## Automated checks
 
-Run `npm test` or `node tools/run-tests.mjs` with Node 20 or newer. The runner builds both browser packages and runs all 20 JavaScript suites. All 20 passed on September 7, 2026.
+Run with Node.js 20 or newer:
 
-Coverage includes network streaming, tab/request isolation, multiple turns, DOM fallback, model provenance, scoped exports, cancelled downloads, archive writes, native fallback, GitHub retries/privacy, Firefox background loading, serialized persistence, popup/workspace controls and preferences. New injection regressions load each packaged execution-world bundle independently, including a browser-style shared-URL deduplication simulation, and verify capture bridging, redaction and snapshot error responses.
+```bash
+npm run verify
+```
 
-The UI harness exercises production controllers with a lightweight document fixture. It does not provide a rendering engine or full accessibility validation.
+This command:
 
-## Chrome checks, September 5–6
+1. regenerates the Chrome and Firefox packages;
+2. runs every `tests/*.test.js` suite;
+3. validates manifest versions, local asset references, keyboard focus treatment, reduced-motion treatment, and required generated entry points.
 
-- Reproduced the 2.1.0 popup stuck on loading, missing toolbar icons and the broken page-to-extension bridge. Loaded 2.1.1 into the existing unpacked Chrome installation and verified that the popup opened and capture resumed.
-- Visually inspected the Departure Mono popup, scope controls, format menu and archive status.
-- Saved a three-round Battle through the native archive app and inspected its JSON and Markdown on disk. The archive contained three prompts, six replies, 165 tool-call records and file data. This does not establish complete capture: a stream-completeness warning was present.
-- Downloaded Last answer JSON and full-conversation Markdown through the actual popup. Chrome reported both downloads complete. The scoped JSON contained one Battle round, one request and no raw stream samples.
-- Found that the native host cannot reveal folders. The revised interface displays the actual native folder path instead of reporting an opened folder. Downloads-based folder reveal remains separately covered by tests.
+The current local run passes **27 JavaScript suites** plus the project check, schema check, and lint gate. Coverage includes:
 
-## Remaining limitations
+- Agent, Battle, Direct, and Side-by-Side multi-turn reconstruction;
+- failed retry → successful retry metadata;
+- request/tab/session isolation;
+- message-scoped semantic replay suppression;
+- nested credential, token, URL, and private-key redaction;
+- raw URL preservation;
+- stream framing, completion signals, and bounded capture buffers;
+- Downloads/native archive fallback and path safety;
+- GitHub queue durability, retry, privacy, and destination switching;
+- popup/workspace actions, diagnostics, encryption settings, browser permission boundaries, and message authorization;
+- native-host batch/path safety, installer manifest allowlists, and local release tooling;
+- encrypted archive verifier/key separation, unlock/decrypt behavior, migration refusal, and restart locking;
+- JSONL record generation and Markdown chunk streaming;
+- versioned export-schema contract validation;
+- Firefox ordered background loading and packaged manifest integrity.
 
-The Battle already running before the bridge repair was only partially recoverable from the page. Missing historical prompts, hidden reasoning and tool bodies cannot be assumed recovered. The newer archive contained no reasoning text.
+## UI verification
 
-Model labels in the newer export did not match the model tabs visible in the current Arena preview. Attribution across rounds and the current page layout needs further investigation. Do not treat those labels as verified training-data attribution solely because a provenance field is present.
+The popup and workspace are dependency-free HTML/CSS/JavaScript and use only bundled assets. The local preview command serves synthetic browser data:
 
-The final auxiliary-data filtering, placeholder-label and native-folder-path adjustments passed automated checks but have not all been re-exercised after a browser reload. Installed Firefox behavior, macOS native behavior and a real extension-initiated GitHub backup were not exercised in these checks.
+```bash
+npm run preview
+```
 
-`npm run preview` serves explicitly labeled synthetic fixtures. These fixtures are excluded from the packages and are not evidence of live capture.
+The preview is explicitly labeled and is not live capture. The automated UI harness verifies controller behavior, not a full accessibility audit or pixel-perfect rendering on every browser.
 
-## Browser API references
+## Browser acceptance
 
-- [MDN background manifest](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background)
-- [Chrome downloads API](https://developer.chrome.com/docs/extensions/reference/api/downloads)
+Run the dependency-free smoke check with:
+
+```bash
+npm run acceptance:preview
+```
+
+It starts the synthetic preview, checks all local assets, and verifies the new workspace landmarks. If Playwright and Chromium are available locally, the same command also exercises navigation, diagnostics, and mobile overflow. Use `--require-browser` when a missing browser must fail the release gate:
+
+```bash
+node tools/acceptance.mjs --require-browser
+```
+
+A real unpacked Chrome package check is available after building:
+
+```bash
+node tools/acceptance.mjs --extension --require-browser
+```
+
+This mode is intentionally opt-in and must not be confused with live Arena capture. It requires a Chromium build that supports unpacked extensions and may require a headed browser on some platforms.
+
+## Verification limits
+
+This environment did not provide:
+
+- a live signed-in Arena browser session;
+- an installed Chrome/Firefox extension profile for a real capture run;
+- a Swift toolchain for the optional macOS package;
+- a real GitHub repository/network transaction;
+- Playwright/Chromium in the local Node installation.
+
+Those limitations are intentional and must not be converted into product claims without a separate acceptance run.
