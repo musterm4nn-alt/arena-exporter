@@ -47,7 +47,7 @@ for (const required of ["src/background.js", "src/injected-main.js", "src/inject
 
 // Chrome can deduplicate a shared content-script URL across MAIN and ISOLATED
 // worlds. Give each world its own entry point and private copy of the helpers.
-const common = ["lib/schema.js", "lib/privacy.js", "lib/page-data.js"];
+const common = ["lib/schema.js", "lib/privacy.js", "lib/page-data.js", "lib/vote.js"];
 for (const [entry, inputs] of [
   ["injected-main.js", [...common, "interceptor.js"]],
   ["injected-content.js", [...common, "lib/dom-extract.js", "history-backfill.js", "content.js"]]

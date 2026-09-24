@@ -8,7 +8,8 @@
     "build": "node tools/build-release.mjs",
     "check:project": "node tools/check-project.mjs",
     "schema:check": "node tools/validate-schema.mjs",
-    "verify": "npm test",
+    "lint": "node tools/lint.mjs",
+    "verify": "npm test && npm run lint",
     "acceptance:preview": "node tools/acceptance.mjs",
     "release:local": "node tools/release-local.mjs",
     "preview": "node tools/preview.mjs"

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased (fork: code-quality refactor)
+
+- Extracted the duplicated ballot-label parser into `src/lib/vote.js`, shared by background battle reconstruction and the DOM extractor.
+- Extracted the duplicated export filename timestamp into `src/lib/format.js` (`AE.buildStamp`).
+- Added a dependency-free `tools/lint.mjs` gate (`npm run lint`, wired into `npm run verify`): no `eval`, no work markers, no debug logging or raw HTML sinks in extension source.
+- Added `tests/code-quality.test.js` covering the shared modules and guarding against re-duplication.
+- No behavior, schema, storage, or UI changes; version remains 2.2.0.
+
 ## 2.2.0 — 2026-09-23
 
 - Reworked the popup and archive workspace into a responsive local-first visual system with clearer capture, export, archive, backup, and diagnostics states.

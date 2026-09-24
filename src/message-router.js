@@ -153,11 +153,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
           sendResponse({ ok: true, json: json, filename: out.filename, payload: null });
           return;
         }
-        var stamp = (function () {
-          var d = new Date();
-          var p = function (n) { return String(n).padStart(2, "0"); };
-          return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
-        })();
+        var stamp = AE.buildStamp();
         var dir = "arena-exporter-attachments/" + stamp + "/";
         var downloads = [];
         if (AE.decorateInlineArtifacts) {

@@ -1,4 +1,5 @@
-/* Export assembly. Explicit session input keeps background writes isolated. */
+/* Export assembly. Explicit session input keeps background writes isolated.
+ * Filename timestamps come from src/lib/format.js (AE.buildStamp). */
 function buildSummary(messages) {
   var tools = {};
   var commands = 0;
@@ -27,12 +28,6 @@ function extensionVersion() {
   } catch (e) {
     return "unknown";
   }
-}
-
-function stamp() {
-  var d = new Date();
-  function p(n) { return String(n).padStart(2, "0"); }
-  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
 }
 
 function messageTextFingerprint(msg) {
@@ -261,6 +256,6 @@ function buildExport(mode, domSnapshot, session) {
 
   var sid = String(s.session.session_id || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
   var filenamePrefix = sourceMode === "agent" ? "arena_agent" : /^direct/.test(sourceMode) ? "arena_direct" : "arena_battle";
-  var filename = filenamePrefix + "_" + mode + (sid ? "_" + sid : "") + "_" + stamp() + ".json";
+  var filename = filenamePrefix + "_" + mode + (sid ? "_" + sid : "") + "_" + AE.buildStamp() + ".json";
   return { payload: AE.scrubSecrets(payload), filename: filename };
 }

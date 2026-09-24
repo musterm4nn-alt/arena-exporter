@@ -50,6 +50,8 @@
       "src/lib/page-data.js",
       "src/lib/normalize.js",
       "src/lib/evaluation-stream.js",
+      "src/lib/vote.js",
+      "src/lib/format.js",
       "src/session-store.js",
       "src/request-capture.js",
       "src/battles.js",

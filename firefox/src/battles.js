@@ -1,24 +1,8 @@
-/* Battle reconstruction and vote handling. Operates on a session object. */
+/* Battle reconstruction and vote handling. Operates on a session object.
+ * Vote-label parsing lives in src/lib/vote.js (shared with the DOM
+ * extractor); this module consumes the normalizeBattleVoteChoice global. */
 
 var BATTLE_VOTE_CAP = 40;
-
-function normalizeBattleVoteChoice(value) {
-  var t = String(value == null ? "" : value).replace(/\s+/g, " ").trim().toLowerCase();
-  if (!t) return null;
-  if (/\bneither\b|\bnone\s+(?:are|is)\s+good\b/.test(t)) return "neither_good";
-  if (/\bboth\b.*\b(?:good|great|fine|acceptable|better)\b/.test(t) || /\bboth\s+are\s+good\b/.test(t)) return "both_good";
-  if (/(?:^|\b)(?:model\s*)?a(?:\b|\s).*(?:\bbetter\b|\bwin(?:s|ner)?\b|\bprefer(?:red)?\b)/.test(t) ||
-      /(?:^|\b)(?:choose|select|vote\s+for)\s+(?:model\s*)?a\b/.test(t)) return "A";
-  if (/(?:^|\b)(?:model\s*)?b(?:\b|\s).*(?:\bbetter\b|\bwin(?:s|ner)?\b|\bprefer(?:red)?\b)/.test(t) ||
-      /(?:^|\b)(?:choose|select|vote\s+for)\s+(?:model\s*)?b\b/.test(t)) return "B";
-  if (/^(?:vote|choice|option|model)[ _-]*a(?:[_ -]?(?:better|winner|win))?$/.test(t)) return "A";
-  if (/^(?:vote|choice|option|model)[ _-]*b(?:[_ -]?(?:better|winner|win))?$/.test(t)) return "B";
-  if (/^a$/.test(t)) return "A";
-  if (/^b$/.test(t)) return "B";
-  if (/^both(?:[_ -]good)?$/.test(t)) return "both_good";
-  if (/^(?:neither|none)(?:[_ -]good)?$/.test(t)) return "neither_good";
-  return null;
-}
 
 function recordBattleVote(s, evt) {
   var raw = evt.choice || evt.vote || evt.label || evt.text || "";

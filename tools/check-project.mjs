@@ -23,12 +23,15 @@ assert(manifest.manifest_version === 3, "Chrome manifest must remain Manifest V3
 assert(firefox.manifest_version === 3, "Firefox manifest must remain Manifest V3");
 assert(manifest.background && manifest.background.service_worker === "src/background.js", "Chrome background service worker changed unexpectedly");
 assert(Array.isArray(firefox.background && firefox.background.scripts) && firefox.background.scripts.at(-1) === "src/background.js", "Firefox ordered background scripts are incomplete");
+const backgroundSrc = fs.readFileSync(path.join(root, "src/background.js"), "utf8");
+assert(backgroundSrc.indexOf('"lib/vote.js"') !== -1 && backgroundSrc.indexOf('"lib/vote.js"') < backgroundSrc.indexOf('"battles.js"'), "background must load lib/vote.js before battles.js");
+assert(backgroundSrc.indexOf('"lib/format.js"') !== -1 && backgroundSrc.indexOf('"lib/format.js"') < backgroundSrc.indexOf('"export-builder.js"'), "background must load lib/format.js before export-builder.js");
 [
-  "src/background.js", "src/encrypted-archive.js", "src/streaming-export.js", "src/injected-main.js", "src/injected-content.js", "src/popup.html", "src/options.html",
+  "src/background.js", "src/lib/vote.js", "src/lib/format.js", "src/encrypted-archive.js", "src/streaming-export.js", "src/injected-main.js", "src/injected-content.js", "src/popup.html", "src/options.html",
   "src/fonts/DepartureMono-Regular.woff2", "docs/architecture.md", "docs/security.md", "SECURITY.md",
   "macos/ArenaArchive/Package.swift", "macos/ArenaArchive/Sources/NativeHostCore/NativeHostCore.swift",
   "macos/ArenaArchive/Sources/NativeHost/main.swift", "macos/ArenaArchive/Sources/ArenaArchiveApp/ArenaArchiveApp.swift", "macos/ArenaArchive/Resources/com.arenaarchive.host.chrome.json", "macos/ArenaArchive/Resources/com.arenaarchive.host.firefox.json", "tools/install-native-host.mjs", "tools/native-host-manifest.mjs",
-  "schemas/export-2.1.schema.json", "schemas/streaming-2.1.schema.json", "tools/validate-schema.mjs", "tools/acceptance.mjs", "tools/decrypt-archive.mjs", "tools/release-local.mjs"
+  "schemas/export-2.1.schema.json", "schemas/streaming-2.1.schema.json", "tools/validate-schema.mjs", "tools/acceptance.mjs", "tools/decrypt-archive.mjs", "tools/release-local.mjs", "tools/lint.mjs", "tests/code-quality.test.js"
 ].forEach(requireFile);
 
 for (const file of ["src/popup.html", "src/options.html"]) {
