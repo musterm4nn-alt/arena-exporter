@@ -11,7 +11,7 @@ var AE = AE || {};
 AE.dom = AE.dom || {};
 
 function normalizeVoteChoice(value) {
-  var t = String(value == null ? "" : value).replace(/\s+/g, " ").trim().toLowerCase();
+  const t = String(value == null ? "" : value).replace(/\s+/g, " ").trim().toLowerCase();
   if (!t) return null;
   if (/\bneither\b|\bnone\s+(?:are|is)\s+good\b/.test(t)) return "neither_good";
   if (/\bboth\b.*\b(?:good|great|fine|acceptable|better)\b/.test(t) || /\bboth\s+are\s+good\b/.test(t)) return "both_good";

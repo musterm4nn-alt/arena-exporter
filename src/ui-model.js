@@ -1,36 +1,36 @@
 /* Pure view data shared by the popup, workspace, and UI regressions. */
 (function (root) {
   "use strict";
-  var model = {
+  const model = {
     arenaUrl: function (value) {
       return /^https:\/\/([\w-]+\.)*(arena|lmarena)\.ai\//i.test(String(value || ""));
     },
     conversationKey: function (value) {
       try {
-        var u = new URL(value);
+        const u = new URL(value);
         if (!model.arenaUrl(u.href)) return null;
-        var m = /\/(?:c|agent)\/([A-Za-z0-9_-]+)/.exec(u.pathname);
+        const m = /\/(?:c|agent)\/([A-Za-z0-9_-]+)/.exec(u.pathname);
         return m ? "c:" + m[1] : null;
       } catch (_) {
         return null;
       }
     },
     mode: function (value) {
-      var m = String(value || "").toLowerCase();
+      const m = String(value || "").toLowerCase();
       return /^side.by.side/.test(m) ? "side-by-side" : /^battle/.test(m) ? "battle" : /^direct/.test(m) ? "direct" : "agent";
     },
     modeLabel: function (value) {
       return { agent: "Agent", battle: "Battle", direct: "Direct", "side-by-side": "Side-by-Side" }[model.mode(value)];
     },
     completeness: function (value) {
-      var status = String(value || "").toLowerCase();
+      const status = String(value || "").toLowerCase();
       if (status === "full" || status === "green") return { label: "Complete", tone: "ok" };
       if (status === "red") return { label: "Needs attention", tone: "error" };
       if (status === "amber" || status === "partial") return { label: "Partial capture", tone: "warn" };
       return { label: "Not assessed", tone: "idle" };
     },
     filterEntries: function (entries, query, mode, sort) {
-      var q = String(query || "").trim().toLowerCase();
+      const q = String(query || "").trim().toLowerCase();
       return (entries || []).filter(function (entry) {
         return (!mode || mode === "all" || model.mode(entry.mode) === mode) &&
           (!q || [entry.title, entry.rel, entry.key, (entry.models || []).join(" ")].join(" ").toLowerCase().includes(q));

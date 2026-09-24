@@ -2,15 +2,15 @@
 function getStateSummary(s, snapshot) {
   s = s || ensureState();
   flushStreamMessage(s);
-  var counts = {};
-  var viewMessages=s.messages.length?s.messages:(snapshot && snapshot.messages || []);
+  const counts = {};
+  const viewMessages=s.messages.length?s.messages:(snapshot && snapshot.messages || []);
   viewMessages.forEach(function (m) {
     if (!m) return;
     (m.content || []).forEach(function (b) {
       if (b && b.type) counts[b.type] = (counts[b.type] || 0) + 1;
     });
   });
-  var rounds=buildBattles(s, snapshot), latestRound=rounds[rounds.length-1];
+  const rounds=buildBattles(s, snapshot), latestRound=rounds[rounds.length-1];
   if(!viewMessages.length)rounds.forEach(function(round){(round.contestants||[]).forEach(function(c){
     counts.thinking=(counts.thinking||0)+(c.reasoning?1:0);
     counts.tool_call=(counts.tool_call||0)+(c.tool_calls||[]).length;
@@ -48,7 +48,7 @@ function getStateSummary(s, snapshot) {
 }
 
 function isArenaSender(sender) {
-  var url = (sender && sender.tab && sender.tab.url) || "";
+  const url = (sender && sender.tab && sender.tab.url) || "";
   return /^https:\/\/([^/]+\.)?(arena\.ai|lmarena\.ai)\//i.test(url);
 }
 
@@ -58,15 +58,15 @@ function isArenaSender(sender) {
  * valid-looking export with the wrong URL and conversation id. */
 function activateRequestSession(msg) {
   msg = msg || {};
-  var explicitKey = typeof msg.sessionKey === "string" ? canonicalSessionKey(msg.sessionKey) : null;
-  var snapshotKey = msg.snapshot && msg.snapshot.url ? canonicalSessionKey(conversationKeyFromUrl(msg.snapshot.url)) : null;
+  const explicitKey = typeof msg.sessionKey === "string" ? canonicalSessionKey(msg.sessionKey) : null;
+  const snapshotKey = msg.snapshot && msg.snapshot.url ? canonicalSessionKey(conversationKeyFromUrl(msg.snapshot.url)) : null;
   if (explicitKey && snapshotKey && explicitKey !== snapshotKey) {
     return { error: "active tab and DOM snapshot refer to different conversations" };
   }
   /* Only an explicit popup/tab key may switch sessions. A snapshot URL is a
    * consistency check, not authority to redirect an older internal caller. */
-  var key = explicitKey || (msg.tabId != null ? canonicalSessionKey(store.tabKeys[msg.tabId]) || snapshotKey || "tab:" + msg.tabId : null);
-  var s;
+  const key = explicitKey || (msg.tabId != null ? canonicalSessionKey(store.tabKeys[msg.tabId]) || snapshotKey || "tab:" + msg.tabId : null);
+  let s;
   if (key) {
     if (!store.sessions[key]) store.sessions[key] = freshState(key);
     store.activeKey = key;
