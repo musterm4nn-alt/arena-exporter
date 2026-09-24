@@ -65,3 +65,21 @@ const read = file => fs.readFileSync(path.join(root, file), "utf8");
   assert.ok(builder.includes("AE.buildStamp()"), "export-builder.js must use the shared stamp");
   console.log("dedupe guards passed: vote and stamp each defined once.");
 }
+
+// Diagnostics stay silent-safe where the issue recorder is absent
+// (content worlds, older harnesses): no path may call it unguarded.
+(async () => {
+  const { worker } = require("./worker-harness");
+  const w = worker();
+  await w.ready();
+  delete w.context.AE.recordIssue;
+  const state = await w.send({ type: "AE_GET_STATE" }, null);
+  assert.equal(state.ok, true);
+  const exp = await w.send({ type: "AE_EXPORT", mode: "full_history", save: false }, null);
+  assert.equal(exp.ok, true);
+  await w.event({ kind: "interceptor_ready", url: "https://arena.ai/c/probe" });
+  console.log("recordIssue-absent paths passed: state, export, and capture events stay silent-safe.");
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

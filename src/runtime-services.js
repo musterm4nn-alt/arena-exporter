@@ -31,7 +31,7 @@ var AE = AE || {};
     AE.preferences.archiveEncryption = prefs && prefs.archiveEncryption || null;
     if (AE.archiveEncryption && AE.archiveEncryption.restore) AE.archiveEncryption.restore(AE.preferences.archiveEncryption);
     autoArchiveEnabled = AE.preferences.autoArchive;
-  }).catch(function () { AE.recordIssue("settings", "read_failed"); });
+  }).catch(function () { if (AE.recordIssue) AE.recordIssue("settings", "read_failed"); });
 
   AE.parseCachedEvaluation = function (session, key, text, init) {
     var entries = cache.get(session);
