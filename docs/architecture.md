@@ -10,8 +10,10 @@ Arena Exporter is a local-first Manifest V3 extension. There is no application s
 4. **Session correlation** — `src/session-store.js` binds tab, page, conversation, realtime session, and request IDs so late responses cannot cross conversation boundaries.
 5. **Reconstruction** — `src/capture.js`, `src/request-capture.js`, and `src/battles.js` turn transport evidence into Agent messages, evaluation lanes, request outcomes, and provenance.
 6. **Export/archive** — `src/export-builder.js`, `src/markdown.js`, `src/archive-layout.js`, and the archive sinks produce schema-2.1-compatible JSON/Markdown and destination-aware folder trees.
-7. **Backup** — `src/backup-store.js` stores a credential-free IndexedDB outbox; `src/github-backup.js` uploads the newest snapshot for each conversation to a configured private repository.
-8. **Interface** — `src/popup.*` and `src/options.*` are dependency-free controllers over the same explicit message boundary.
+7. **Native host** — `macos/ArenaArchive/Sources/NativeHost` implements browser stdio framing; `NativeHostCore` owns protocol validation and safe writes. `tools/install-native-host.mjs` installs a local browser manifest.
+8. **Backup** — `src/backup-store.js` stores a credential-free IndexedDB outbox; `src/github-backup.js` uploads the newest snapshot for each conversation to a configured private repository.
+9. **Streaming and schema** — `src/streaming-export.js` emits JSONL/Markdown chunks; `schemas/export-2.1.schema.json` defines the compatibility contract.
+10. **Interface** — `src/popup.*` and `src/options.*` are dependency-free controllers over the same explicit message boundary.
 
 ## Compatibility rules
 

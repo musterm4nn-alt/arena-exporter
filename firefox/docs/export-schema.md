@@ -13,7 +13,7 @@ Schema 2.1 remains the compatibility contract through the 2.2 extension release.
 | `direct` / `direct-battle` | `battles[]` | A only | `not_applicable` |
 | `side-by-side` | `battles[]` | A and B | `not_applicable` |
 
-The existing `battles` name remains the compatibility container for selected-model evaluation turns. `mode` on each round identifies its actual semantics. `neither_good` is the canonical outcome for a negative Battle ballot; older `both_bad` values are accepted as legacy input but are not emitted by 2.2.
+The existing `battles` name remains the compatibility container for selected-model evaluation turns. `mode` on each round identifies its actual semantics. `neither_good` is the canonical outcome for a negative Battle ballot; older `both_bad` values are accepted as legacy input but are not emitted by 2.2. JSONL is an additive transport format: each line is one of the records described in [streaming-exports.md](streaming-exports.md), with its own [streaming-2.1.schema.json](../schemas/streaming-2.1.schema.json). `npm run schema:check` validates both the generated JSON document and every JSONL record against the dependency-free Draft 2020-12 validator (the schema subset used by this project).
 
 History API backfill can retain a single Direct answer as a user/assistant pair in `messages[]`; its observed mode and separately stored model ID are still preserved.
 

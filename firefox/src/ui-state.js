@@ -42,6 +42,7 @@ function getStateSummary(s, snapshot) {
     lastSync: s.lastSync || null,
     archiveRel: s.archiveRel || null,
     nativeSink: typeof AE.nativeLastStatus === "function" ? AE.nativeLastStatus() : null,
+    archiveEncryption: AE.archiveEncryption && AE.archiveEncryption.status ? AE.archiveEncryption.status() : null,
     requestOutcome: latestRequestOutcome(s)
   };
 }

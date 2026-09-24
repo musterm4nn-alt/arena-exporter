@@ -50,7 +50,7 @@
     U.setText("stat-artifacts", U.number(counts.artifact));
     $("btn-folder").disabled = !AEView.conversationKey(tab.url);
     U.setText("btn-folder", st.nativeSink && st.nativeSink.state === "ok" ? "Folder path" : "Open folder");
-    U.setText("sink-status", failed ? "Save failed · " + (st.lastSync.error || "Try again") : st.lastSync && st.lastSync.ok ? "Saved " + U.date(st.lastSync.at, true) : st.nativeSink && st.nativeSink.state === "ok" ? "Archive app connected" : "Downloads / arena-archive");
+    U.setText("sink-status", failed ? "Save failed · " + (st.lastSync.error || "Try again") : st.archiveEncryption && st.archiveEncryption.enabled && !st.archiveEncryption.unlocked ? "Archive locked · unlock in Preferences" : st.lastSync && st.lastSync.ok ? "Saved " + U.date(st.lastSync.at, true) : st.nativeSink && st.nativeSink.state === "ok" ? "Archive app connected" : "Downloads / arena-archive");
     $("archive-dot").className = "dot " + (failed ? "error" : st.lastSync && st.lastSync.ok ? "ok" : "idle");
 
     var warnings = st.warnings || [];
@@ -99,14 +99,16 @@
   }
 
   function updateExportLabel() {
-    U.setText("export-label", "Export " + ($("export-format").value === "markdown" ? "Markdown" : "JSON"));
-    U.setText("scope-hint", scope === "last_message" ? "The last answer, with its triggering prompt." : "Includes messages, reasoning, tools and available files.");
+    var format = $("export-format").value;
+    U.setText("export-label", "Export " + (format === "markdown" ? "Markdown" : format === "jsonl" ? "JSONL" : "JSON"));
+    U.setText("scope-hint", scope === "last_message" ? "The last answer, with its triggering prompt." : format === "jsonl" ? "Newline-delimited records for large conversations and streaming tools." : "Includes messages, reasoning, tools and available files.");
   }
 
   document.querySelectorAll('input[name="scope"]').forEach(function (input) {
     input.addEventListener("change", function () { scope = input.value; updateExportLabel(); });
   });
   U.on("export-format", "change", updateExportLabel);
+  updateExportLabel();
   U.on("btn-full", "click", function () {
     return U.run("btn-full", "Preparing export…", async function () {
       var request = Object.assign({ type: "AE_EXPORT", mode: scope, format: $("export-format").value, save: true }, await context(true));

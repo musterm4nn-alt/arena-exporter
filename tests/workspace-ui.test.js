@@ -18,5 +18,18 @@ const entries=Array.from({length:25},(_,i)=>({key:'c:'+i,title:i===0?'Unique wea
   await firefox.fire('github-form','submit');assert.equal(firefoxRequests[0].data_collection.length,3);assert.equal(firefox.last('AE_GITHUB_CONFIGURE'),undefined);
   const thrown=await uiFixture('options',{setup:c=>{c.chrome.permissions.request=()=>{throw new Error('Permission request failed');};}});
   await thrown.fire('github-form','submit');assert.equal(thrown.document.getElementById('progress-msg').textContent,'Permission request failed');assert.equal(thrown.document.getElementById('github-connect').disabled,false);
-  console.log('Library search, filtering, pagination, folder/Arena actions, empty states, backup labels and diagnostics passed');
+  const locked=await uiFixture('options',{respond:m=>{
+    if(m.type==='AE_PREFERENCES')return {ok:true,preferences:{autoArchive:true,archiveEncryption:{enabled:true}},encryption:{enabled:true,unlocked:false}};
+    if(m.type==='AE_SET_ARCHIVE_ENCRYPTION')return {ok:true,encryption:{enabled:false,unlocked:false},preferences:{autoArchive:true,archiveEncryption:{enabled:false}}};
+    return undefined;
+  }});
+  await locked.tick();
+  const encryptionToggle=locked.document.getElementById('archive-encryption');
+  encryptionToggle.checked=false;
+  await encryptionToggle.fire('change');
+  locked.document.getElementById('encryption-password').value='current password';
+  locked.document.getElementById('encryption-confirm').value='current password';
+  await locked.fire('btn-encryption-save');
+  assert.equal(locked.last('AE_SET_ARCHIVE_ENCRYPTION').enabled,false,'disabling a locked archive must not take the unlock path');
+  console.log('Library search, filtering, pagination, folder/Arena actions, empty states, backup labels, diagnostics, and locked-encryption disable flow passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});

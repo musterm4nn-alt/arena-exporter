@@ -268,8 +268,46 @@ var AE = AE || {};
   // Storage returns copies, so serialize the complete read/write transaction
   // across conversations and destinations. A failed job must not jam the queue.
   var archiveWriteQueue = Promise.resolve();
+  function encryptionMigrationBlock(payload) {
+    var session = payload && payload.session || {};
+    var key = session.conversation_key || session.session_id;
+    if (!key) return Promise.resolve(null);
+    return AE.archiveIndexLoad().then(function (index) {
+      var existing = index[key];
+      if (!existing) return null;
+      if (!existing.encrypted && Object.keys(existing.hashes || {}).some(function (file) { return file !== AE.ARCHIVE_INDEX; })) {
+        return "This conversation already has plaintext archive files. Move or remove that archive before enabling encryption.";
+      }
+      var destinations = existing.destinations || {};
+      var hasPlaintext = Object.keys(destinations).some(function (destination) {
+        var state = destinations[destination] || {};
+        if (state.encrypted) return false;
+        return Object.keys(state.hashes || {}).some(function (file) { return file !== AE.ARCHIVE_INDEX; });
+      });
+      return hasPlaintext ? "This conversation already has plaintext archive files. Move or remove that archive before enabling encryption." : null;
+    });
+  }
   AE.writeArchive = function (payload, files, opts) {
-    var task = archiveWriteQueue.then(function () { return writeArchive(payload, files, opts); });
+    opts = opts || {};
+    var task = archiveWriteQueue.then(function () {
+      if (!opts._encrypted && AE.archiveEncryption && AE.archiveEncryption.status().enabled) {
+        if (!AE.archiveEncryption.isUnlocked()) {
+          return { ok: false, error: "Unlock encrypted archives before saving.", failed: [{ path: "conversation.enc", error: "archive encryption is locked" }] };
+        }
+        return encryptionMigrationBlock(payload).then(function (migrationError) {
+          if (migrationError) return { ok: false, error: migrationError, failed: [{ path: "conversation.enc", error: migrationError }] };
+          return sha256Hex(JSON.stringify({
+            fingerprint: AE.archiveEncryption.fingerprint ? AE.archiveEncryption.fingerprint() : null,
+            files: (files || []).map(function (file) { return [file.path, file.encoding || "utf8", file.content]; })
+          })).then(function (sourceHash) {
+            return AE.archiveEncryption.encryptFiles(files || []).then(function (content) {
+              return writeArchive(payload, [{ path: "conversation.enc", encoding: "utf8", content: content }], Object.assign({}, opts, { _encrypted: true, encrypted: true, sourceHash: sourceHash }));
+            });
+          });
+        });
+      }
+      return writeArchive(payload, files, opts);
+    });
     archiveWriteQueue = task.catch(function () {});
     return task.catch(function (err) {
       return { ok: false, error: String(err && err.message || err), failed: [{ path: INDEX_KEY, error: String(err && err.message || err) }] };
@@ -330,7 +368,8 @@ var AE = AE || {};
           return;
         }
         chain = chain.then(function () {
-          return sha256Hex((f.encoding || "utf8") + "\n" + f.content).then(function (h) {
+          var contentHash = opts.encrypted && opts.sourceHash && filePath === "conversation.enc" ? Promise.resolve(opts.sourceHash) : sha256Hex((f.encoding || "utf8") + "\n" + f.content);
+          return contentHash.then(function (h) {
             nextHashes[filePath] = h;
             if (hashes[filePath] === h) { skipped++; return; }
             jobs.push({
@@ -358,7 +397,7 @@ var AE = AE || {};
           var detail = payload.meta && payload.meta.completeness_detail;
           if (!detail && AE.scoreCompleteness) detail = AE.scoreCompleteness(payload);
           var inferredSub = (AE.firstBattleSubtype && AE.firstBattleSubtype(payload)) || subtype;
-          destinations[destination] = { hashes: keep, updated_at: new Date().toISOString(), rel: rel };
+          destinations[destination] = { hashes: keep, updated_at: new Date().toISOString(), rel: rel, encrypted: !!opts.encrypted, encryption_format: opts.encrypted && AE.archiveEncryption ? AE.archiveEncryption.format : null };
           index[key] = {
             rel: rel,
             mode: (payload.export && payload.export.source && payload.export.source.mode) || ((payload.battles || []).length ? "battle" : "agent"),
@@ -374,11 +413,13 @@ var AE = AE || {};
             completeness: detail ? detail.status : (payload.meta && payload.meta.completeness) || null,
             completeness_detail: detail || null,
             files_with_bytes: detail && detail.files ? detail.files.withBytes : null,
-            files_expected: detail && detail.files ? detail.files.expected : null
+            files_expected: detail && detail.files ? detail.files.expected : null,
+            encrypted: !!opts.encrypted,
+            encryption_format: opts.encrypted && AE.archiveEncryption ? AE.archiveEncryption.format : null
           };
           if (index[key].mode === "agent") index[key].models_pending = false;
           destinations[destination].entry = {};
-          ["mode", "subtype", "title", "url", "models", "models_pending", "turns"].forEach(function (field) {
+          ["mode", "subtype", "title", "url", "models", "models_pending", "turns", "encrypted", "encryption_format"].forEach(function (field) {
             destinations[destination].entry[field] = index[key][field];
           });
 

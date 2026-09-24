@@ -1,7 +1,7 @@
 /* Archive workspace controller: library, backup, preferences, and diagnostics. */
 (function () {
   "use strict";
-  var U = AEUI, $ = U.$, entries = [], mode = "all", page = 0, pageSize = 20, backup = null, diagnostic = null, importing = false;
+  var U = AEUI, $ = U.$, entries = [], mode = "all", page = 0, pageSize = 20, backup = null, diagnostic = null, encryption = null, importing = false;
   U.version();
 
   function navigate(view) {
@@ -57,6 +57,7 @@
       var completenessText = completeness.label;
       if (entry.subtype && entry.subtype !== "text") completenessText = entry.subtype + " · " + completenessText;
       secondary.appendChild(U.element("span", "completeness-label " + completeness.tone, completenessText));
+      if (entry.encrypted) secondary.appendChild(U.element("span", "mode-chip", "Encrypted"));
       titleCell.appendChild(secondary);
       tr.appendChild(titleCell);
 
@@ -147,6 +148,27 @@
     U.setText("backup-summary-note", status.lastSuccess && !status.pending && !status.error ? "Last upload " + U.date(status.lastSuccess) : status.enabled ? "Your private repository" : "Connect in GitHub backup");
   }
 
+  function renderEncryption(status, preferences) {
+    encryption = status || null;
+    var enabled = !!(encryption && encryption.enabled);
+    var unlocked = !!(encryption && encryption.unlocked);
+    $("archive-encryption").checked = enabled;
+    U.show("encryption-settings", enabled);
+    U.setText("btn-encryption-save", enabled ? (unlocked ? "Password active" : "Unlock archive") : "Enable encryption");
+    $("btn-encryption-save").disabled = enabled && unlocked;
+    U.show("btn-encryption-lock", enabled && unlocked);
+    if (!enabled) {
+      U.setText("encryption-status", "New archives are stored as ordinary local files.");
+    } else if (unlocked) {
+      U.setText("encryption-status", "Encryption is unlocked for this browser session. New bundles are sealed with AES-GCM.", "success");
+    } else {
+      U.setText("encryption-status", "Encryption is enabled but locked. Enter the password before saving a new archive.", "warning");
+    }
+    if (preferences && preferences.archiveEncryption) {
+      $("archive-encryption").checked = !!preferences.archiveEncryption.enabled;
+    }
+  }
+
   function githubPermission() {
     // Chrome also exposes `browser`; only Firefox exposes getBrowserInfo.
     if (typeof browser !== "undefined" && browser.runtime && typeof browser.runtime.getBrowserInfo === "function") {
@@ -214,6 +236,38 @@
       U.feedback(error.message, "error");
     } finally { $("auto-archive").disabled = false; }
   });
+  U.on("archive-encryption", "change", function () {
+    var enabled = $("archive-encryption").checked;
+    U.show("encryption-settings", enabled);
+    if (!enabled) {
+      $("btn-encryption-save").disabled = false;
+      U.setText("encryption-status", "Saving is still encrypted until you confirm the change below.");
+    }
+  });
+  U.on("btn-encryption-save", "click", function () {
+    return U.run("btn-encryption-save", "Configuring archive encryption…", async function () {
+      var enabled = $("archive-encryption").checked;
+      var password = $("encryption-password").value;
+      var confirm = $("encryption-confirm").value;
+      if ((enabled || (encryption && encryption.enabled)) && password !== confirm) throw new Error("The archive passwords do not match.");
+      if (!enabled && encryption && encryption.enabled && !password) throw new Error("Enter the current archive password to disable encryption.");
+      var unlocking = !!(enabled && encryption && encryption.enabled && !encryption.unlocked);
+      var result = U.require(await U.send({ type: unlocking ? "AE_UNLOCK_ARCHIVE_ENCRYPTION" : "AE_SET_ARCHIVE_ENCRYPTION", enabled: enabled, password: password }));
+      $("encryption-password").value = "";
+      $("encryption-confirm").value = "";
+      renderEncryption(result.encryption, result.preferences);
+      var active = !!(result.encryption && result.encryption.enabled);
+      U.feedback(active ? (unlocking ? "Encrypted archives unlocked for this browser session." : "Encrypted archives enabled for this browser session.") : "Encrypted archives disabled.", "success");
+    });
+  });
+  U.on("btn-encryption-lock", "click", function () {
+    return U.run("btn-encryption-lock", "Locking encrypted archives…", async function () {
+      var result = U.require(await U.send({ type: "AE_LOCK_ARCHIVE_ENCRYPTION" }));
+      renderEncryption(result.encryption, result.preferences);
+      U.feedback("Archive encryption is locked. New saves will pause until it is unlocked.", "warning");
+    });
+  });
+
   var silentSupported = !!(chrome.downloads && chrome.downloads.setUiOptions);
   $("chk-silent").disabled = !silentSupported;
   if (!silentSupported) U.setText("silent-note", "Unavailable in this browser.");
@@ -276,7 +330,7 @@
   });
   async function refresh() {
     try {
-      await Promise.all([loadLibrary(), U.send({ type: "AE_GITHUB_STATUS" }).then(function (status) { renderBackup(status); }), U.send({ type: "AE_PREFERENCES" }).then(function (result) { if (result.ok) $("auto-archive").checked = result.preferences.autoArchive; })]);
+      await Promise.all([loadLibrary(), U.send({ type: "AE_GITHUB_STATUS" }).then(function (status) { renderBackup(status); }), U.send({ type: "AE_PREFERENCES" }).then(function (result) { if (result.ok) { $("auto-archive").checked = result.preferences.autoArchive; renderEncryption(result.encryption, result.preferences); } })]);
     } catch (error) { U.feedback(error.message, "error"); U.show("library-loading", false); }
   }
   async function init() {

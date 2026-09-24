@@ -7,7 +7,7 @@ function fence(lang, text) {
   return "```" + (lang || "") + "\n" + body + "\n```";
 }
 
-AE.renderMarkdown = function (payload) {
+AE.iterateMarkdownChunks = function (payload) {
   payload = payload || {};
   var session = payload.session || {};
   var battles = payload.battles || [];
@@ -122,5 +122,9 @@ AE.renderMarkdown = function (payload) {
     lines.push("");
   }
 
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+  return lines;
+};
+
+AE.renderMarkdown = function (payload) {
+  return AE.iterateMarkdownChunks(payload).join("\n").replace(/\n{3,}/g, "\n\n");
 };

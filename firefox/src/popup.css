@@ -262,6 +262,10 @@ select { min-height: 34px; padding: 5px 28px 5px 9px; }
 .settings-form { display: grid; gap: 7px; margin-top: 18px; }
 .settings-form label, .settings-row h3 { color: var(--paper); font-family: var(--mono); font-size: 10px; }
 .settings-form input { width: 100%; min-height: 39px; padding: 8px 10px; }
+#encryption-settings { display: grid; gap: 7px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(170, 220, 218, .1); }
+#encryption-settings label { color: var(--muted); font-family: var(--mono); font-size: 10px; }
+#encryption-settings input { width: 100%; min-height: 38px; padding: 8px 10px; }
+#encryption-settings button { margin-top: 5px; }
 .settings-form button { margin-top: 8px; }
 .help { margin-top: -2px; color: var(--subtle) !important; font-size: 10px !important; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

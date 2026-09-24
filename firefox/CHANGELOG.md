@@ -8,6 +8,9 @@
 - Canonicalized the Battle `neither_good` outcome and retained legacy input compatibility.
 - Added architecture/security documentation, project checks, and a dedicated overhaul regression suite.
 - Hardened callback/Promise storage compatibility, native-host timeouts, history-request timeouts, archive size diagnostics, and macOS archive path/layout handling.
+- Added the `ArenaArchiveHost` Swift executable, protocol core tests, a native-host manifest installer, and byte-bounded native write batching.
+- Added optional AES-GCM/PBKDF2 encrypted `conversation.enc` bundles (format v2) with separate non-persisted keys, verifier-only storage, explicit locked states, migration refusal, and a local recovery CLI that accepts legacy v1 bundles.
+- Added JSONL streaming exports, Draft 2020-12 export/JSONL schema validation, browser acceptance tooling, and a local build/checksum/manifest pipeline.
 - Preserved the Chrome public key, Firefox ID, schema 2.1, storage keys, archive layout, and existing runtime message contracts.
 
 ## 2.1.3 — 2026-09-12

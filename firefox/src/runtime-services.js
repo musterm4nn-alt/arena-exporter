@@ -3,7 +3,7 @@ var AE = AE || {};
 (function () {
   "use strict";
   var cache = new WeakMap(), notificationTimer = null, issues = [];
-  var defaults = { autoArchive: true };
+  var defaults = { autoArchive: true, archiveEncryption: null };
 
   function storageSetLocal(value) {
     return new Promise(function (resolve, reject) {
@@ -28,6 +28,8 @@ var AE = AE || {};
   }).then(function (stored) {
     var prefs = stored && stored.ae_preferences;
     AE.preferences.autoArchive = !(prefs && prefs.autoArchive === false);
+    AE.preferences.archiveEncryption = prefs && prefs.archiveEncryption || null;
+    if (AE.archiveEncryption && AE.archiveEncryption.restore) AE.archiveEncryption.restore(AE.preferences.archiveEncryption);
     autoArchiveEnabled = AE.preferences.autoArchive;
   }).catch(function () { AE.recordIssue("settings", "read_failed"); });
 
@@ -84,9 +86,21 @@ var AE = AE || {};
         storage_errors: sessions.filter(function (s) { return s.storageError; }).length
       },
       auto_archive: AE.preferences.autoArchive,
+      archive_encryption: AE.archiveEncryption ? AE.archiveEncryption.status() : null,
       archive_limits: AE.archiveLimits,
       issues: issues.slice(),
       privacy: "Contains counts, limits, and diagnostic codes only. Conversation text, titles, URLs, and credentials are excluded."
+    };
+  };
+  AE.publicPreferences = function () {
+    return {
+      autoArchive: AE.preferences.autoArchive,
+      archiveEncryption: AE.archiveEncryption ? {
+        enabled: AE.archiveEncryption.status().enabled,
+        unlocked: AE.archiveEncryption.status().unlocked,
+        format: AE.archiveEncryption.status().format,
+        version: AE.archiveEncryption.status().version
+      } : null
     };
   };
   AE.libraryEntries = async function () {
@@ -100,6 +114,7 @@ var AE = AE || {};
         completeness_detail: entry.completeness_detail || null,
         models_pending: !!entry.models_pending,
         files_expected: entry.files_expected, files_with_bytes: entry.files_with_bytes,
+        encrypted: !!entry.encrypted, encryption_format: entry.encryption_format || null,
         destinations: Object.keys(entry.destinations || {}) };
     }).sort(function (a, b) { return String(b.updated_at || "").localeCompare(String(a.updated_at || "")); });
   };
@@ -116,7 +131,7 @@ var AE = AE || {};
       "Arena conversation archive. This file lets the extension open this folder.\n", { reveal: true });
   };
   AE.handleWorkspaceMessage = function (msg, sender, respond) {
-    if (!["AE_PREFERENCES", "AE_SET_PREFERENCES", "AE_LIBRARY", "AE_OPEN_ARCHIVED_FOLDER", "AE_DIAGNOSTICS"].includes(msg.type)) return false;
+    if (!["AE_PREFERENCES", "AE_SET_PREFERENCES", "AE_SET_ARCHIVE_ENCRYPTION", "AE_UNLOCK_ARCHIVE_ENCRYPTION", "AE_LOCK_ARCHIVE_ENCRYPTION", "AE_LIBRARY", "AE_OPEN_ARCHIVED_FOLDER", "AE_DIAGNOSTICS"].includes(msg.type)) return false;
     var page = String(sender && sender.url || "").split(/[?#]/)[0];
     if (!sender || sender.id !== chrome.runtime.id ||
         ![chrome.runtime.getURL("src/options.html"), chrome.runtime.getURL("src/popup.html")].includes(page)) {
@@ -125,15 +140,36 @@ var AE = AE || {};
     Promise.all([stateReadyPromise, AE.preferencesReady]).then(async function () {
       if (msg.type === "AE_SET_PREFERENCES") {
         if (!msg.preferences || typeof msg.preferences.autoArchive !== "boolean") throw new Error("Choose an automatic archive setting.");
-        var next = { autoArchive: msg.preferences.autoArchive };
+        var next = Object.assign({}, AE.preferences, { autoArchive: msg.preferences.autoArchive });
         await storageSetLocal({ ae_preferences: next });
         AE.preferences = next;
         autoArchiveEnabled = next.autoArchive;
         if (!autoArchiveEnabled) Object.keys(turnSyncTimers).forEach(function (key) { clearTimeout(turnSyncTimers[key]); delete turnSyncTimers[key]; });
         AE.notifyUI();
-        return { ok: true, preferences: next };
+        return { ok: true, preferences: AE.publicPreferences() };
       }
-      if (msg.type === "AE_PREFERENCES") return { ok: true, preferences: AE.preferences };
+      if (msg.type === "AE_SET_ARCHIVE_ENCRYPTION") {
+        if (!AE.archiveEncryption) throw new Error("Encrypted archives are unavailable in this runtime.");
+        var record = await AE.archiveEncryption.configure(msg.password || "", msg.enabled !== false);
+        var encryptedPreferences = Object.assign({}, AE.preferences, { archiveEncryption: record });
+        await storageSetLocal({ ae_preferences: encryptedPreferences });
+        AE.preferences = encryptedPreferences;
+        AE.notifyUI();
+        return { ok: true, encryption: AE.archiveEncryption.status(), preferences: AE.publicPreferences() };
+      }
+      if (msg.type === "AE_UNLOCK_ARCHIVE_ENCRYPTION") {
+        if (!AE.archiveEncryption) throw new Error("Encrypted archives are unavailable in this runtime.");
+        await AE.archiveEncryption.unlock(msg.password || "");
+        AE.notifyUI();
+        return { ok: true, encryption: AE.archiveEncryption.status(), preferences: AE.publicPreferences() };
+      }
+      if (msg.type === "AE_LOCK_ARCHIVE_ENCRYPTION") {
+        if (!AE.archiveEncryption) throw new Error("Encrypted archives are unavailable in this runtime.");
+        AE.archiveEncryption.lock();
+        AE.notifyUI();
+        return { ok: true, encryption: AE.archiveEncryption.status(), preferences: AE.publicPreferences() };
+      }
+      if (msg.type === "AE_PREFERENCES") return { ok: true, preferences: AE.publicPreferences(), encryption: AE.archiveEncryption ? AE.archiveEncryption.status() : null };
       if (msg.type === "AE_LIBRARY") return { ok: true, entries: await AE.libraryEntries() };
       if (msg.type === "AE_OPEN_ARCHIVED_FOLDER") return AE.openArchivedFolder(msg.key);
       return { ok: true, diagnostics: AE.diagnostics() };

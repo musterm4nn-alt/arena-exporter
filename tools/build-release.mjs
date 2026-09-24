@@ -61,7 +61,7 @@ firefox.optional_permissions = (firefox.optional_permissions || []).filter(permi
 if (!firefox.optional_permissions.length) delete firefox.optional_permissions;
 firefox.background = { scripts };
 
-const shared = new Map([...sourceFiles("src"), ...sourceFiles("icons"), ...sourceFiles("docs"), "CHANGELOG.md", "SECURITY.md"].map(file => [file, fs.readFileSync(path.join(root, file))]));
+const shared = new Map([...sourceFiles("src"), ...sourceFiles("icons"), ...sourceFiles("docs"), ...sourceFiles("schemas"), "CHANGELOG.md", "SECURITY.md"].map(file => [file, fs.readFileSync(path.join(root, file))]));
 
 function readme(browser) {
   const install = browser === "chrome"

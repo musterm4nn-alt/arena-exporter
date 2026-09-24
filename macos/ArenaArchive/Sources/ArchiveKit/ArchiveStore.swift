@@ -94,15 +94,22 @@ public final class ArchiveStore {
         if parts.isEmpty || parts.contains("..") || parts.contains(".") {
             throw NSError(domain: "ArchiveKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "illegal path"])
         }
+        let rootURL = root.standardizedFileURL.resolvingSymlinksInPath()
         let url = root.appendingPathComponent(parts.joined(separator: "/")).standardizedFileURL
-        let rootPath = root.standardizedFileURL.path
-        let destPath = url.path
-        if destPath == rootPath { return url }
+        let resolvedURL = url.resolvingSymlinksInPath()
+        let rootPath = rootURL.path
+        let destPath = resolvedURL.path
+        if FileManager.default.fileExists(atPath: url.path),
+           let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let type = attributes[.type] as? FileAttributeType, type == .typeSymbolicLink {
+            throw NSError(domain: "ArchiveKit", code: 6, userInfo: [NSLocalizedDescriptionKey: "symbolic-link output is not allowed"])
+        }
+        if destPath == rootPath { return resolvedURL }
         let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
         if !destPath.hasPrefix(prefix) {
             throw NSError(domain: "ArchiveKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "path escapes archive root"])
         }
-        return url
+        return resolvedURL
     }
 
     public func writeUTF8(rel: String, content: String) throws {
@@ -120,6 +127,9 @@ public final class ArchiveStore {
             value = decoded
         } else {
             value = Data(content.utf8)
+        }
+        guard value.count <= 32 * 1024 * 1024 else {
+            throw NSError(domain: "ArchiveKit", code: 5, userInfo: [NSLocalizedDescriptionKey: "file exceeds 32 MiB"])
         }
         let url = try safeRelpath(rel)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

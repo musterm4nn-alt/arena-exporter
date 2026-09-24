@@ -46,6 +46,7 @@
     "scripts": [
       "src/lib/schema.js",
       "src/lib/privacy.js",
+      "src/encrypted-archive.js",
       "src/lib/page-data.js",
       "src/lib/normalize.js",
       "src/lib/evaluation-stream.js",
@@ -56,6 +57,7 @@
       "src/archive-layout.js",
       "src/capture-health.js",
       "src/markdown.js",
+      "src/streaming-export.js",
       "src/downloads-sink.js",
       "src/native-sink.js",
       "src/backup-store.js",

@@ -162,7 +162,7 @@ var AE = AE || {};
       var session = payload.session || {}, key = session.conversation_key || session.session_id;
       var index = await AE.archiveIndexLoad(), source = index[key] || {};
       var entry = { rel: result.rel };
-      ["mode", "subtype", "title", "url", "models", "models_pending", "updated_at", "turns", "completeness", "completeness_detail", "files_expected", "files_with_bytes"].forEach(function (field) { entry[field] = source[field]; });
+      ["mode", "subtype", "title", "url", "models", "models_pending", "updated_at", "turns", "completeness", "completeness_detail", "files_expected", "files_with_bytes", "encrypted", "encryption_format"].forEach(function (field) { entry[field] = source[field]; });
       result.backup = await AE.githubEnqueue(key, result.rel, files, entry);
     } catch (error) {
       result.backup = { queued: false, error: "Could not queue the GitHub backup. Retry Write to archive now." };

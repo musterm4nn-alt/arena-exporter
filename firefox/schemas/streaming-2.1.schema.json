@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arena-exporter.local/schemas/streaming-2.1.schema.json",
+  "title": "Arena Exporter JSONL record schema 2.1",
+  "description": "Each non-empty line in a 2.1 JSONL export is one of these records.",
+  "oneOf": [
+    { "$ref": "#/$defs/header" },
+    { "$ref": "#/$defs/message" },
+    { "$ref": "#/$defs/battle" },
+    { "$ref": "#/$defs/attribution" },
+    { "$ref": "#/$defs/footer" }
+  ],
+  "$defs": {
+    "header": {
+      "type": "object",
+      "required": ["type", "schema_version", "export", "session"],
+      "properties": {
+        "type": { "const": "arena.export.header" },
+        "schema_version": { "const": "2.1" },
+        "export": { "type": "object" },
+        "session": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "message": {
+      "type": "object",
+      "required": ["type", "message"],
+      "properties": {
+        "type": { "const": "message" },
+        "message": { "type": "object", "required": ["role", "content"] }
+      },
+      "additionalProperties": false
+    },
+    "battle": {
+      "type": "object",
+      "required": ["type", "battle"],
+      "properties": {
+        "type": { "const": "battle" },
+        "battle": { "type": "object", "required": ["mode", "contestants"] }
+      },
+      "additionalProperties": false
+    },
+    "attribution": {
+      "type": "object",
+      "required": ["type", "sample"],
+      "properties": {
+        "type": { "const": "attribution" },
+        "sample": { "type": "object", "required": ["sample_id", "conversation_key", "mode", "blocks"] }
+      },
+      "additionalProperties": false
+    },
+    "footer": {
+      "type": "object",
+      "required": ["type", "summary", "meta"],
+      "properties": {
+        "type": { "const": "arena.export.footer" },
+        "summary": { "type": "object" },
+        "meta": { "type": "object" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

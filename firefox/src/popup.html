@@ -43,7 +43,7 @@
           <label><input type="radio" name="scope" value="full_history" checked><span>Full conversation</span></label>
           <label><input type="radio" name="scope" value="last_message"><span>Last answer</span></label>
         </fieldset>
-        <div class="export-controls"><label class="format-label" for="export-format">Format</label><select id="export-format"><option value="json">JSON · structured</option><option value="markdown">Markdown · readable</option></select></div>
+        <div class="export-controls"><label class="format-label" for="export-format">Format</label><select id="export-format"><option value="json">JSON · structured</option><option value="jsonl">JSONL · streamable</option><option value="markdown">Markdown · readable</option></select></div>
         <div class="export-button-row"><button id="btn-full" class="primary grow"><span aria-hidden="true">↓</span> <span id="export-label">Export JSON</span></button><button id="btn-copy" class="secondary" title="Copy the selected export to clipboard">Copy</button></div>
         <p id="scope-hint" class="small muted hint">Includes messages, reasoning, tools and available files.</p>
       </section>

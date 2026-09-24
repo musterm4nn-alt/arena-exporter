@@ -24,8 +24,11 @@ assert(firefox.manifest_version === 3, "Firefox manifest must remain Manifest V3
 assert(manifest.background && manifest.background.service_worker === "src/background.js", "Chrome background service worker changed unexpectedly");
 assert(Array.isArray(firefox.background && firefox.background.scripts) && firefox.background.scripts.at(-1) === "src/background.js", "Firefox ordered background scripts are incomplete");
 [
-  "src/background.js", "src/injected-main.js", "src/injected-content.js", "src/popup.html", "src/options.html",
-  "src/fonts/DepartureMono-Regular.woff2", "docs/architecture.md", "docs/security.md", "SECURITY.md", "macos/ArenaArchive/Package.swift"
+  "src/background.js", "src/encrypted-archive.js", "src/streaming-export.js", "src/injected-main.js", "src/injected-content.js", "src/popup.html", "src/options.html",
+  "src/fonts/DepartureMono-Regular.woff2", "docs/architecture.md", "docs/security.md", "SECURITY.md",
+  "macos/ArenaArchive/Package.swift", "macos/ArenaArchive/Sources/NativeHostCore/NativeHostCore.swift",
+  "macos/ArenaArchive/Sources/NativeHost/main.swift", "macos/ArenaArchive/Sources/ArenaArchiveApp/ArenaArchiveApp.swift", "macos/ArenaArchive/Resources/com.arenaarchive.host.chrome.json", "macos/ArenaArchive/Resources/com.arenaarchive.host.firefox.json", "tools/install-native-host.mjs", "tools/native-host-manifest.mjs",
+  "schemas/export-2.1.schema.json", "schemas/streaming-2.1.schema.json", "tools/validate-schema.mjs", "tools/acceptance.mjs", "tools/decrypt-archive.mjs", "tools/release-local.mjs"
 ].forEach(requireFile);
 
 for (const file of ["src/popup.html", "src/options.html"]) {
@@ -43,8 +46,11 @@ const css = fs.readFileSync(path.join(root, "src/popup.css"), "utf8");
 assert(!/url\(["']?https?:\/\//i.test(css), "popup.css loads a remote asset");
 assert(css.includes("prefers-reduced-motion"), "reduced-motion treatment is missing");
 assert(css.includes(":focus-visible"), "keyboard focus treatment is missing");
+const swiftPackage = fs.readFileSync(path.join(root, "macos/ArenaArchive/Package.swift"), "utf8");
+assert(swiftPackage.includes('executableTarget(name: "ArenaArchiveHost"'), "Swift native-host target is missing");
+assert(swiftPackage.includes('path: "Sources/NativeHost"'), "Swift native-host source path is not explicit");
 
-for (const file of sourceFiles("src").filter(file => file.endsWith(".js"))) {
+for (const file of [...sourceFiles("src").filter(file => file.endsWith(".js")), ...sourceFiles("tools").filter(file => /\.(?:js|mjs)$/.test(file))]) {
   const check = spawnSync(process.execPath, ["--check", path.join(root, file)], { encoding: "utf8" });
   if (check.status !== 0) failures.push(`syntax error in ${file}: ${(check.stderr || "").trim()}`);
 }

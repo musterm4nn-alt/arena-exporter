@@ -12,8 +12,9 @@ var AE = AE || {};
 
   AE.NATIVE_HOST = "com.arenaarchive.host";
   AE.NATIVE_BATCH = 80;
+  AE.NATIVE_BATCH_BYTES = 8 * 1024 * 1024;
   AE.NATIVE_MAX_BYTES = 32 * 1024 * 1024;
-  AE.NATIVE_HINT = "Open Arena Archive and pick a folder";
+  AE.NATIVE_HINT = "Open Arena Archive and choose a folder, or use its default Downloads folder";
 
   var HELLO_MS = 4000;
   var WRITE_MS = 20000;
@@ -320,10 +321,19 @@ var AE = AE || {};
       jobForRel[enc.file.rel] = job;
     });
 
-    var batches = [];
-    for (var i = 0; i < files.length; i += AE.NATIVE_BATCH) {
-      batches.push(files.slice(i, i + AE.NATIVE_BATCH));
-    }
+    var batches = [], current = [], currentBytes = 0;
+    files.forEach(function (file) {
+      var content = file.content || "";
+      var bytes = file.encoding === "base64" ? Math.ceil(content.length * 3 / 4) : new TextEncoder().encode(content).byteLength;
+      if (current.length && (current.length >= AE.NATIVE_BATCH || currentBytes + bytes > AE.NATIVE_BATCH_BYTES)) {
+        batches.push(current);
+        current = [];
+        currentBytes = 0;
+      }
+      current.push(file);
+      currentBytes += bytes;
+    });
+    if (current.length) batches.push(current);
 
     var chain = Promise.resolve();
     batches.forEach(function (batch) {

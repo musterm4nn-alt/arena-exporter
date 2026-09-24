@@ -15,6 +15,7 @@ if command -v swift >/dev/null; then
   else
     echo "skipping: swift test (XCTest unavailable under ${DEVELOPER_DIR_PATH:-no developer dir}; ArchiveKitProbe covers the same assertions)"
   fi
+  (cd macos/ArenaArchive && swift build --product ArenaArchiveHost)
   (cd macos/ArenaArchive && swift run ArchiveKitProbe)
 fi
 echo "ALL SUITES OK"

@@ -40,6 +40,7 @@ The interceptor starts at `document_start`. Open an Arena conversation, then use
 - **Full conversation** or **Last answer** export scope
 - JSON or Markdown download
 - Copy to clipboard
+- JSONL provides newline-delimited records for large conversations and streaming consumers. See [docs/streaming-exports.md](docs/streaming-exports.md).
 - **Save now** for an immediate archive write
 - Automatic archive of completed turns
 - Archive folder reveal/recovery
@@ -57,7 +58,7 @@ Model UUIDs, page catalog labels, message IDs, and transport IDs are intentional
 - Agent orchestrator identity remains unknown unless Arena explicitly reveals it.
 - Incidental UUIDs, selector flags, tool arguments, and leaderboard data never become model identity.
 
-See [docs/export-schema.md](docs/export-schema.md) for the schema contract and [docs/architecture.md](docs/architecture.md) for runtime boundaries.
+See [docs/export-schema.md](docs/export-schema.md) for the schema contract and [`schemas/export-2.1.schema.json`](schemas/export-2.1.schema.json) for the machine-readable contract. [docs/architecture.md](docs/architecture.md) documents runtime boundaries.
 
 ## Privacy
 
@@ -70,6 +71,16 @@ The extension filters known credential keys, authorization headers, cookies, CAP
 Conversation exports intentionally contain conversation content and files. Credential filtering is not general anonymization. See [docs/security.md](docs/security.md).
 
 ## Archive layout
+
+Archive encryption is opt-in from **Preferences → Private archives**. It derives separate AES-GCM key and verifier values with PBKDF2-SHA-256, stores no password or AES key, and pauses new saves when locked. Encrypted conversations are written as a `conversation.enc` bundle. Disabling encryption requires the current password; known plaintext archive files cause a migration warning instead of being silently mixed with sealed files. Native-host bundles remain subject to the documented 32 MiB per-file limit. Use the recovery tool for sealed bundles:
+
+```bash
+# PowerShell (or use ARENA_ARCHIVE_PASSWORD=... on POSIX shells)
+$env:ARENA_ARCHIVE_PASSWORD="your-password"
+node tools/decrypt-archive.mjs path/to/conversation.enc --out path/to/recovered
+```
+
+Archive index metadata such as titles and URLs remains visible in the local index; the sealed bundle protects conversation files and attachments.
 
 Without the optional native app, `chrome.downloads` writes below `Downloads/arena-archive/`:
 
@@ -93,16 +104,21 @@ The Downloads data-URL fallback is intentionally bounded. Large attachments may 
 
 ## Optional Arena Archive app
 
-The browser extension can use the native host `com.arenaarchive.host` when installed. Missing host, failed handshake, or no selected folder falls back to Downloads. The repository contains the optional macOS reader package:
+The browser extension can use the native host `com.arenaarchive.host` when installed. Missing host, failed handshake, or no selected folder falls back to Downloads. Build the local macOS reader and host:
 
 ```bash
 cd macos/ArenaArchive
-swift build --product ArenaArchive
+swift build -c release
 swift run ArenaArchive
 swift test
 ```
 
-The native messaging host itself is an external installation dependency and is not bundled in this repository.
+Install the local host manifest without contacting a remote service:
+
+```bash
+node tools/install-native-host.mjs --host "$PWD/macos/ArenaArchive/.build/release/ArenaArchiveHost" --browser chrome
+node tools/install-native-host.mjs --host "$PWD/macos/ArenaArchive/.build/release/ArenaArchiveHost" --browser firefox
+```
 
 ## GitHub backup
 
@@ -118,10 +134,13 @@ Requires Node.js 20 or newer. The project has no runtime npm dependencies.
 npm test                 # build both packages and run all JavaScript suites
 npm run build            # generate Chrome/Firefox folders and reproducible ZIPs
 npm run check:project    # validate manifests, local assets, and accessibility hooks
-npm run verify           # test + project check
+npm run schema:check     # validate a generated export against schema 2.1
+npm run verify           # test + project check + schema check
+npm run acceptance:preview # HTTP smoke; real Chromium when Playwright is installed
+npm run release:local    # build, checksum, and write a local release manifest
 npm run preview          # synthetic local UI preview; never live capture
 ```
 
 `tools/build-release.mjs` regenerates `src/injected-main.js`, `src/injected-content.js`, and the complete `firefox/` tree. Do not hand-edit those generated files.
 
-The automated suites simulate browser APIs and storage. They do not replace a live Arena acceptance check, installed Firefox check, native macOS helper check, or real GitHub network transaction. `docs/verification.md` records those limits honestly.
+The automated suites simulate browser APIs and storage. They do not replace a live Arena acceptance check, installed Firefox check, native macOS helper check, or real GitHub network transaction. `docs/verification.md` records those limits honestly. See [docs/release-local.md](docs/release-local.md) for the local artifact pipeline and [docs/streaming-exports.md](docs/streaming-exports.md) for JSONL.
