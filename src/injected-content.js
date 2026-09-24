@@ -1653,16 +1653,16 @@ var AE = AE || {};
 (function () {
   "use strict";
 
-  var UUID_RE = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
-  var PAGE_SIZE = 20;
-  var PAGE_GUARD = 200;
-  var ITEM_GAP_MS = 180;
-  var REQUEST_TIMEOUT_MS = 30000;
+  const UUID_RE = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+  const PAGE_SIZE = 20;
+  const PAGE_GUARD = 200;
+  const ITEM_GAP_MS = 180;
+  const REQUEST_TIMEOUT_MS = 30000;
 
   async function fetchWithTimeout(url, options) {
-    var controller = typeof AbortController === "function" ? new AbortController() : null;
-    var timer = setTimeout(function () { if (controller) controller.abort(); }, REQUEST_TIMEOUT_MS);
-    var requestOptions = Object.assign({}, options || {});
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = setTimeout(function () { if (controller) controller.abort(); }, REQUEST_TIMEOUT_MS);
+    const requestOptions = Object.assign({}, options || {});
     if (controller) requestOptions.signal = controller.signal;
     try {
       return await fetch(url, requestOptions);
@@ -1675,7 +1675,7 @@ var AE = AE || {};
   }
 
   AE.historyUuid = function (text) {
-    var m = UUID_RE.exec(String(text || ""));
+    const m = UUID_RE.exec(String(text || ""));
     return m ? m[1].toLowerCase() : null;
   };
 
@@ -1707,45 +1707,45 @@ var AE = AE || {};
   AE.historyNormalizeContent = asText;
 
   async function fetchJson(url) {
-    var res = await fetchWithTimeout(url, {
+    const res = await fetchWithTimeout(url, {
       method: "GET",
       credentials: "include",
       headers: { Accept: "application/json, text/plain, */*" }
     });
     if (!res.ok) {
-      var body = "";
+      let body = "";
       try { body = (await res.text()).slice(0, 240); } catch (e) { /* ignore */ }
-      var err = new Error("HTTP " + res.status + (body ? " " + body : ""));
+      const err = new Error("HTTP " + res.status + (body ? " " + body : ""));
       err.status = res.status;
       throw err;
     }
-    var json = await res.json();
+    const json = await res.json();
     return unwrapApi(json);
   }
 
   function unwrapApi(json) {
     if (!json || typeof json !== "object") return json;
-    var inner = json.payload;
+    const inner = json.payload;
     if (inner && typeof inner === "object" && !Array.isArray(inner)) {
       if (inner.entries || inner.history || inner.items || inner.messages || inner.pagination || inner.id) {
         return inner;
       }
     }
     if (json.data && typeof json.data === "object" && !Array.isArray(json.data)) {
-      var d = json.data;
+      const d = json.data;
       if (d.entries || d.history || d.items || d.messages || d.pagination || d.id) return d;
     }
     return json;
   }
 
   async function fetchText(url) {
-    var res = await fetchWithTimeout(url, {
+    const res = await fetchWithTimeout(url, {
       method: "GET",
       credentials: "include",
       headers: { Accept: "text/html,application/xhtml+xml,application/json" }
     });
     if (!res.ok) {
-      var err = new Error("HTTP " + res.status);
+      const err = new Error("HTTP " + res.status);
       err.status = res.status;
       throw err;
     }
@@ -1763,18 +1763,18 @@ var AE = AE || {};
 
   AE.historyListAll = async function (hooks) {
     hooks = hooks || {};
-    var merged = [];
-    var cursor = null;
-    var page = 0;
-    var endpoints = ["/api/history/unified", "/api/history/list"];
-    var endpoint = endpoints[0];
+    const merged = [];
+    let cursor = null;
+    let page = 0;
+    const endpoints = ["/api/history/unified", "/api/history/list"];
+    let endpoint = endpoints[0];
     while (page < PAGE_GUARD) {
-      var params = new URLSearchParams();
+      const params = new URLSearchParams();
       params.set("limit", String(PAGE_SIZE));
       params.set("includeArchived", "true");
       if (cursor) params.set("cursor", cursor);
-      var url = location.origin + endpoint + "?" + params.toString();
-      var payload;
+      const url = location.origin + endpoint + "?" + params.toString();
+      let payload;
       try {
         payload = await fetchJson(url);
       } catch (e) {
@@ -1784,23 +1784,23 @@ var AE = AE || {};
         }
         throw e;
       }
-      var batch = historyBatch(payload);
+      const batch = historyBatch(payload);
       merged.push.apply(merged, batch);
       page += 1;
       if (hooks.onPage) hooks.onPage({ page: page, count: merged.length });
-      var pag = payload && payload.pagination ? payload.pagination : {};
-      var hasMore = pag.hasMore === true || pag.has_more === true;
-      var next = typeof pag.cursor === "string" ? pag.cursor : (typeof pag.nextCursor === "string" ? pag.nextCursor : null);
+      const pag = payload && payload.pagination ? payload.pagination : {};
+      const hasMore = pag.hasMore === true || pag.has_more === true;
+      const next = typeof pag.cursor === "string" ? pag.cursor : (typeof pag.nextCursor === "string" ? pag.nextCursor : null);
       if (!hasMore || !next || !batch.length) break;
       cursor = next;
     }
-    var seen = {};
-    var out = [];
+    const seen = {};
+    const out = [];
     merged.forEach(function (item) {
-      var id = AE.historyUuid(item && (item.id || item.evaluationId || item.sessionId || item.conversationId));
+      const id = AE.historyUuid(item && (item.id || item.evaluationId || item.sessionId || item.conversationId));
       if (!id || seen[id]) return;
       seen[id] = true;
-      var type = String((item && item.type) || "evaluation");
+      const type = String((item && item.type) || "evaluation");
       if (type !== "agentic") type = "evaluation";
       out.push({
         id: id,
@@ -1815,9 +1815,9 @@ var AE = AE || {};
   };
 
   function extractJsonObjectAt(text, start) {
-    var depth = 0, inStr = false, esc = false;
-    for (var i = start; i < text.length; i++) {
-      var c = text.charAt(i);
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < text.length; i++) {
+      const c = text.charAt(i);
       if (inStr) {
         if (esc) esc = false;
         else if (c === "\\") esc = true;
@@ -1836,27 +1836,27 @@ var AE = AE || {};
 
   function parseAgentHtml(html, id, meta) {
     if (AE.parsePageData) {
-      var page = AE.parsePageData(html, location.origin + "/agent/" + id);
+      const page = AE.parsePageData(html, location.origin + "/agent/" + id);
       if (page.transcript) return Object.assign({}, page.transcript, {
         id: id, type: "agentic", title: (meta && meta.title) || "", createdAt: (meta && meta.createdAt) || "",
         pageUrl: location.origin + "/agent/" + id
       });
     }
-    var flight = "";
-    var re = /self\.__next_f\.push\(\[1,"((?:\\.|[^"\\])*)"\]\)<\/script>/g;
-    var m;
+    let flight = "";
+    const re = /self\.__next_f\.push\(\[1,"((?:\\.|[^"\\])*)"\]\)<\/script>/g;
+    let m;
     while ((m = re.exec(html))) {
       try { flight += JSON.parse("\"" + m[1] + "\""); } catch (e) { /* skip chunk */ }
     }
-    var search = flight || html;
-    var idx = 0;
+    const search = flight || html;
+    let idx = 0;
     while (idx < search.length) {
-      var start = search.indexOf("{\"messages\":[", idx);
+      const start = search.indexOf("{\"messages\":[", idx);
       if (start < 0) break;
-      var objText = extractJsonObjectAt(search, start);
+      const objText = extractJsonObjectAt(search, start);
       if (!objText) break;
       try {
-        var cand = JSON.parse(objText);
+        const cand = JSON.parse(objText);
         if (Array.isArray(cand.messages) && cand.messages.some(function (msg) {
           return msg && (Array.isArray(msg.parts) || msg.role);
         })) {
@@ -1874,12 +1874,12 @@ var AE = AE || {};
   }
 
   AE.historyFetchRecord = async function (item) {
-    var id = AE.historyUuid(item && (item.id || item));
+    const id = AE.historyUuid(item && (item.id || item));
     if (!id) throw new Error("invalid id");
-    var type = String((item && item.type) || "evaluation");
+    const type = String((item && item.type) || "evaluation");
     if (type === "agentic") {
-      var html = await fetchText(location.origin + "/agent/" + id);
-      var agent = parseAgentHtml(html, id, item);
+      const html = await fetchText(location.origin + "/agent/" + id);
+      const agent = parseAgentHtml(html, id, item);
       if (!agent) throw new Error("agent payload missing");
       return agent;
     }
@@ -1887,8 +1887,8 @@ var AE = AE || {};
       return await fetchJson(location.origin + "/api/evaluation/" + id);
     } catch (e) {
       if (e && e.status === 404) {
-        var html2 = await fetchText(location.origin + "/agent/" + id);
-        var agent2 = parseAgentHtml(html2, id, item);
+        const html2 = await fetchText(location.origin + "/agent/" + id);
+        const agent2 = parseAgentHtml(html2, id, item);
         if (agent2) return agent2;
       }
       throw e;
@@ -1897,14 +1897,14 @@ var AE = AE || {};
 
   AE.historyPullAll = async function (hooks) {
     hooks = hooks || {};
-    var list = await AE.historyListAll(hooks);
+    const list = await AE.historyListAll(hooks);
     if (hooks.onList) hooks.onList({ total: list.length });
-    var records = [];
-    var failed = [];
-    for (var i = 0; i < list.length; i++) {
+    const records = [];
+    const failed = [];
+    for (let i = 0; i < list.length; i++) {
       if (hooks.onItem) hooks.onItem({ index: i + 1, total: list.length, item: list[i] });
       try {
-        var rec = await AE.historyFetchRecord(list[i]);
+        const rec = await AE.historyFetchRecord(list[i]);
         rec._historyMeta = list[i];
         records.push(rec);
       } catch (e) {
@@ -1916,11 +1916,11 @@ var AE = AE || {};
   };
 
   function modelOf(message, evaluation, lane) {
-    var m = message || {};
-    var name = m.modelName || m.model || m.model_name || m.publicName;
+    const m = message || {};
+    let name = m.modelName || m.model || m.model_name || m.publicName;
     if (name && typeof name === "object") name = AE.catalogModelLabel(name);
     if (typeof name === "string" && name && !AE.isPlaceholderModel(name)) return name;
-    var ev = evaluation || {};
+    const ev = evaluation || {};
     if (lane === "A") name = ev.modelA || ev.model_a || (ev.models && ev.models[0]);
     if (lane === "B") name = ev.modelB || ev.model_b || (ev.models && ev.models[1]);
     if (name && typeof name === "object") name = AE.catalogModelLabel(name);
@@ -1929,18 +1929,18 @@ var AE = AE || {};
   }
 
   function mediaBasename(path, url, index, contentType) {
-    var name = String(path || "").replace(/\\/g, "/").split("/").pop();
+    let name = String(path || "").replace(/\\/g, "/").split("/").pop();
     if (url) {
       try {
-        var u = new URL(url, "https://arena.ai/");
-        var fromUrl = (u.pathname.split("/").pop() || "").split("?")[0];
+        const u = new URL(url, "https://arena.ai/");
+        const fromUrl = (u.pathname.split("/").pop() || "").split("?")[0];
         if (fromUrl && /\.(png|jpe?g|webp|gif|avif|svg|mp4|webm|mov)$/i.test(fromUrl)) name = fromUrl;
         else if (!name) name = fromUrl;
       } catch (e) { /* keep */ }
     }
     if (name) name = name.split("?")[0];
-    var ext = "";
-    var ct = String(contentType || "").toLowerCase();
+    let ext = "";
+    const ct = String(contentType || "").toLowerCase();
     if (/jpeg|jpg/.test(ct)) ext = ".jpeg";
     else if (/png/.test(ct)) ext = ".png";
     else if (/webp/.test(ct)) ext = ".webp";
@@ -1952,8 +1952,8 @@ var AE = AE || {};
   }
 
   function filesFromMessage(message) {
-    var out = [];
-    var seen = {};
+    const out = [];
+    const seen = {};
     function add(obj) {
       if (obj == null) return;
       if (typeof obj === "string") {
@@ -1961,11 +1961,11 @@ var AE = AE || {};
         return;
       }
       if (typeof obj !== "object") return;
-      var nested = obj.image_url && typeof obj.image_url === "object" ? obj.image_url : null;
-      var url = obj.url || obj.downloadUrl || obj.href || obj.src || (nested && (nested.url || nested.href)) || null;
-      var path = obj.name || obj.filename || obj.path || (nested && nested.path) || null;
-      var ct = obj.contentType || obj.mimeType || obj.media_type || (nested && nested.contentType) || null;
-      var content = typeof obj.content === "string" ? obj.content : null;
+      const nested = obj.image_url && typeof obj.image_url === "object" ? obj.image_url : null;
+      const url = obj.url || obj.downloadUrl || obj.href || obj.src || (nested && (nested.url || nested.href)) || null;
+      const path = obj.name || obj.filename || obj.path || (nested && nested.path) || null;
+      const ct = obj.contentType || obj.mimeType || obj.media_type || (nested && nested.contentType) || null;
+      const content = typeof obj.content === "string" ? obj.content : null;
       if (!url && !content) return;
       if (url && seen[url]) return;
       if (url) seen[url] = true;
@@ -1976,15 +1976,15 @@ var AE = AE || {};
         contentType: ct || null
       });
     }
-    var buckets = [message && message.experimental_attachments, message && message.attachments, message && message.files];
+    const buckets = [message && message.experimental_attachments, message && message.attachments, message && message.files];
     buckets.forEach(function (arr) {
       if (Array.isArray(arr)) arr.forEach(add);
     });
-    var content = message && message.content;
+    const content = message && message.content;
     if (Array.isArray(content)) {
       content.forEach(function (part) {
         if (!part || typeof part !== "object") return;
-        var typ = String(part.type || "");
+        const typ = String(part.type || "");
         if (typ === "image_url" || typ === "image" || typ === "file" || typ === "media") add(part.image_url || part);
       });
     }
@@ -1996,9 +1996,9 @@ var AE = AE || {};
   }
 
   function voteFromEvaluation(ev) {
-    var v = ev && (ev.vote || ev.vote_choice || ev.preference || ev.winner || ev.outcome);
+    const v = ev && (ev.vote || ev.vote_choice || ev.preference || ev.winner || ev.outcome);
     if (!v) return { choice: null, outcome: null };
-    var t = String(v).toLowerCase();
+    const t = String(v).toLowerCase();
     if (t === "a" || t === "model_a" || t === "left") return { choice: "A", outcome: "a_wins" };
     if (t === "b" || t === "model_b" || t === "right") return { choice: "B", outcome: "b_wins" };
     if (t.indexOf("both") !== -1) return { choice: "both_good", outcome: "both_good" };
@@ -2007,12 +2007,12 @@ var AE = AE || {};
   }
 
   function subtypeOf(ev, contestants) {
-    var raw = String((ev && (ev.subtype || ev.category || ev.task || ev.game || ev.mode || ev.modality)) || "").toLowerCase();
+    const raw = String((ev && (ev.subtype || ev.category || ev.task || ev.game || ev.mode || ev.modality)) || "").toLowerCase();
     if (/code|webdev|web-dev/.test(raw)) return "code";
     if (/image/.test(raw)) return "image";
     if (/video/.test(raw)) return "video";
     if (/search/.test(raw)) return "web-search";
-    var files = [];
+    const files = [];
     (contestants || []).forEach(function (c) { (c.files || []).forEach(function (f) { files.push(f); }); });
     if (files.some(function (f) { return /^video\//i.test(f.contentType || "") || /\.(mp4|webm|mov)$/i.test(f.path || ""); })) return "video";
     if (files.some(function (f) { return /^image\//i.test(f.contentType || "") || /\.(png|jpe?g|webp|gif|avif|svg)$/i.test(f.path || ""); })) return "image";
@@ -2021,27 +2021,27 @@ var AE = AE || {};
 
   AE.historyEvaluationToPayload = function (ev, meta) {
     ev = ev || {};
-    var selectedMode = /^(direct|direct-battle|side-by-side)$/.test(ev.mode || "");
-    var id = AE.historyUuid(ev.id || ev.evaluationId || (meta && meta.id));
-    var vote = voteFromEvaluation(ev);
-    var msgs = Array.isArray(ev.messages) ? ev.messages : [];
-    var battles = [];
-    var thread = [];
-    var i = 0;
+    const selectedMode = /^(direct|direct-battle|side-by-side)$/.test(ev.mode || "");
+    const id = AE.historyUuid(ev.id || ev.evaluationId || (meta && meta.id));
+    const vote = voteFromEvaluation(ev);
+    const msgs = Array.isArray(ev.messages) ? ev.messages : [];
+    const battles = [];
+    const thread = [];
+    let i = 0;
     while (i < msgs.length) {
-      var m = msgs[i] || {};
-      var role = String(m.role || "").toLowerCase();
+      const m = msgs[i] || {};
+      const role = String(m.role || "").toLowerCase();
       if (role === "user") {
-        var prompt = asText(m.content);
-        var assistants = [];
+        const prompt = asText(m.content);
+        const assistants = [];
         i++;
         while (i < msgs.length && String((msgs[i] || {}).role || "").toLowerCase() === "assistant") {
           assistants.push(msgs[i]);
           i++;
         }
         if (assistants.length >= 2) {
-          var contestants = assistants.map(function (a, idx) {
-            var lane = String(a.participantPosition || a.position || "").toUpperCase();
+          const contestants = assistants.map(function (a, idx) {
+            let lane = String(a.participantPosition || a.position || "").toUpperCase();
             if (lane !== "A" && lane !== "B") lane = idx === 0 ? "A" : "B";
             return {
               lane: lane,
@@ -2075,7 +2075,7 @@ var AE = AE || {};
             content: [{ type: "text", text: prompt }]
           });
           if (assistants[0]) {
-            var a = assistants[0];
+            const a = assistants[0];
             thread.push({
               id: a.id || ("asst-" + thread.length),
               role: "assistant",
@@ -2091,8 +2091,8 @@ var AE = AE || {};
         i++;
       }
     }
-    var title = (meta && meta.title) || ev.title || (battles[0] && battles[0].prompt) || "";
-    var mode = battles.length ? (ev.mode || "battle") : (ev.mode || "direct");
+    const title = (meta && meta.title) || ev.title || (battles[0] && battles[0].prompt) || "";
+    const mode = battles.length ? (ev.mode || "battle") : (ev.mode || "direct");
     return {
       schema_version: AE.SCHEMA_VERSION || "2.1",
       export: {
@@ -2123,10 +2123,10 @@ var AE = AE || {};
   };
 
   function agentPartsToBlocks(parts) {
-    var blocks = [];
+    const blocks = [];
     (Array.isArray(parts) ? parts : []).forEach(function (part) {
       if (!part || typeof part !== "object") return;
-      var typ = String(part.type || "");
+      const typ = String(part.type || "");
       if (typ === "text" && part.text) blocks.push({ type: "text", text: part.text });
       else if ((typ === "reasoning" || typ === "thinking") && part.text) blocks.push({ type: "thinking", text: part.text });
       else if (typ.indexOf("tool-") === 0) {
@@ -2152,8 +2152,8 @@ var AE = AE || {};
 
   AE.historyAgentToPayload = function (agent, meta) {
     agent = agent || {};
-    var id = AE.historyUuid(agent.id || (meta && meta.id));
-    var messages = (Array.isArray(agent.messages) ? agent.messages : []).map(function (m, i) {
+    const id = AE.historyUuid(agent.id || (meta && meta.id));
+    const messages = (Array.isArray(agent.messages) ? agent.messages : []).map(function (m, i) {
       return {
         id: m.id || ("msg-" + i),
         role: String(m.role || "assistant").toLowerCase(),
@@ -2161,9 +2161,9 @@ var AE = AE || {};
         metadata: AE.assistantMetadata(m)
       };
     });
-    var title = (meta && meta.title) || agent.title || "";
+    let title = (meta && meta.title) || agent.title || "";
     if (!title) {
-      var u = messages.filter(function (m) { return m.role === "user"; })[0];
+      const u = messages.filter(function (m) { return m.role === "user"; })[0];
       if (u && u.content && u.content[0] && u.content[0].text) title = u.content[0].text.slice(0, 80);
     }
     return {
@@ -2200,7 +2200,7 @@ var AE = AE || {};
 
   AE.historyRecordToPayload = function (record) {
     if (!record || typeof record !== "object") return null;
-    var meta = record._historyMeta || {};
+    const meta = record._historyMeta || {};
     if (record.type === "agentic" || (Array.isArray(record.messages) && record.messages.some(function (m) {
       return m && Array.isArray(m.parts);
     }))) {
