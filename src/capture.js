@@ -165,15 +165,19 @@ function sampleStream(s, url, text, opts) {
   opts = opts || {};
   if (EVAL_URL_RE.test(url) && opts.evaluation !== false) {
     const key = beginEvaluationCapture(s, url, text, opts.requestId);
+    const archived = AE.evalArchive && AE.evalArchive.append(s, key, text);
+    const limit = archived ? 96 * 1024 : EVAL_STREAM_CAP;
     const cur = s.evaluationStreams[key] || "";
-    if (cur.length >= EVAL_STREAM_CAP) {
+    if (cur.length >= limit) {
       s.truncatedEval = true;
     } else {
       const next = AE.scrubSecrets(cur + text);
-      if (next.length > EVAL_STREAM_CAP) {
-        s.evaluationStreams[key] = next.slice(0, EVAL_STREAM_CAP);
-        s.truncatedEval = true;
-        addWarning(s, "Evaluation stream truncated at " + EVAL_STREAM_CAP + " bytes.");
+      if (next.length > limit) {
+        s.evaluationStreams[key] = next.slice(0, limit);
+        if (!archived) {
+          s.truncatedEval = true;
+          addWarning(s, "Evaluation stream truncated at " + EVAL_STREAM_CAP + " bytes (durable storage unavailable).");
+        }
       } else {
         s.evaluationStreams[key] = next;
       }
