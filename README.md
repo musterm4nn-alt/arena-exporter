@@ -144,3 +144,11 @@ npm run preview          # synthetic local UI preview; never live capture
 `tools/build-release.mjs` regenerates `src/injected-main.js`, `src/injected-content.js`, and the complete `firefox/` tree. Do not hand-edit those generated files.
 
 The automated suites simulate browser APIs and storage. They do not replace a live Arena acceptance check, installed Firefox check, native macOS helper check, or real GitHub network transaction. `docs/verification.md` records those limits honestly. See [docs/release-local.md](docs/release-local.md) for the local artifact pipeline and [docs/streaming-exports.md](docs/streaming-exports.md) for JSONL.
+
+## Long-running Arena Code battles
+
+The extension keeps **battle-stream chunks in `chrome.storage.local`**, separate from the small preview in `chrome.storage.session`. This avoids the former 2 MiB evaluation limit and preserves observed stream data when the Arena tab reloads or the service worker restarts. The `unlimitedStorage` permission is used for this local, on-device archive; it does **not** upload conversations to a service.
+
+When exporting, the extension first reads all indexed chunks and checks for missing pieces. If any part is missing or a storage write failed, the export receives a partial-capture warning. In Code Arena, later tool calls visible in the current page can also supplement an earlier, incomplete network trace. DOM-recovered tool arguments may be less detailed than the original transport events.
+
+**Important:** The extension cannot recover network frames sent before installation, during a period when the browser did not capture them, or while the tab was closed. Exporting while a model is still running also produces an in-progress snapshot. Keep the exporter enabled from the beginning of a battle, and leave the battle tab open while it runs. Retained raw chunks consume local browser storage until the extension's storage is cleared; for particularly large exports, use the native archive destination.
