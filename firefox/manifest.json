@@ -26,6 +26,7 @@
   },
   "permissions": [
     "storage",
+    "unlimitedStorage",
     "alarms",
     "downloads",
     "clipboardWrite",
@@ -53,6 +54,7 @@
       "src/lib/vote.js",
       "src/lib/format.js",
       "src/session-store.js",
+      "src/evaluation-archive.js",
       "src/request-capture.js",
       "src/battles.js",
       "src/attribution.js",
