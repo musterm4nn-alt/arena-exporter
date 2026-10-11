@@ -283,7 +283,10 @@ function runTurnSync(reason, key, tabId) {
     try {
       if (snapshot && snapshot.url) s.session.url = snapshot.url;
       if (snapshot && snapshot.title) s.session.title = snapshot.title;
-      const out = buildExport("full_history", snapshot, s);
+      const build = AE.evalArchive
+        ? AE.evalArchive.withFull(s, function () { return buildExport("full_history", snapshot, s); })
+        : Promise.resolve(buildExport("full_history", snapshot, s));
+      return build.then(function (out) {
       if (AE.decorateArchivePaths) AE.decorateArchivePaths(out.payload, s.archiveRel);
       if (!((out.payload.messages || []).length || (out.payload.battles || []).length || (out.payload.meta.request_attempts || []).length)) {
         s.lastSync = { at: new Date().toISOString(), ok: false, error: "nothing to sync", reason: reason };
@@ -324,6 +327,10 @@ function runTurnSync(reason, key, tabId) {
         if (!s.lastSync.ok && AE.recordIssue) AE.recordIssue("archive", "write_failed");
         return s.lastSync;
       });
+      });
+      }).catch(function (e) {
+        s.lastSync = { at: new Date().toISOString(), ok: false, error: String(e), reason: reason };
+        return s.lastSync;
       });
     } catch (e) {
       s.lastSync = { at: new Date().toISOString(), ok: false, error: String(e), reason: reason };
