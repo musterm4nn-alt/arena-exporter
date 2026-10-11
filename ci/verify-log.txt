@@ -62,9 +62,10 @@ Battle attribution + winner from DOM snapshot:
   ✓ contestants named from DOM
   ✓ winner lane mapped from green highlight
 Modern code-battle DOM backfills a missed lane:
-  ✓ empty network lane A response is backfilled from DOM
+  ✓ network lane B remains authoritative
   ✓ DOM tool metadata backfills the missed lane
   ✓ DOM-recovered code lane keeps the code subtype
+  ✓ DOM-only reopened battle preserves both responses
   ✓ DOM-only reopened battle preserves tools and file paths
   ✓ DOM-only reopened code battle is classified as code
   ✓ anonymous DOM-only reopened battle is still exported
@@ -150,9 +151,8 @@ Capture events from non-arena tabs are ignored:
 lmarena.ai (legacy host) senders are accepted:
   ✓ lmarena.ai sender accepted
 
-110 passed, 2 failed
-  ✗ network lane B remains authoritative
-  ✗ DOM-only reopened battle preserves both responses
+111 passed, 1 failed
+  ✗ empty network lane A response is backfilled from DOM
 
 PASS capture-health.test.js
 PASS capture-metadata.test.js
