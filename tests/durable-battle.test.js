@@ -41,6 +41,14 @@ async function run() {
   await reopened.ready();
   const export2 = await reopened.export("c:durable-battle");
   assert.ok(JSON.stringify(export2.battles).includes(tail), "full response survives worker restart");
+  // If a local chunk is removed/corrupt, the exporter must say that capture
+  // is incomplete rather than silently claiming a finished trace.
+  delete local._data["ae_eval_chunk_v1_" + live.evaluationArchiveRefs[key].id + "_1"];
+  const damaged = await reopened.export("c:durable-battle");
+  assert.equal(damaged.meta.completeness, "partial", "missing chunks are flagged as partial");
+  assert.ok(damaged.meta.warnings.some(warning => /Durable battle capture failed/.test(warning)),
+    "missing chunk warning is visible to the user");
+
 
   // Visible later tool rows must enrich a partial network capture, not be
   // discarded just because the first tools arrived through the stream.
