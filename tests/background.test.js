@@ -171,6 +171,8 @@ function check(name, cond) {
   console.log("Modern code-battle DOM backfills a missed lane:");
   const savedEvalSessionKey = vm.runInContext("store.activeKey", ctx);
   const savedEvalStreams = vm.runInContext("JSON.stringify(store.sessions[store.activeKey].evaluationStreams)", ctx);
+  const savedEvalArchiveRefs = vm.runInContext("JSON.stringify(store.sessions[store.activeKey].evaluationArchiveRefs)", ctx);
+  vm.runInContext("store.sessions[store.activeKey].evaluationArchiveRefs = {}", ctx);
   vm.runInContext(`(() => {
     const streams = store.sessions[store.activeKey].evaluationStreams;
     const key = Object.keys(streams)[0];
@@ -191,7 +193,7 @@ function check(name, cond) {
   check("network lane B remains authoritative", modernExp.battles[0].contestants[1].response === "Blue ");
   check("DOM tool metadata backfills the missed lane", modernExp.battles[0].contestants[0].tools.includes("create_file") && modernExp.battles[0].contestants[0].files[0].path === "index.html");
   check("DOM-recovered code lane keeps the code subtype", modernExp.battles[0].subtype === "code");
-  vm.runInContext("store.sessions[store.activeKey].evaluationStreams = {}", ctx);
+  vm.runInContext("store.sessions[store.activeKey].evaluationStreams = {}; store.sessions[store.activeKey].evaluationArchiveRefs = {}", ctx);
   const domOnlyExp = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: modernDom })).json);
   check("DOM-only reopened battle preserves both responses",
     domOnlyExp.battles[0].dom_only === true &&
@@ -219,7 +221,7 @@ function check(name, cond) {
     anonymousDomExp.battles[0].subtype === "code");
   check("anonymous DOM-only battle can retain a lane winner without inventing a model",
     anonymousDomExp.battles[0].winner === "B" && anonymousDomExp.battles[0].winner_model === null);
-  vm.runInContext(`store.sessions[${JSON.stringify(savedEvalSessionKey)}].evaluationStreams = JSON.parse(${JSON.stringify(savedEvalStreams)}); store.activeKey = ${JSON.stringify(savedEvalSessionKey)}`, ctx);
+  vm.runInContext(`store.sessions[${JSON.stringify(savedEvalSessionKey)}].evaluationStreams = JSON.parse(${JSON.stringify(savedEvalStreams)}); store.sessions[${JSON.stringify(savedEvalSessionKey)}].evaluationArchiveRefs = JSON.parse(${JSON.stringify(savedEvalArchiveRefs)}); store.activeKey = ${JSON.stringify(savedEvalSessionKey)}`, ctx);
 
   console.log("Pending default + manual override:");
   const tieSnap = { source: "dom", url: "https://arena.ai/c/tie", messages: [], battle: { models: ["mA", "mB"], anonymous: false, preVoteBallot: false, winnerModel: null } };

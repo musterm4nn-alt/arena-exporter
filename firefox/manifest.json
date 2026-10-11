@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Arena Exporter",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "Your Arena conversations, kept. Capture, export and archive every turn, with optional private GitHub backup.",
   "icons": {
     "16": "icons/icon16.png",
@@ -26,6 +26,7 @@
   },
   "permissions": [
     "storage",
+    "unlimitedStorage",
     "alarms",
     "downloads",
     "clipboardWrite",
@@ -53,6 +54,7 @@
       "src/lib/vote.js",
       "src/lib/format.js",
       "src/session-store.js",
+      "src/evaluation-archive.js",
       "src/request-capture.js",
       "src/battles.js",
       "src/attribution.js",

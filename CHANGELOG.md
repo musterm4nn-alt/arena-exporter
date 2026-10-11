@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.3 — 2026-10-11
+
+- Capture long Code Arena battles into durable local storage chunks rather than discarding stream data at the previous 2 MiB per-round memory cap.
+- Rehydrate and validate archived chunks for manual and automatic exports, warning when chunks are missing or writes fail.
+- Reconcile additional tool operations found in Arena's visible page with partial network traces, while retaining authoritative network content and call IDs.
+- Add regression tests for long streams, worker restarts, repeated file operations, and missing-chunk warnings, plus a GitHub Actions verification workflow.
+- Request `unlimitedStorage` for local-on-device capture; no new remote service is required.
+
+
 ## 2.2.2 — 2026-09-24
 
 Refactor release: `const`/`let` across all extension modules (documented `var` exceptions only for cross-script globals and `vm`-surfaced names), guarded issue-recorder calls, UI control-inventory snapshot gate, and Arena DOM fixture coverage. No behavior, schema, storage, or UI changes.

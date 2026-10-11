@@ -53,6 +53,8 @@ function freshState(key) {
     warnings: [],
     streamSamples: [],
     evaluationStreams: {},
+    evaluationArchiveRefs: {},
+    evalArchiveFailed: false,
     evaluationActive: {},
     evaluationSequence: {},
     capturedRequests: [],
@@ -89,6 +91,8 @@ function hydrateSession(raw, key) {
   if (!Array.isArray(raw.streamSamples)) s.streamSamples = [];
   else s.streamSamples = raw.streamSamples;
   s.evaluationStreams = raw.evaluationStreams && typeof raw.evaluationStreams === "object" ? raw.evaluationStreams : {};
+  s.evaluationArchiveRefs = raw.evaluationArchiveRefs && typeof raw.evaluationArchiveRefs === "object" ? raw.evaluationArchiveRefs : {};
+  s.evalArchiveFailed = !!raw.evalArchiveFailed;
   s.evaluationActive = raw.evaluationActive && typeof raw.evaluationActive === "object" ? raw.evaluationActive : {};
   s.evaluationSequence = raw.evaluationSequence && typeof raw.evaluationSequence === "object" ? raw.evaluationSequence : {};
   if (!Array.isArray(raw.capturedRequests)) s.capturedRequests = [];
@@ -187,7 +191,7 @@ function migrateSession(fromKey, toKey) {
     (src.endpoints || []).forEach(function (e) { dst.endpoints.push(e); });
     dst.endpoints = dst.endpoints.slice(-200);
     dst.streamSamples = dst.streamSamples.concat(src.streamSamples || []).slice(0, 20);
-    ["evaluationActive", "evaluationSequence", "evaluationRequests", "streamBuilders", "modelHints"].forEach(function (field) {
+    ["evaluationActive", "evaluationSequence", "evaluationRequests", "streamBuilders", "modelHints", "evaluationArchiveRefs"].forEach(function (field) {
       dst[field] = Object.assign({}, src[field] || {}, dst[field] || {});
     });
     if (!dst.currentStreamKey) dst.currentStreamKey = src.currentStreamKey;
@@ -218,6 +222,7 @@ function migrateSession(fromKey, toKey) {
       dst.stats.lastEventAt = Math.max(dst.stats.lastEventAt || 0, src.stats.lastEventAt || 0);
     }
     if (src.truncatedEval) dst.truncatedEval = true;
+    if (src.evalArchiveFailed) dst.evalArchiveFailed = true;
     if (!dst.session.url && src.session.url) dst.session.url = src.session.url;
     if (!dst.session.title && src.session.title) dst.session.title = src.session.title;
     if (!dst.session.realtime_session_id) dst.session.realtime_session_id = src.session.realtime_session_id || null;

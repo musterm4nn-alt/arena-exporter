@@ -120,11 +120,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     return true;
   }
   if (msg.type === "AE_EXPORT") {
-    stateReadyPromise.then(function () {
+    stateReadyPromise.then(async function () {
       const selected = activateRequestSession(msg);
       if (selected.error) { sendResponse({ ok: false, error: selected.error }); return; }
       const mode = msg.mode === "last_message" ? "last_message" : "full_history";
-      const out = buildExport(mode, msg.snapshot, selected.session);
+      const out = AE.evalArchive
+        ? await AE.evalArchive.withFull(selected.session, function () { return buildExport(mode, msg.snapshot, selected.session); })
+        : buildExport(mode, msg.snapshot, selected.session);
       let payload = out.payload;
       const after = (AE.finalizeArchivePayload)
         ? AE.finalizeArchivePayload(payload, { tabId: msg.tabId })
@@ -188,6 +190,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       }, function (err) {
         sendResponse({ ok: false, error: String(err && err.message ? err.message : err) });
       });
+    }).catch(function (err) {
+      sendResponse({ ok: false, error: String(err && err.message ? err.message : err) });
     });
     return true;
   }
