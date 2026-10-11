@@ -191,7 +191,7 @@ function check(name, cond) {
   check("network lane B remains authoritative", modernExp.battles[0].contestants[1].response === "Blue ");
   check("DOM tool metadata backfills the missed lane", modernExp.battles[0].contestants[0].tools.includes("create_file") && modernExp.battles[0].contestants[0].files[0].path === "index.html");
   check("DOM-recovered code lane keeps the code subtype", modernExp.battles[0].subtype === "code");
-  vm.runInContext("store.sessions[store.activeKey].evaluationStreams = {}", ctx);
+  vm.runInContext("store.sessions[store.activeKey].evaluationStreams = {}; store.sessions[store.activeKey].evaluationArchiveRefs = {}", ctx);
   const domOnlyExp = JSON.parse((await send({ type: "AE_EXPORT", mode: "full_history", snapshot: modernDom })).json);
   check("DOM-only reopened battle preserves both responses",
     domOnlyExp.battles[0].dom_only === true &&
