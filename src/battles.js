@@ -374,8 +374,7 @@ function buildBattles(s, domSnapshot) {
       const L = parsed.lanes[lane] || { text: "", finished: false, finishReason: null, citations: [], files: [] };
       const domLane = isLatest && battleDom && Array.isArray(battleDom.lanes) ? battleDom.lanes[i] : null;
       const domResponse = isLatest && battleDom && Array.isArray(battleDom.responses) ? battleDom.responses[i] : null;
-      const domText = (domLane && domLane.response) || domResponse || "";
-      const response = domText.length > (L.text || "").length ? domText : (L.text || domText);
+      const response = L.text || (domLane && domLane.response) || domResponse || "";
       const tools = Array.isArray(L.toolNames) ? L.toolNames.slice() : [];
       if (domLane && Array.isArray(domLane.tools)) domLane.tools.forEach(function (name) {
         if (tools.indexOf(name) === -1) tools.push(name);
