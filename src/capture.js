@@ -169,7 +169,7 @@ function sampleStream(s, url, text, opts) {
     const limit = archived ? 96 * 1024 : EVAL_STREAM_CAP;
     const cur = s.evaluationStreams[key] || "";
     if (cur.length >= limit) {
-      s.truncatedEval = true;
+      if (!archived) s.truncatedEval = true;
     } else {
       const next = AE.scrubSecrets(cur + text);
       if (next.length > limit) {
