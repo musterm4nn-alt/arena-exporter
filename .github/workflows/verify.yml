@@ -18,3 +18,11 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run check:project
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arena-exporter-extension-${{ github.run_number }}
+          path: |
+            dist/Arena-Agent-Exporter-*-chrome.zip
+            dist/Arena-Agent-Exporter-*-firefox.zip
+          if-no-files-found: error
+          retention-days: 14
