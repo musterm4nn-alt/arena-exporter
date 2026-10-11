@@ -218,6 +218,46 @@ function namedModels(list) {
   return out;
 }
 
+/* A live evaluation stream can end early while Arena still renders later tool rows.
+ * DOM calls have no stable call ids; use ordered name/path overlap rather than
+ * blindly concatenating (which would duplicate repeated file edits). */
+function mergeLaneToolCalls(networkCalls, domCalls) {
+  const network = Array.isArray(networkCalls) ? networkCalls : [];
+  const dom = Array.isArray(domCalls) ? domCalls : [];
+  if (!network.length) return dom.slice();
+  if (!dom.length) return network.slice();
+  function signature(call) {
+    const args = call && (call.args || call.arguments) || {};
+    return String(call && (call.toolName || call.tool_name) || "").toLowerCase() + "|" +
+      String(args.path || args.file_path || args.file || "").replace(/\\/g, "/");
+  }
+  // Match captured calls in chronological DOM order. Each occurrence can only
+  // match once: ten edits to the same file remain ten separate operations.
+  const matches = {};
+  let cursor = 0, matched = 0;
+  for (let i = 0; i < network.length; i++) {
+    const wanted = signature(network[i]);
+    if (!wanted || wanted === "|") continue;
+    for (let j = cursor; j < dom.length; j++) {
+      if (signature(dom[j]) !== wanted) continue;
+      matches[j] = i;
+      cursor = j + 1;
+      matched++;
+      break;
+    }
+  }
+  if (dom.length <= network.length || matched < Math.ceil(network.length * 0.6)) return network.slice();
+  return dom.map(function (call, i) {
+    if (matches[i] == null) return call;
+    const captured = network[matches[i]];
+    return Object.assign({}, call, captured, {
+      args: captured.args || call.args,
+      output: captured.output != null ? captured.output : call.output,
+      source: captured.source || "network"
+    });
+  });
+}
+
 function buildBattles(s, domSnapshot) {
   const battles = [];
   const streams = s.evaluationStreams || {};
@@ -334,13 +374,18 @@ function buildBattles(s, domSnapshot) {
       const L = parsed.lanes[lane] || { text: "", finished: false, finishReason: null, citations: [], files: [] };
       const domLane = isLatest && battleDom && Array.isArray(battleDom.lanes) ? battleDom.lanes[i] : null;
       const domResponse = isLatest && battleDom && Array.isArray(battleDom.responses) ? battleDom.responses[i] : null;
-      const response = L.text || (domLane && domLane.response) || domResponse || "";
+      const domText = (domLane && domLane.response) || domResponse || "";
+      const response = domText.length > (L.text || "").length ? domText : (L.text || domText);
       const tools = Array.isArray(L.toolNames) ? L.toolNames.slice() : [];
       if (domLane && Array.isArray(domLane.tools)) domLane.tools.forEach(function (name) {
         if (tools.indexOf(name) === -1) tools.push(name);
       });
-      const toolCalls = Array.isArray(L.tools) && L.tools.length ? L.tools :
-        (domLane && Array.isArray(domLane.tool_calls) ? domLane.tool_calls : []);
+      const capturedCalls = Array.isArray(L.tools) ? L.tools : [];
+      const visibleCalls = domLane && Array.isArray(domLane.tool_calls) ? domLane.tool_calls : [];
+      const toolCalls = mergeLaneToolCalls(capturedCalls, visibleCalls);
+      if (toolCalls.length > capturedCalls.length && capturedCalls.length) {
+        addWarning(s, "Some battle tool calls were recovered from the page because the network trace was incomplete; DOM-only details may be partial.");
+      }
       const files = Array.isArray(L.files) ? L.files.slice() : [];
       if (domLane && Array.isArray(domLane.files)) {
         const seenF = {};
