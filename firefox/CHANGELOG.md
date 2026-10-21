@@ -12,6 +12,8 @@ Local library overhaul: archived conversations can now be searched, read, verifi
 - Added library health: SHA-256 verification against the archive index, missing/orphaned/stale/mismatched reporting, orphan pruning, folder indexing, and library clearing.
 - Added deterministic bulk ZIP export of the current filtered list with `manifest.json`, per-file SHA-256 hashes, omitted-reason reporting, stored entries, and a 128 MiB cap.
 - Added per-conversation JSON/Markdown export and clipboard copy from the reader, plus popup status and a **Read in library** deep link.
+- Library records share one 2 MiB character budget across message blocks, Battle texts, and tool calls, so a long conversation can no longer produce a record larger than the payload it replaces; the reader says when its preview is shortened, and totals still count every block.
+- Content search groups modes the same way the workspace tabs do, so the Direct tab finds `direct-battle` conversations.
 - Enabling archive encryption now clears the local library and blocks new plaintext indexing; disabling encryption does not resurrect old records.
 - Kept export schema 2.1, storage keys, archive layout, `_index.json`, GitHub backup, and encrypted bundle format unchanged. Existing archives can be indexed from disk.
 - Added seven new suites (projection, search, Insights, ZIP, library store, folder import, and workspace library UI) and rewrote the existing workspace UI coverage; the project now runs 35 JavaScript suites.

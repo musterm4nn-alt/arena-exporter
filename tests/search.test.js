@@ -60,6 +60,18 @@ result = search.search(list, { mode: "battle" });
 assert.equal(result.total, 1);
 assert.equal(result.results[0].key, "c:def-456");
 
+const captured = list.concat([
+  Object.assign({}, list[1], { key: "c:direct-1", mode: "direct-battle", title: "Direct rust question" }),
+  Object.assign({}, list[1], { key: "c:sbs-1", mode: "side_by_side", title: "Side rust question" })
+]);
+result = search.search(captured, { query: "ownership", mode: "direct" });
+assert.equal(result.results.map(r => r.key).join("|"), "c:direct-1", "the Direct tab includes direct-battle content matches");
+result = search.search(captured, { query: "ownership", mode: "side-by-side" });
+assert.equal(result.results.map(r => r.key).join("|"), "c:sbs-1", "side-by-side spellings share one tab");
+result = search.search(captured, { query: "ownership", mode: "battle" });
+assert.equal(result.results.map(r => r.key).join("|"), "c:def-456", "Battle does not absorb direct or side-by-side records");
+assert.equal(search.modeGroup("agent_in_mixed"), "agent");
+
 result = search.search(list, { model: "alpha-1" });
 assert.equal(result.total, 1);
 

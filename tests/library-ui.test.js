@@ -60,6 +60,13 @@ const report={generated_at:'2026-10-21T10:01:00Z',archive_count:1,library_count:
   assert.equal(f.document.getElementById('reader-body').children.length>0,true);
   assert.ok(f.document.getElementById('reader-body').children.some?.(c=>c.className.includes('reader-messages')));
   assert.equal(f.document.getElementById('reader-export-json').disabled,false);
+  assert.equal(f.document.getElementById('reader-notice').classList.contains('hidden'),true);
+  record.preview_truncated=true;
+  await f.fire('reader-back');await settle(f);
+  await f.document.getElementById('library-rows').children[0].children[0].children[0].fire();await settle(f);
+  assert.equal(f.document.getElementById('reader-notice').classList.contains('hidden'),false);
+  assert.ok(f.document.getElementById('reader-notice').textContent.includes('longer than the reading preview'));
+  record.preview_truncated=false;
   await f.fire('reader-export-json');assert.equal(f.last('AE_RESEARCH_EXPORT').format,'json');
   await f.fire('reader-copy');assert.equal(f.copied.at(-1),'# Weather');
   await f.fire('reader-back');await settle(f);

@@ -17,6 +17,11 @@ var AE = AE || {};
     blockChars: 200000,
     jsonChars: 8000,
     blocks: 4000,
+    /* Shared by every message block, battle text and tool call in one record,
+     * so the reading preview stays below the payload limit however long the
+     * conversation is. Per-block limits alone multiply out to gigabytes. */
+    previewChars: 2 * 1024 * 1024,
+    previewBlocks: 20000,
     files: 500,
     warnings: 50,
     warningChars: 300
@@ -78,23 +83,40 @@ var AE = AE || {};
     return key === "body" ? 2000 : 4000;
   }
 
-  function toolArguments(value) {
-    return jsonValue(value, 0, { chars: LIMITS.jsonChars });
+  /* Clip to the per-field limit and to what is left of the record budget. */
+  function take(budget, value, max) {
+    const s = text(value);
+    const room = Math.max(0, Math.min(max, budget.chars));
+    if (s.length > room && room < max) budget.truncated = true;
+    const out = s.length > room ? s.slice(0, room) : s;
+    budget.chars -= out.length;
+    return out;
   }
 
-  function blockSummary(block) {
+  function toolArguments(value, budget) {
+    if (value == null) return value;
+    if (budget.chars <= 0) {
+      budget.truncated = true;
+      return { omitted: "preview-budget" };
+    }
+    const out = jsonValue(value, 0, { chars: Math.min(LIMITS.jsonChars, budget.chars) });
+    try { budget.chars -= JSON.stringify(out == null ? null : out).length; } catch (_) { /* counted as free */ }
+    return out;
+  }
+
+  function blockSummary(block, budget) {
     if (!block || typeof block !== "object") return { type: "unknown" };
     const type = clip(block.type, 40) || "unknown";
-    if (type === "text") return { type: type, text: clip(block.text, LIMITS.blockChars), format: clip(block.format, 40) || null };
-    if (type === "thinking") return { type: type, text: clip(block.text, LIMITS.blockChars) };
+    if (type === "text") return { type: type, text: take(budget, block.text, LIMITS.blockChars), format: clip(block.format, 40) || null };
+    if (type === "thinking") return { type: type, text: take(budget, block.text, LIMITS.blockChars) };
     if (type === "tool_call") {
       return {
         type: type,
         tool_name: clip(block.tool_name || block.name, 200) || "tool",
         status: clip(block.status, 40) || null,
         call_id: clip(block.call_id, 120) || null,
-        arguments: toolArguments(block.arguments != null ? block.arguments : block.input),
-        output: toolArguments(block.output != null ? block.output : block.result)
+        arguments: toolArguments(block.arguments != null ? block.arguments : block.input, budget),
+        output: toolArguments(block.output != null ? block.output : block.result, budget)
       };
     }
     if (type === "artifact") {
@@ -108,12 +130,24 @@ var AE = AE || {};
       };
     }
     if (type === "command" || type === "action") {
-      return { type: type, text: clip(block.text || block.command || block.action || block.title, LIMITS.blockChars) };
+      return { type: type, text: take(budget, block.text || block.command || block.action || block.title, LIMITS.blockChars) };
     }
-    return { type: type, text: clip(block.text || block.title || block.message, LIMITS.blockChars) };
+    return { type: type, text: take(budget, block.text || block.title || block.message, LIMITS.blockChars) };
   }
 
-  function projectMessages(payload, record) {
+  /* A block left out of the preview still counts toward the conversation's
+   * totals, so Insights and the reader header describe the whole chat. */
+  function countSkipped(block, record) {
+    record.counts.blocks++;
+    if (!block || typeof block !== "object") return;
+    if (block.type === "tool_call") record.counts.tool_calls++;
+    if (block.type === "thinking" && block.text) {
+      record.counts.thinking_blocks++;
+      record.counts.thinking_chars += text(block.text).length;
+    }
+  }
+
+  function projectMessages(payload, record, budget) {
     const out = [];
     const messages = Array.isArray(payload.messages) ? payload.messages : [];
     messages.forEach(function (message) {
@@ -121,7 +155,13 @@ var AE = AE || {};
       const blocks = [];
       (Array.isArray(message.content) ? message.content : []).forEach(function (block) {
         if (blocks.length >= LIMITS.blocks) return;
-        const projected = blockSummary(block);
+        if (budget.blocks <= 0 || budget.chars <= 0) {
+          budget.truncated = true;
+          countSkipped(block, record);
+          return;
+        }
+        budget.blocks--;
+        const projected = blockSummary(block, budget);
         blocks.push(projected);
         record.counts.blocks++;
         if (projected.type === "thinking" && projected.text) { record.counts.thinking_blocks++; record.counts.thinking_chars += projected.text.length; record.detail.push(projected.text); }
@@ -172,23 +212,25 @@ var AE = AE || {};
     return files;
   }
 
-  function projectBattles(payload, record) {
+  /* Battle metadata (lanes, models, votes) is always kept because the library
+   * row and Insights read it; only the long texts draw from the budget. */
+  function projectBattles(payload, record, budget) {
     const out = [];
     (Array.isArray(payload.battles) ? payload.battles : []).forEach(function (battle) {
       if (!battle || typeof battle !== "object") return;
       const contestants = [];
       (battle.contestants || []).forEach(function (contestant) {
         if (!contestant || typeof contestant !== "object") return;
-        const response = clip(contestant.response, LIMITS.blockChars);
-        const reasoning = clip(contestant.reasoning, LIMITS.blockChars);
+        const response = take(budget, contestant.response, LIMITS.blockChars);
+        const reasoning = take(budget, contestant.reasoning, LIMITS.blockChars);
         if (response) record.text.push(response);
         if (reasoning) record.detail.push(reasoning);
         const calls = [];
         (contestant.tool_calls || []).slice(0, 100).forEach(function (call) {
           calls.push({
             tool_name: clip(call && (call.tool_name || call.name), 200) || "tool",
-            arguments: toolArguments(call && (call.arguments != null ? call.arguments : call.input)),
-            output: toolArguments(call && (call.output != null ? call.output : call.result))
+            arguments: toolArguments(call && (call.arguments != null ? call.arguments : call.input), budget),
+            output: toolArguments(call && (call.output != null ? call.output : call.result), budget)
           });
           record.counts.tool_calls++;
           record.detail.push(calls[calls.length - 1].tool_name);
@@ -213,7 +255,7 @@ var AE = AE || {};
       if (["a_wins", "b_wins", "both_good", "neither_good"].indexOf(outcome) !== -1) record.vote_outcomes.push(outcome);
       out.push({
         mode: clip(battle.mode, 40) || "battle",
-        prompt: clip(battle.prompt, LIMITS.blockChars) || null,
+        prompt: take(budget, battle.prompt, LIMITS.blockChars) || null,
         outcome: outcome,
         vote_choice: clip(battle.vote_choice, 40) || null,
         vote_source: latestVote && latestVote.source ? clip(latestVote.source, 40) : null,
@@ -320,10 +362,13 @@ var AE = AE || {};
       vote_outcomes: [],
       payload_bytes: byteLength(jsonText),
       payload_hash: null,
-      payload_omitted: false
+      payload_omitted: false,
+      preview_truncated: false
     };
-    record.battles = projectBattles(payload, record);
-    record.messages = projectMessages(payload, record);
+    const budget = { chars: LIMITS.previewChars, blocks: LIMITS.previewBlocks, truncated: false };
+    record.battles = projectBattles(payload, record, budget);
+    record.messages = projectMessages(payload, record, budget);
+    record.preview_truncated = budget.truncated;
     record.files = projectFilesFromPayload(payload, record);
     record.mode = modeOf(payload, record.battles);
     record.title = clip(payload.session && payload.session.title, 500) || clip(record.battles[0] && record.battles[0].prompt, 500) || "Untitled conversation";

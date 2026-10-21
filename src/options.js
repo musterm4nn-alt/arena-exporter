@@ -396,6 +396,9 @@
     if (!result.has_payload) {
       U.show("reader-notice", true);
       U.setText("reader-notice", "The payload is larger than the library limit or was not stored. Reading works from the bounded preview; exports must come from the archive folder.");
+    } else if (result.record.preview_truncated) {
+      U.show("reader-notice", true);
+      U.setText("reader-notice", "This conversation is longer than the reading preview, so later text is shortened here. Export JSON or Markdown for the full conversation.");
     }
   }
 

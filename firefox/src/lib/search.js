@@ -61,6 +61,13 @@ var AE = AE || {};
     };
   }
 
+  /* Same grouping as AEView.mode: records keep the captured mode (for example
+   * "direct-battle"), while the workspace filters by its four mode tabs. */
+  function modeGroup(value) {
+    const m = lower(value);
+    return /^side.by.side/.test(m) ? "side-by-side" : /^battle/.test(m) ? "battle" : /^direct/.test(m) ? "direct" : "agent";
+  }
+
   function voteState(record) {
     const outcomes = Array.isArray(record && record.vote_outcomes) ? record.vote_outcomes : [];
     return { hasBallot: outcomes.length > 0, outcomes: outcomes };
@@ -68,7 +75,7 @@ var AE = AE || {};
 
   function passesFilters(record, options, now) {
     if (!record) return false;
-    if (options.mode && options.mode !== "all" && lower(record.mode) !== lower(options.mode)) return false;
+    if (options.mode && options.mode !== "all" && modeGroup(record.mode) !== modeGroup(options.mode)) return false;
     if (options.model && options.model !== "all") {
       const models = Array.isArray(record.models) ? record.models : [];
       if (models.indexOf(options.model) === -1) return false;
@@ -173,6 +180,6 @@ var AE = AE || {};
     };
   }
 
-  AE.search = { parse: parse, search: search, MAX_RESULTS: MAX_RESULTS };
+  AE.search = { parse: parse, search: search, modeGroup: modeGroup, MAX_RESULTS: MAX_RESULTS };
   if (typeof module !== "undefined" && module.exports) module.exports = AE.search;
 })();

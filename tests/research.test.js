@@ -83,5 +83,60 @@ function library() {
   assert.equal(oversized.payload_omitted, true, "oversized payloads keep a bounded record and no stored JSON");
   assert.ok(oversized.text.length <= research.LIMITS.textChars);
 
+  assert.equal(agent.preview_truncated, false, "ordinary conversations keep their whole preview");
+  assert.equal(battle.preview_truncated, false);
+
+  // Many long messages: each block is under the per-block limit, but together
+  // they used to produce a record larger than the payload it replaced.
+  const long = agentPayload();
+  long.messages = Array.from({ length: 50 }, (_, i) => ({
+    role: i % 2 ? "assistant" : "user",
+    content: [
+      { type: "thinking", text: "t".repeat(1000) },
+      { type: "tool_call", tool_name: "probe", arguments: { q: "a".repeat(7000) }, output: { r: "b".repeat(7000) } },
+      { type: "text", text: "x".repeat(150000) }
+    ]
+  }));
+  const longJson = JSON.stringify(long);
+  const longRecord = research.buildRecord(longJson, {});
+  assert.equal(longRecord.payload_omitted, true);
+  assert.equal(longRecord.preview_truncated, true);
+  const recordChars = JSON.stringify(longRecord).length;
+  assert.ok(recordChars < longJson.length / 2, "the record is far smaller than the payload: " + recordChars);
+  assert.ok(recordChars < research.LIMITS.previewChars + research.LIMITS.textChars + research.LIMITS.detailChars + 512 * 1024,
+    "the record stays within the shared budget plus the search indexes: " + recordChars);
+  assert.equal(longRecord.counts.messages, 50);
+  assert.equal(longRecord.counts.blocks, 150, "skipped blocks still count toward totals");
+  assert.equal(longRecord.counts.tool_calls, 50);
+  assert.equal(longRecord.counts.thinking_blocks, 50);
+  assert.equal(longRecord.counts.thinking_chars, 50000);
+  assert.ok(longRecord.messages[0].blocks.length > 0, "the start of the conversation stays readable");
+
+  // Thousands of tool calls: each call's JSON is capped at 8000 chars, which
+  // alone multiplied out to tens of megabytes.
+  const chatty = agentPayload();
+  chatty.messages = [{ role: "assistant", content: Array.from({ length: 3000 }, () => (
+    { type: "tool_call", tool_name: "probe", arguments: { q: "a".repeat(3000) }, output: { r: "b".repeat(3000) } }
+  )) }];
+  const chattyRecord = research.buildRecord(JSON.stringify(chatty), {});
+  assert.equal(chattyRecord.preview_truncated, true);
+  assert.equal(chattyRecord.counts.tool_calls, 3000);
+  assert.ok(JSON.stringify(chattyRecord.messages).length < research.LIMITS.previewChars + 512 * 1024);
+
+  // Battle texts draw from the same budget, while lanes, models and votes stay.
+  const longBattle = battlePayload();
+  longBattle.battles = Array.from({ length: 30 }, (_, i) => Object.assign({}, battlePayload().battles[0], {
+    evaluation_id: "e-" + i,
+    contestants: battlePayload().battles[0].contestants.map(c => Object.assign({}, c, { response: "r".repeat(100000) }))
+  }));
+  const battleRecord = research.buildRecord(JSON.stringify(longBattle), {});
+  assert.equal(battleRecord.preview_truncated, true);
+  assert.equal(battleRecord.battles.length, 30);
+  assert.equal(battleRecord.turns, 30);
+  assert.equal(battleRecord.models.join("|"), "alpha-1|beta-1", "models come from the last battle even past the budget");
+  assert.equal(battleRecord.vote_outcomes.length, 30);
+  assert.equal(battleRecord.battles[29].contestants[0].response, "", "late battle text is left to the archive");
+  assert.ok(JSON.stringify(battleRecord.battles).length < research.LIMITS.previewChars + 512 * 1024);
+
   console.log("Research projection passed: agent/battle shapes, bounded evidence, keys, hashes, and size limits.");
 })().catch(error => { console.error(error); process.exitCode = 1; });
