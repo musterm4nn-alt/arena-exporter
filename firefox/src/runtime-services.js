@@ -132,8 +132,41 @@ var AE = AE || {};
     return AE.writeArchiveFile(AE.ARCHIVE_DIR + "/" + entry.rel + "/_open-folder.txt",
       "Arena conversation archive. This file lets the extension open this folder.\n", { reveal: true });
   };
+  function researchMeta(record) {
+    return {
+      key: record.key, title: record.title, url: record.url, mode: record.mode, subtype: record.subtype,
+      rel: record.rel, updated_at: record.updated_at, conversation_at: record.conversation_at,
+      turns: record.turns, models: record.models, models_pending: record.models_pending,
+      completeness: record.completeness, warnings: record.warnings, counts: record.counts,
+      indexed_at: record.indexed_at, source: record.source, payload_bytes: record.payload_bytes,
+      payload_omitted: record.payload_omitted, vote_outcomes: record.vote_outcomes
+    };
+  }
+
+  function researchFilename(record, format) {
+    const mode = String(record && record.mode || "conversation").toLowerCase();
+    const prefix = mode === "agent" ? "arena_agent" : /^direct/.test(mode) ? "arena_direct" : /^side.by.side/.test(mode) ? "arena_side_by_side" : "arena_battle";
+    return prefix + "_library_" + AE.buildStamp() + (format === "markdown" ? ".md" : ".json");
+  }
+
+  async function researchExportData(keys) {
+    const items = [];
+    for (const key of (Array.isArray(keys) ? keys : []).slice(0, 12)) {
+      const item = await AE.researchStore.get(key);
+      if (!item || !item.record) { items.push({ key: key, error: "not_in_library" }); continue; }
+      if (!item.json) { items.push({ key: key, error: "payload_unavailable", title: item.record.title }); continue; }
+      let markdown = "";
+      try { markdown = AE.renderMarkdown(JSON.parse(item.json)); } catch (_) { markdown = ""; }
+      items.push({
+        key: item.record.key, title: item.record.title, rel: item.record.rel, mode: item.record.mode,
+        updated_at: item.record.updated_at, json: item.json, markdown: markdown
+      });
+    }
+    return items;
+  }
+
   AE.handleWorkspaceMessage = function (msg, sender, respond) {
-    if (!["AE_PREFERENCES", "AE_SET_PREFERENCES", "AE_SET_ARCHIVE_ENCRYPTION", "AE_UNLOCK_ARCHIVE_ENCRYPTION", "AE_LOCK_ARCHIVE_ENCRYPTION", "AE_LIBRARY", "AE_OPEN_ARCHIVED_FOLDER", "AE_DIAGNOSTICS"].includes(msg.type)) return false;
+    if (!["AE_PREFERENCES", "AE_SET_PREFERENCES", "AE_SET_ARCHIVE_ENCRYPTION", "AE_UNLOCK_ARCHIVE_ENCRYPTION", "AE_LOCK_ARCHIVE_ENCRYPTION", "AE_LIBRARY", "AE_OPEN_ARCHIVED_FOLDER", "AE_DIAGNOSTICS", "AE_RESEARCH_STATUS", "AE_RESEARCH_LIST", "AE_RESEARCH_SEARCH", "AE_RESEARCH_GET", "AE_RESEARCH_HAS", "AE_RESEARCH_INSIGHTS", "AE_RESEARCH_VERIFY", "AE_RESEARCH_IMPORT", "AE_RESEARCH_CLEAR", "AE_RESEARCH_REMOVE", "AE_RESEARCH_EXPORT", "AE_RESEARCH_EXPORT_DATA"].includes(msg.type)) return false;
     const page = String(sender && sender.url || "").split(/[?#]/)[0];
     if (!sender || sender.id !== chrome.runtime.id ||
         ![chrome.runtime.getURL("src/options.html"), chrome.runtime.getURL("src/popup.html")].includes(page)) {
@@ -156,8 +189,12 @@ var AE = AE || {};
         const encryptedPreferences = Object.assign({}, AE.preferences, { archiveEncryption: record });
         await storageSetLocal({ ae_preferences: encryptedPreferences });
         AE.preferences = encryptedPreferences;
+        let libraryCleared = false;
+        if (record.enabled && AE.researchStore) {
+          try { await AE.researchStore.clear(); libraryCleared = true; } catch (_) { /* the library reports its own state */ }
+        }
         AE.notifyUI();
-        return { ok: true, encryption: AE.archiveEncryption.status(), preferences: AE.publicPreferences() };
+        return { ok: true, encryption: AE.archiveEncryption.status(), preferences: AE.publicPreferences(), libraryCleared: libraryCleared };
       }
       if (msg.type === "AE_UNLOCK_ARCHIVE_ENCRYPTION") {
         if (!AE.archiveEncryption) throw new Error("Encrypted archives are unavailable in this runtime.");
@@ -174,6 +211,47 @@ var AE = AE || {};
       if (msg.type === "AE_PREFERENCES") return { ok: true, preferences: AE.publicPreferences(), encryption: AE.archiveEncryption ? AE.archiveEncryption.status() : null };
       if (msg.type === "AE_LIBRARY") return { ok: true, entries: await AE.libraryEntries() };
       if (msg.type === "AE_OPEN_ARCHIVED_FOLDER") return AE.openArchivedFolder(msg.key);
+      if (msg.type === "AE_RESEARCH_STATUS") return { ok: true, library: await AE.researchStore.status(), encryption: AE.archiveEncryption ? AE.archiveEncryption.status() : null };
+      if (msg.type === "AE_RESEARCH_LIST") return { ok: true, records: (await AE.researchStore.list()).map(researchMeta) };
+      if (msg.type === "AE_RESEARCH_SEARCH") {
+        const records = await AE.researchStore.list();
+        return Object.assign({ ok: true }, AE.search.search(records, msg.options || {}));
+      }
+      if (msg.type === "AE_RESEARCH_GET") {
+        const item = await AE.researchStore.get(msg.key);
+        if (!item || !item.record) throw new Error("This conversation is not in the local library.");
+        return { ok: true, record: item.record, has_payload: !!item.json };
+      }
+      if (msg.type === "AE_RESEARCH_HAS") return { ok: true, indexed: await AE.researchStore.has(msg.key) };
+      if (msg.type === "AE_RESEARCH_INSIGHTS") {
+        const records = await AE.researchStore.list();
+        return { ok: true, insights: AE.insights(records, { now: msg.now || new Date().toISOString() }), library: await AE.researchStore.status() };
+      }
+      if (msg.type === "AE_RESEARCH_VERIFY") {
+        const index = await AE.archiveIndexLoad();
+        return { ok: true, report: await AE.researchStore.verify(index) };
+      }
+      if (msg.type === "AE_RESEARCH_IMPORT") return Object.assign({ ok: true }, await AE.researchStore.importItems(msg.items || []));
+      if (msg.type === "AE_RESEARCH_CLEAR") return { ok: true, cleared: await AE.researchStore.clear() };
+      if (msg.type === "AE_RESEARCH_REMOVE") return { ok: true, removed: await AE.researchStore.remove(msg.keys || []) };
+      if (msg.type === "AE_RESEARCH_EXPORT_DATA") return { ok: true, items: await researchExportData(msg.keys) };
+      if (msg.type === "AE_DIAGNOSTICS") {
+        const diagnostics = AE.diagnostics();
+        try { diagnostics.library = await AE.researchStore.status(); } catch (_) { diagnostics.library = { available: false, blocked: false, count: 0, bytes: 0 }; }
+        return { ok: true, diagnostics: diagnostics };
+      }
+      if (msg.type === "AE_RESEARCH_EXPORT") {
+        const item = await AE.researchStore.get(msg.key);
+        if (!item || !item.record) throw new Error("This conversation is not in the local library.");
+        if (!item.json) throw new Error("The archived payload is unavailable. Index the archive folder again to export it.");
+        const format = msg.format === "markdown" ? "markdown" : "json";
+        const text = format === "markdown" ? AE.renderMarkdown(JSON.parse(item.json)) : item.json;
+        const filename = researchFilename(item.record, format);
+        const mime = format === "markdown" ? "text/markdown;charset=utf-8" : "application/json;charset=utf-8";
+        if (msg.save === false) return { ok: true, text: text, filename: filename, mime: mime };
+        const result = await downloadTextFile(filename, text, mime, true);
+        return Object.assign({ ok: true, filename: filename }, result);
+      }
       return { ok: true, diagnostics: AE.diagnostics() };
     }).then(respond, function (error) { respond({ ok: false, error: String(error.message || error) }); });
     return true;

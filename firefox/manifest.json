@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Arena Exporter",
-  "version": "2.2.2",
-  "description": "Your Arena conversations, kept. Capture, export and archive every turn, with optional private GitHub backup.",
+  "version": "3.0.0",
+  "description": "Keep your Arena conversations: capture every turn, read the archive offline, and back it up privately.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -49,6 +49,9 @@
       "src/encrypted-archive.js",
       "src/lib/page-data.js",
       "src/lib/normalize.js",
+      "src/lib/research.js",
+      "src/lib/search.js",
+      "src/lib/insights.js",
       "src/lib/evaluation-stream.js",
       "src/lib/vote.js",
       "src/lib/format.js",
@@ -63,6 +66,7 @@
       "src/downloads-sink.js",
       "src/native-sink.js",
       "src/backup-store.js",
+      "src/research-store.js",
       "src/github-backup.js",
       "src/turn-sync.js",
       "src/archive-folder.js",

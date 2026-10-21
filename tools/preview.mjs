@@ -19,4 +19,5 @@ const server=http.createServer((req,res)=>{
   res.setHeader('Content-Type',file.endsWith('.html')?'text/html; charset=utf-8':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':file.endsWith('.woff2')?'font/woff2':'application/octet-stream');
   res.end(bytes);
 });
-server.listen(Number(process.env.ARENA_PREVIEW_PORT||4178),'127.0.0.1',()=>console.log('Arena UI preview (synthetic data): http://127.0.0.1:'+server.address().port));
+const host=process.env.ARENA_PREVIEW_HOST||'127.0.0.1';
+server.listen(Number(process.env.ARENA_PREVIEW_PORT||4178),host,()=>{const shown=host==='0.0.0.0'||host==='::'?'127.0.0.1':host;console.log('Arena UI preview (synthetic data): http://'+shown+':'+server.address().port);});

@@ -84,11 +84,12 @@
         render(result.state, tab);
         if (ctx.snapshotError) U.feedback(ctx.snapshotError, "warning");
       }
-      const results = await Promise.all([U.send({ type: "AE_GITHUB_STATUS" }), U.send({ type: "AE_PREFERENCES" })]);
+      const results = await Promise.all([U.send({ type: "AE_GITHUB_STATUS" }), U.send({ type: "AE_PREFERENCES" }), U.send({ type: "AE_RESEARCH_STATUS" })]);
       const backup = results[0];
       U.setText("backup-status", AEView.backupLabel(backup));
       $("backup-dot").className = "dot " + (backup && backup.error ? "warn" : backup && backup.enabled ? "ok" : "idle");
       if (results[1] && results[1].ok) $("auto-archive").checked = results[1].preferences.autoArchive;
+      await renderLibraryState(results[2], tab);
     } catch (error) {
       U.setText("capture-text", "Check capture");
       $("status-dot").className = "dot error";
@@ -98,6 +99,37 @@
       refreshing = false;
     }
   }
+
+  async function renderLibraryState(status, tab) {
+    const library = status && status.ok ? status.library : null;
+    const key = tab && AEView.conversationKey(tab.url);
+    let indexed = false;
+    if (key) {
+      const lookup = await U.send({ type: "AE_RESEARCH_HAS", key: key });
+      indexed = !!(lookup && lookup.ok && lookup.indexed);
+    }
+    U.show("btn-read", indexed);
+    $("btn-read").disabled = !indexed;
+    let text = "Checking local library…";
+    let tone = "idle";
+    if (library && library.blocked) { text = "Local library off while encrypted"; tone = "warn"; }
+    else if (library && library.available === false) { text = "Local library unavailable"; tone = "warn"; }
+    else if (library) {
+      text = library.count ? U.number(library.count) + " conversation" + (library.count === 1 ? "" : "s") + " readable offline" : "No conversations readable offline yet";
+      tone = library.count ? "ok" : "idle";
+    }
+    U.setText("library-status", text);
+    $("library-dot").className = "dot " + tone;
+  }
+
+  U.on("library-status", "click", function () { U.openWorkspace("library"); });
+  U.on("btn-read", "click", async function () {
+    const tab = await U.activeTab();
+    const key = tab && AEView.conversationKey(tab.url);
+    if (!key) { U.feedback("Open the conversation in Arena first.", "error"); return; }
+    const url = chrome.runtime.getURL("src/options.html") + "?key=" + encodeURIComponent(key) + "#library";
+    chrome.tabs.create({ url: url });
+  });
 
   function updateExportLabel() {
     const format = $("export-format").value;

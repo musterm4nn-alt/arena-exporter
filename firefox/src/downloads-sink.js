@@ -434,6 +434,21 @@ var AE = AE || {};
                 skipped: skipped,
                 failed: res.failed
               };
+              if (AE.researchStore && !opts.encrypted) {
+                const jsonFile = (files || []).find(function (file) { return file && file.path === "conversation.json" && typeof file.content === "string"; });
+                if (jsonFile) {
+                  try {
+                    await AE.researchStore.indexArchive(payload, jsonFile.content, {
+                      source: "archive",
+                      rel: rel,
+                      updated_at: index[key].updated_at,
+                      subtype: index[key].subtype
+                    });
+                  } catch (error) {
+                    if (AE.recordIssue) AE.recordIssue("library", "index_failed");
+                  }
+                }
+              }
               if (AE.githubQueueArchive) await AE.githubQueueArchive(payload, files, result);
               return result;
             });

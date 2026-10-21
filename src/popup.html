@@ -10,7 +10,7 @@
       <span class="brand-mark" aria-hidden="true">✳</span>
       <span>ARENA<span class="brand-sub">EXPORTER</span></span>
     </a>
-    <div class="header-actions"><span id="version-badge" class="version">v2.2.2</span><button id="btn-settings" class="icon-button" title="Open preferences" aria-label="Open preferences"><span aria-hidden="true">⚙</span></button></div>
+    <div class="header-actions"><span id="version-badge" class="version">v3.0.0</span><button id="btn-settings" class="icon-button" title="Open preferences" aria-label="Open preferences"><span aria-hidden="true">⚙</span></button></div>
   </header>
   <main class="popup-main">
     <section class="conversation" aria-labelledby="conversation-title">
@@ -53,6 +53,8 @@
         <div class="archive-buttons"><button id="btn-sync" class="secondary grow">Save now</button><button id="btn-folder" class="secondary grow">Open folder <span aria-hidden="true">↗</span></button></div>
         <div class="storage-line"><i id="archive-dot" class="dot idle"></i><span id="sink-status">Downloads / arena-archive</span></div>
         <div class="storage-line"><i id="backup-dot" class="dot idle"></i><button id="backup-status" class="inline-link">Checking GitHub backup…</button></div>
+        <div class="storage-line"><i id="library-dot" class="dot idle"></i><button id="library-status" class="inline-link">Checking local library…</button></div>
+        <button id="btn-read" class="secondary wide hidden">Read in library ▤</button>
       </section>
 
       <details id="warnings" class="notice warning hidden"><summary id="warnings-summary">Capture notes</summary><ul id="warning-list"></ul></details>
@@ -64,7 +66,7 @@
     </div>
     <p id="progress-msg" class="feedback" role="status" aria-live="polite"></p>
   </main>
-  <footer class="popup-footer"><button id="btn-library" class="inline-link">Open archive workspace <span aria-hidden="true">↗</span></button><span class="muted small">LOCAL FIRST.</span></footer>
+  <footer class="popup-footer"><button id="btn-library" class="inline-link">Open archive workspace <span aria-hidden="true">↗</span></button><span class="muted small">LOCAL FIRST. READABLE OFFLINE.</span></footer>
   <script src="ui-model.js"></script><script src="ui-common.js"></script><script src="popup.js"></script>
 </body>
 </html>
