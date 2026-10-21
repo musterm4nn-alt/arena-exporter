@@ -1,6 +1,6 @@
-# 2.2.2 verification
+# 3.0.0 verification
 
-The local 2.2 overhaul is verified with the repository's deterministic JavaScript harness and project checks. The harness uses synthetic browser APIs; it is not evidence of live Arena capture.
+The local 3.0 overhaul is verified with the repository's deterministic JavaScript harness, a synthetic IndexedDB, and project checks. The harness uses synthetic browser APIs; it is not evidence of live Arena capture.
 
 ## Automated checks
 
@@ -14,9 +14,10 @@ This command:
 
 1. regenerates the Chrome and Firefox packages;
 2. runs every `tests/*.test.js` suite;
-3. validates manifest versions, local asset references, keyboard focus treatment, reduced-motion treatment, and required generated entry points.
+3. validates manifest versions, local asset references, keyboard focus treatment, reduced-motion treatment, required generated entry points, the pinned UI control inventory, and the export-schema fixture;
+4. runs the static lint gate.
 
-The current local run passes **28 JavaScript suites** plus the project check, schema check, and lint gate. Coverage includes:
+The current local run passes **35 JavaScript suites** plus the project check, schema check, and lint gate. Coverage includes:
 
 - Agent, Battle, Direct, and Side-by-Side multi-turn reconstruction;
 - failed retry → successful retry metadata;
@@ -32,7 +33,15 @@ The current local run passes **28 JavaScript suites** plus the project check, sc
 - encrypted archive verifier/key separation, unlock/decrypt behavior, migration refusal, and restart locking;
 - JSONL record generation and Markdown chunk streaming;
 - versioned export-schema contract validation;
-- Firefox ordered background loading and packaged manifest integrity.
+- Firefox ordered background loading and packaged manifest integrity;
+- transcript projection bounds and model/Battle/file extraction;
+- local search with AND terms, quoted phrases, exclusions, filters, scores, snippets, and limits;
+- local library indexing, replacement, byte accounting, hash verification states, folder import, removal, clear, and the encryption gate;
+- archive-folder import path mapping, six-file batching, 4 MiB skips, progress, and failure propagation;
+- Insights totals, activity buckets, votes, models, completeness, and tool usage;
+- deterministic ZIP structure, CRC-32, stored entries, UTF-8 flags, and bulk-manifest paths;
+- workspace pagination, debounced search, reader rendering, JSON/copy export, health findings, and bulk ZIP export;
+- local library clearing when archive encryption is enabled.
 
 ## UI verification
 
@@ -42,7 +51,7 @@ The popup and workspace are dependency-free HTML/CSS/JavaScript and use only bun
 npm run preview
 ```
 
-The preview is explicitly labeled and is not live capture. The automated UI harness verifies controller behavior, not a full accessibility audit or pixel-perfect rendering on every browser.
+The preview is explicitly labeled and is not live capture. It synthesises library records, search results, Insights, a verification report, and bulk-export payloads so the seven-view workspace can be reviewed without an Arena session. The automated UI harness verifies controller behavior, not a full accessibility audit or pixel-perfect rendering on every browser.
 
 ## Browser acceptance
 
@@ -74,6 +83,7 @@ This environment did not provide:
 - an installed Chrome/Firefox extension profile for a real capture run;
 - a Swift toolchain for the optional macOS package;
 - a real GitHub repository/network transaction;
-- Playwright/Chromium in the local Node installation.
+- Playwright/Chromium in the local Node installation;
+- real IndexedDB quota, eviction, or multi-profile behavior.
 
 Those limitations are intentional and must not be converted into product claims without a separate acceptance run.

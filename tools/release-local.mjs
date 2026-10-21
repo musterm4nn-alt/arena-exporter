@@ -123,7 +123,7 @@ try {
     generated_at: new Date().toISOString(),
     source: { commit: commit.ok ? commit.value : null, branch: branch.ok ? branch.value : null, dirty: status.ok ? Boolean(status.value) : null },
     runtime: { node: process.version, platform: process.platform, arch: process.arch },
-    features: { native_host: Boolean(nativeHost), encrypted_archives: true, streaming_jsonl: true, schema: "2.1" },
+    features: { native_host: Boolean(nativeHost), encrypted_archives: true, streaming_jsonl: true, local_library: true, full_text_search: true, bulk_export: true, schema: "2.1" },
     tests: skipTests ? "skipped by explicit flag" : "tools/run-tests.mjs passed",
     acceptance: runAcceptance ? (requireBrowser ? "required browser acceptance passed" : "acceptance command passed (browser may have been skipped)") : "not requested",
     artifacts,

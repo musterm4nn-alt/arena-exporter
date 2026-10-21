@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.0.0 — 2026-10-21
+
+Local library overhaul: archived conversations can now be searched, read, verified, and exported without returning to Arena.
+
+- Added a bounded offline library in IndexedDB (`arena-research`), populated inline after every plaintext archive write and by an archive-folder import in the workspace.
+- Added pure projection, search, and Insights modules (`src/lib/research.js`, `src/lib/search.js`, `src/lib/insights.js`) over the archived JSON, with exact payload retention for byte-identical exports and hash verification.
+- Rebuilt the archive workspace as a seven-view app (`Library`, `Reader`, `Insights`, `Library health`, `GitHub backup`, `Preferences`, `Diagnostics`) with hash routing and deep links (`#read/<key>`).
+- Added a transcript reader for Agent messages, reasoning, tool calls, Battle lanes, votes, and file metadata; captured content is rendered with text nodes only and query terms are highlighted.
+- Added full-text search with AND terms, quoted phrases, exclusions, mode/model/vote/date filters, optional reasoning/tool scope, relevance sorting, and bounded snippets.
+- Added library health: SHA-256 verification against the archive index, missing/orphaned/stale/mismatched reporting, orphan pruning, folder indexing, and library clearing.
+- Added deterministic bulk ZIP export of the current filtered list with `manifest.json`, per-file SHA-256 hashes, omitted-reason reporting, stored entries, and a 128 MiB cap.
+- Added per-conversation JSON/Markdown export and clipboard copy from the reader, plus popup status and a **Read in library** deep link.
+- Enabling archive encryption now clears the local library and blocks new plaintext indexing; disabling encryption does not resurrect old records.
+- Kept export schema 2.1, storage keys, archive layout, `_index.json`, GitHub backup, and encrypted bundle format unchanged. Existing archives can be indexed from disk.
+- Added seven new suites (projection, search, Insights, ZIP, library store, folder import, and workspace library UI) and rewrote the existing workspace UI coverage; the project now runs 35 JavaScript suites.
+
 ## 2.2.2 — 2026-09-24
 
 Refactor release: `const`/`let` across all extension modules (documented `var` exceptions only for cross-script globals and `vm`-surfaced names), guarded issue-recorder calls, UI control-inventory snapshot gate, and Arena DOM fixture coverage. No behavior, schema, storage, or UI changes.

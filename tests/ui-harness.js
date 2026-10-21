@@ -1,5 +1,6 @@
 // Exercises production document handlers; does not emulate visual layout.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const {webcrypto}=require('node:crypto');
 function documentFixture(html){
   const all=[],ids=new Map();
   function element(tag,attrs={}){
@@ -8,21 +9,25 @@ function documentFixture(html){
       classList:{add:(...c)=>c.forEach(x=>classes.add(x)),remove:(...c)=>c.forEach(x=>classes.delete(x)),contains:c=>classes.has(c),toggle:(c,b)=>{b=b===undefined?!classes.has(c):b;b?classes.add(c):classes.delete(c);return b;}},
       setAttribute(k,v){this.attributes[k]=String(v);if(k.startsWith('data-'))this.dataset[k.slice(5)]=String(v);},removeAttribute(k){delete this.attributes[k];},getAttribute(k){return this.attributes[k]??null;},
       addEventListener(k,fn){(this.listeners[k] ||= []).push(fn);},appendChild(c){this.children.push(c);return c;},append(...c){this.children.push(...c);},replaceChildren(...c){this.children=[...c];},
-      async fire(type='click',event={}){if(this.disabled)return;for(const fn of this.listeners[type]||[])await fn({target:this,preventDefault(){},...event});}};
+      async fire(type='click',event={}){if(this.disabled)return;for(const fn of this.listeners[type]||[])await fn({target:this,preventDefault(){},...event});},
+      click(){return this.fire('click');}};
     Object.entries(attrs).forEach(([k,v])=>{if(k.startsWith('data-'))e.dataset[k.slice(5)]=v;});
     Object.defineProperty(e,'className',{get:()=>[...classes].join(' '),set:v=>{classes.clear();String(v).split(/\s+/).filter(Boolean).forEach(c=>classes.add(c));}});
     all.push(e);if(e.id)ids.set(e.id,e);return e;
   }
   for(const m of html.matchAll(/<([a-z][\w-]*)\b([^>]*)>/gi)){const attrs={};for(const a of m[2].matchAll(/([\w-]+)(?:="([^"]*)")?/g))attrs[a[1]]=a[2]??'';element(m[1],attrs);}
   const query=s=>all.filter(e=>s[0]==='.'?e.classList.contains(s.slice(1)):s==='input[name="scope"]'?e.tagName==='INPUT'&&e.attributes.name==='scope':/^\[([\w-]+)\]$/.test(s)?s.slice(1,-1) in e.attributes:false);
-  return {getElementById:id=>ids.get(id)||null,createElement:tag=>element(tag),querySelectorAll:query,title:'',elements:ids,all};
+  return {getElementById:id=>ids.get(id)||null,createElement:tag=>element(tag),createTextNode:text=>({nodeType:3,textContent:String(text)}),querySelectorAll:query,title:'',elements:ids,all};
 }
 async function uiFixture(page='popup',options={}){
   const root=path.join(__dirname,'../src'),html=fs.readFileSync(path.join(root,page+'.html'),'utf8'),document=documentFixture(html),sent=[],opened=[],copied=[],listeners=[];
   let tab=options.tab||{id:55,url:'https://arena.ai/c/active-tab-uuid'};
   const state={conversationKey:'c:active-tab-uuid',title:'My conversation',mode:'battle',messageCount:2,blockCounts:{},endpoints:[],warnings:[],lastSync:null};
-  const defaults={AE_GET_STATE:{ok:true,state},AE_GITHUB_STATUS:{ok:true,connected:false,enabled:false,pending:0},AE_PREFERENCES:{ok:true,preferences:{autoArchive:true}},AE_LIBRARY:{ok:true,entries:options.entries||[]},AE_DIAGNOSTICS:{ok:true,diagnostics:{version:'2.1.0'}},AE_NATIVE_STATUS:{state:'missing'}};
-  const context=vm.createContext({console,URL,Blob,TextEncoder,TextDecoder,Uint8Array,btoa,atob,setTimeout,clearTimeout,document,location:{hash:'#library'},history:{replaceState:(_a,_b,hash)=>context.location.hash=hash},navigator:{clipboard:{writeText:async t=>copied.push(t)}},
+  const emptyLibrary={available:true,blocked:false,count:0,bytes:0,last_indexed_at:null,error:null};
+  const defaults={AE_GET_STATE:{ok:true,state},AE_GITHUB_STATUS:{ok:true,connected:false,enabled:false,pending:0},AE_PREFERENCES:{ok:true,preferences:{autoArchive:true}},AE_LIBRARY:{ok:true,entries:options.entries||[]},AE_DIAGNOSTICS:{ok:true,diagnostics:{version:'3.0.0'}},AE_NATIVE_STATUS:{state:'missing'},
+    AE_RESEARCH_STATUS:{ok:true,library:emptyLibrary,encryption:null},AE_RESEARCH_LIST:{ok:true,records:[]},AE_RESEARCH_SEARCH:{ok:true,results:[],total:0},AE_RESEARCH_HAS:{ok:true,indexed:false},AE_RESEARCH_EXPORT_DATA:{ok:true,items:[]}};
+  const URLShim=function(value,base){return base===undefined?new URL(value):new URL(value,base);};Object.assign(URLShim,{createObjectURL:()=>'blob:harness',revokeObjectURL:()=>{}});
+  const context=vm.createContext({console,URL:URLShim,Blob,TextEncoder,TextDecoder,Uint8Array,btoa,atob,setTimeout:(fn,ms)=>{const t=setTimeout(fn,ms);if(t.unref)t.unref();return t;},clearTimeout,document,location:{hash:'#library'},history:{replaceState:(_a,_b,hash)=>context.location.hash=hash},crypto:webcrypto,confirm:()=>true,navigator:{clipboard:{writeText:async t=>copied.push(t)},storage:{estimate:async()=>({quota:100*1024*1024})}},
     chrome:{runtime:{id:'test',lastError:null,getManifest:()=>({version:'2.1.0'}),getURL:p=>'chrome-extension://test/'+p,onMessage:{addListener:fn=>listeners.push(fn)},sendMessage:(m,cb)=>{sent.push(m);const res=options.respond?options.respond(m):undefined;Promise.resolve(res??defaults[m.type]??{ok:true,json:'{"capture":true}',filename:'test.json'}).then(cb);}},
       tabs:{query:async()=>[tab],create:async o=>opened.push(o),sendMessage:(_id,m,cb)=>cb(options.tabRespond?options.tabRespond(m):m.type==='AE_DOM_SNAPSHOT'?{url:options.snapshotUrl||tab.url,messages:[]}:{ok:true})},storage:{onChanged:{addListener:()=>{}},local:{get:(keys,cb)=>cb?cb({}):Promise.resolve({})}},permissions:{request:(_p,cb)=>cb(true)},downloads:{setUiOptions:()=>{}}}});
   context.window=context;context.addEventListener=()=>{};

@@ -70,7 +70,7 @@ async function httpSmoke() {
     if (!options.includes("Your archive, in one place.") || !options.includes("GitHub backup")) throw new Error("workspace landmarks missing");
     if (/<script[^>]+src="https?:\/\//i.test(popup + options)) throw new Error("remote script reference found");
     if ((await fetch(`${base}/src/../README.md`)).status !== 404) throw new Error("preview path traversal was not rejected");
-    for (const asset of ["src/popup.css", "src/ui-model.js", "src/ui-common.js", "src/popup.js", "src/options.js", "src/fonts/DepartureMono-Regular.woff2"]) {
+    for (const asset of ["src/popup.css", "src/ui-model.js", "src/ui-common.js", "src/popup.js", "src/options.js", "src/reader-view.js", "src/research-import.js", "src/lib/zip.js", "src/lib/bulk.js", "src/fonts/DepartureMono-Regular.woff2"]) {
       await getText(`${base}/${asset}`);
     }
     console.log(`HTTP acceptance passed at ${base}`);

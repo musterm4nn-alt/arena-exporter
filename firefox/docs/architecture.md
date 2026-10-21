@@ -13,7 +13,10 @@ Arena Exporter is a local-first Manifest V3 extension. There is no application s
 7. **Native host** — `macos/ArenaArchive/Sources/NativeHost` implements browser stdio framing; `NativeHostCore` owns protocol validation and safe writes. `tools/install-native-host.mjs` installs a local browser manifest.
 8. **Backup** — `src/backup-store.js` stores a credential-free IndexedDB outbox; `src/github-backup.js` uploads the newest snapshot for each conversation to a configured private repository.
 9. **Streaming and schema** — `src/streaming-export.js` emits JSONL/Markdown chunks; `schemas/export-2.1.schema.json` defines the compatibility contract.
-10. **Interface** — `src/popup.*` and `src/options.*` are dependency-free controllers over the same explicit message boundary.
+10. **Local library** — `src/research-store.js` owns IndexedDB `arena-research`; `src/lib/research.js` projects archived JSON into bounded records; `src/lib/search.js` and `src/lib/insights.js` are pure readers over those records. Plaintext archive writes index inline from `src/downloads-sink.js`; the library is unavailable while archive encryption is enabled.
+11. **Offline workspace** — `src/options.*` routes `#library`, `#read/<key>`, `#insights`, `#health`, `#backup`, `#preferences`, and `#diagnostics`; `src/reader-view.js` renders transcripts and findings with text nodes only; `src/research-import.js` indexes an existing archive folder.
+12. **Bulk export** — the workspace asks the background for stored payloads (`AE_RESEARCH_EXPORT_DATA`), then builds a deterministic stored-entry ZIP in the page with `src/lib/zip.js` and a SHA-256 manifest from `src/lib/bulk.js`.
+13. **Interface** — `src/popup.*` and `src/options.*` are dependency-free controllers over the same explicit message boundary.
 
 ## Compatibility rules
 
@@ -22,6 +25,8 @@ Arena Exporter is a local-first Manifest V3 extension. There is no application s
 - Export schema remains `2.1` for existing consumers.
 - `ae_store_v2`, legacy `ae_state_v1`, archive paths, `_index.json`, and destination-specific hashes remain readable.
 - Runtime/UI additions are additive; identifiers are never reinterpreted as model identity.
+- The 3.0 local library is an additive cache: archive folders, `_index.json`, schema 2.1, and existing storage keys stay authoritative.
+- Enabling archive encryption clears the local library and disables new indexing; no plaintext index is kept beside sealed archives.
 - Generated `src/injected-*.js` and `firefox/` files are outputs, not hand-edited source.
 
 ## Capture correctness
@@ -35,4 +40,4 @@ Arena Exporter is a local-first Manifest V3 extension. There is no application s
 
 ## Local verification limits
 
-The JavaScript harness simulates browser APIs and storage. It does not establish live Arena compatibility, native-host installation, browser-store behavior, or a real GitHub network transaction. Those claims require explicit acceptance runs.
+The JavaScript harness simulates browser APIs and storage. It does not establish live Arena compatibility, native-host installation, browser-store behavior, or a real GitHub network transaction. Library tests use a synthetic IndexedDB implementation; real quota, eviction, and multi-profile behavior still require a browser acceptance run. Those claims require explicit acceptance runs.

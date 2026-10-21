@@ -41,6 +41,9 @@ const MODERN_FILES = new Set([
   "src/content.js", "src/options.js", "src/encrypted-archive.js",
   "src/export-builder.js", "src/ui-common.js", "src/runtime-services.js",
   "src/archive-layout.js", "src/downloads-sink.js", "src/message-router.js",
+  "src/lib/research.js", "src/lib/search.js", "src/lib/insights.js",
+  "src/lib/zip.js", "src/lib/bulk.js", "src/research-store.js",
+  "src/reader-view.js", "src/research-import.js",
   "src/github-backup.js", "src/native-sink.js", "src/lib/normalize.js",
   "src/lib/dom-extract.js", "src/interceptor.js", "src/session-store.js",
   "src/battles.js", "src/capture.js", "src/history-backfill.js"

@@ -28,7 +28,7 @@ const plain=x=>JSON.parse(JSON.stringify(x)),tick=()=>new Promise(r=>setImmediat
   assert.equal(markdown.ok,true);assert.match(markdown.filename,/\.md$/);assert.ok(markdown.text.includes('Current answer'));assert.ok(!markdown.text.includes('Old prompt'));
   const clean=w.context.AE.redactSecretText('Bearer abc_DEF_0123456789 sk-proj-abcdefghijklmnopqrstuvwxyz token=eyJabcdefghijk.abc_def.abcdefgh');
   assert.ok(!clean.includes('abc_DEF')&&!clean.includes('sk-proj-')&&!clean.includes('eyJ'));assert.equal(w.context.AE.redactSecretText(clean),clean);
-  const diag=plain((await w.send({type:'AE_DIAGNOSTICS'},null)).diagnostics);assert.ok(!JSON.stringify(diag).includes('Target only'));assert.ok(!JSON.stringify(diag).includes('c:cache'));
+  const diag=plain((await w.send({type:'AE_DIAGNOSTICS'},null)).diagnostics);assert.ok(!JSON.stringify(diag).includes('Target only'));assert.ok(!JSON.stringify(diag).includes('c:cache'));assert.equal(diag.library.available,false,'diagnostics report library availability without content');
   let release;const commits=[],storage=fakeStorageArea();storage.set=obj=>new Promise(resolve=>{commits.push(plain(obj));release=resolve;});
   const q=worker({session:storage});await q.ready();q.context.store.sessions.default.session.title='first';const one=q.context.flushSave();await tick();
   q.context.store.sessions.default.session.title='second';const two=q.context.flushSave();await tick();assert.equal(commits.length,1);release();await one;await tick();assert.equal(commits.length,2);
